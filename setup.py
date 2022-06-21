@@ -6,8 +6,8 @@ with open("README.md", "r") as f:
 setup(
     name='megaton',
     version='0.0.1',
-    author='Mak Shimizu',
-    author_email='mak@fish.razor.jp',
+    author='Makoto Shimizu',
+    author_email='aa.analyst.ga@gmail.com',
     description='Utilities for Google Analytics, Google Analytics 4 and Google Cloud Platform.',
     long_description=readme,
     long_description_content_type='ext/markdown',

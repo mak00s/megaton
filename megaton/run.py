@@ -1,17 +1,17 @@
 """run megaton"""
 
 from IPython.display import clear_output
+import os
 from time import sleep
 
-from kora import os
 
 # install packages for GA4
 try:
     from google.analytics.data import BetaAnalyticsDataClient
 except ModuleNotFoundError:
     print("Installing packages for GA4")
-    from megaton.install import ga4
-    from megaton.update import google_api_core
+    from .install import ga4
+    from .update import google_api_core
 
     clear_output()
     # print("Runtime is now restarting...")
