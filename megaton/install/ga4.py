@@ -1,4 +1,4 @@
-from kora import os
+import os
 
 # install packages for GA4
 os.system("pip install -U -q google-analytics-admin")
