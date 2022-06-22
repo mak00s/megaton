@@ -4,6 +4,8 @@ from IPython.display import clear_output
 import os
 from time import sleep
 
+from . import gdrive
+
 
 # install packages for GA4
 try:
@@ -20,4 +22,5 @@ except ModuleNotFoundError:
     sleep(0.5)
     os._exit(0)  # restart
 else:
+    gdrive.link_nbs()
     print("準備ができました。")
