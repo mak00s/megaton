@@ -11,6 +11,7 @@ try:
     # check if packages for GA4 are installed
     from google.analytics.data import BetaAnalyticsDataClient
 except ModuleNotFoundError:
+    clear_output()
     print("Installing packages for GA4...")
     from .install import ga4
     clear_output()

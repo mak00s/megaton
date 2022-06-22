@@ -8,6 +8,7 @@ import os
 
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 _REQUIRED_CONFIG_KEYS = frozenset(("auth_uri", "token_uri", "client_id"))
 LOGGER = logging.getLogger(__name__)
@@ -126,5 +127,5 @@ def _get_oauth_redirect(client_secret_file: str, scopes: list):
 
 
 def _get_token(flow, code: str):
-    flow.getch_token(code=code)
+    flow.fetch_token(code=code)
     return flow.credentials
