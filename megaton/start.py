@@ -6,15 +6,12 @@ import os
 import sys
 from time import sleep
 
-from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
-
-from . import auth, constants, errors, ga3, ga4, widgets
-
 _in_colab = "google.colab" in sys.modules
 
 try:
     # check if packages for GA4 are installed
     from google.analytics.data import BetaAnalyticsDataClient
+    from google.analytics.admin import AnalyticsAdminServiceClient
 except ModuleNotFoundError:
     clear_output()
     print("Installing packages for GA4...")
@@ -26,6 +23,10 @@ except ModuleNotFoundError:
     print("もう一度このセルを実行してください。")
     sleep(0.5)
     os._exit(0)  # restart
+
+from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
+
+from . import auth, constants, errors, ga3, ga4, widgets
 
 if _in_colab:
     # mount google drive
