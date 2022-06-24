@@ -99,8 +99,8 @@ class MegatonGA4(object):
             LOGGER.warn(sys.exc_info()[1])
             # raise
         except Exception as e:
-            # type, value, _ = sys.exc_info()
-            # LOGGER.error(value)
+            type, value, _ = sys.exc_info()
+            LOGGER.error(value)
             raise e
         else:
             results = []
