@@ -1,2 +1,2 @@
 # megaton
-useful tools for data anlysts
+useful tools for data analysts
