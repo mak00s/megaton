@@ -155,7 +155,7 @@ def load_service_account_credentials_from_file(path: str, scopes: list):
             credentials.refresh(request)
         except google.auth.exceptions.RefreshError as exc:
             # Credentials could be expired or revoked.
-            LOGGER.debug("Error refreshing credentials: {}".format(str(exc)))
+            LOGGER.error("Error refreshing credentials: {}".format(str(exc)))
             return None
 
     return credentials
