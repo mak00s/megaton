@@ -2,7 +2,7 @@
 Functions for widgets (forms)
 """
 
-from ipywidgets import Dropdown, Layout, Output
+from ipywidgets import Dropdown, HTML, Layout, Output, Text
 from typing import List, Tuple
 
 
@@ -38,16 +38,33 @@ def menu_for_credentials(json_files: dict):
     )
 
 
+def html_text(value: str, placeholder: str, description: str):
+    return HTML(
+        value=value,
+        placeholder=placeholder,
+        description=description
+    )
+
+
+def input_text(value: str, placeholder: str, description: str, disabled: bool = False):
+    return Text(
+        value=value,
+        placeholder=placeholder,
+        description=description,
+        disabled=disabled
+    )
+
+
 #######
-def create_menu(options: dict, label=None):
-    opt = [(d['name'], d['id']) for d in options]
-    return dropdown_menu(label, 'Please select', opt)
-
-
-def create_ga_account_property_menu(accounts):
-    # opt = [(d['name'], d['id']) for d in accounts]
-    # menu1 = dropdown_menu('Account', 'Please select', opt)
-    menu1 = create_menu(accounts, label='Account')
-    menu2 = dropdown_menu('Property', '---')
-    menu3 = dropdown_menu('View', '---')
-    return menu1, menu2, menu3
+# def create_menu(options: dict, label=None):
+#     opt = [(d['name'], d['id']) for d in options]
+#     return dropdown_menu(label, 'Please select', opt)
+#
+#
+# def create_ga_account_property_menu(accounts):
+#     # opt = [(d['name'], d['id']) for d in accounts]
+#     # menu1 = dropdown_menu('Account', 'Please select', opt)
+#     menu1 = create_menu(accounts, label='Account')
+#     menu2 = dropdown_menu('Property', '---')
+#     menu3 = dropdown_menu('View', '---')
+#     return menu1, menu2, menu3
