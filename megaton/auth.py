@@ -5,8 +5,10 @@ Functions for handling Authentications
 import json
 import logging
 import os
+from collections import defaultdict
 
 from google.oauth2 import service_account
+import google.oauth2.credentials
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
@@ -69,6 +71,20 @@ def get_client_secrets_type_from_file(json_file: str):
     return get_client_secrets_type(client_config)
 
 
+def get_credentials_files_from(json_dir: str):
+    """Gets a list of valid credentials json files from a directory recursively"""
+    json_files = defaultdict(lambda: {})
+    for root, dirs, files in os.walk(json_dir):
+        for file in files:
+            if file.endswith('.json'):
+                client_type = get_client_secrets_type_from_file(os.path.join(root, file))
+                if client_type == 'service_account':
+                    json_files['Service Account'][file] = os.path.join(root, file)
+                elif client_type in ['installed', 'web']:
+                    json_files['OAuth'][file] = os.path.join(root, file)
+    return json_files
+
+
 def get_client_secrets_from_dir(json_dir: str):
     """Gets a list of valid client secrets json files from a directory recursively"""
     client_secrets = []
@@ -129,3 +145,17 @@ def _get_oauth_redirect(client_secret_file: str, scopes: list):
 def _get_token(flow, code: str):
     flow.fetch_token(code=code)
     return flow.credentials
+
+
+def load_service_account_credentials_from_file(path: str, scopes: list):
+    credentials = service_account.Credentials.from_service_account_file(path, scopes=scopes)
+    if not credentials.valid:
+        request = google.auth.transport.requests.Request()
+        try:
+            credentials.refresh(request)
+        except google.auth.exceptions.RefreshError as exc:
+            # Credentials could be expired or revoked.
+            LOGGER.debug("Error refreshing credentials: {}".format(str(exc)))
+            return None
+
+    return credentials

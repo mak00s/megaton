@@ -18,3 +18,4 @@ def link_nbs():
     # add path if not already
     if '/nbs' not in sys.path:
         sys.path.insert(5, '/nbs')  # before dist-packages
+    return '/nbs'
