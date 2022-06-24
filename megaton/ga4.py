@@ -102,6 +102,7 @@ class MegatonGA4(object):
             type, value, _ = sys.exc_info()
             LOGGER.error(type)
             LOGGER.error(value)
+            print(f"type={type}, value={value}")
             raise
         else:
             results = []

@@ -81,7 +81,7 @@ class GoogleApi(object):
                 self.log.error(message)
                 raise
             else:
-                self.log.warn(f"got HttpError (content={data}")
+                self.log.warning(f"got HttpError (content={data}")
                 raise
         except BrokenPipeError:
             self.log.info("BrokenPipeError occurred but attempting to retry")
