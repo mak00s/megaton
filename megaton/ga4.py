@@ -100,8 +100,9 @@ class MegatonGA4(object):
             # raise
         except Exception as e:
             type, value, _ = sys.exc_info()
+            LOGGER.error(type)
             LOGGER.error(value)
-            raise e
+            raise
         else:
             results = []
             for i in results_iterator:
