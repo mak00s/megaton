@@ -76,18 +76,27 @@ class Megaton:
     def build_ga_clients(self):
         self.ga = {}
         # GA4
-        client = ga4.MegatonGA4(self.creds)
-        if client.accounts:
-            self.ga['4'] = client
-        else:
-            logger.warning("GA4はアカウントが無いのでスキップします")
+        try:
+            client = ga4.MegatonGA4(self.creds)
+            if client.accounts:
+                self.ga['4'] = client
+            else:
+                logger.warning("GA4はアカウントが無いのでスキップします。")
+        except errors.ApiDisabled as e:
+            logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
         # UA
         if self.use_ga3:
             try:
-                self.ga['3'] = ga3.MegatonUA(
+                client = ga3.MegatonUA(
                     self.creds,
                     credential_cache_file=auth.get_cache_filename_from_json(self.json)
                 )
+                if client.accounts:
+                    self.ga['3'] = client
+                else:
+                    logger.warning("UAはアカウントが無いのでスキップします")
+            except errors.ApiDisabled as e:
+                logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
             except errors.NoDataReturned:
                 logger.warning("UAはアカウントが無いのでスキップします")
 
