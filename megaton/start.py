@@ -85,9 +85,9 @@ class Megaton:
         except errors.ApiDisabled as e:
             logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
         except AttributeError as e:
-            print(e)
-            import json
-            json.loads(e)
+            value = sys.exc_info()[1]
+            if "'NoneType' object has no attribute 'from_call'" in value:
+                logger.warning(f"GCPプロジェクトでGA4のAPIを有効化してください")
         # UA
         if self.use_ga3:
             try:
