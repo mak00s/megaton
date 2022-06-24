@@ -84,6 +84,10 @@ class Megaton:
                 logger.warning("GA4はアカウントが無いのでスキップします。")
         except errors.ApiDisabled as e:
             logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
+        except AttributeError as e:
+            print(e)
+            import json
+            json.loads(e)
         # UA
         if self.use_ga3:
             try:
