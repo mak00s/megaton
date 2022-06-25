@@ -245,10 +245,17 @@ class MegatonGA4(object):
                     if reason == 'SERVICE_DISABLED':
                         LOGGER.error("GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。")
                 message = getattr(e, 'message', repr(e))
-                LOGGER.warn(message)
-            except Exception as e:
-                LOGGER.error(e)
-                raise e
+                LOGGER.warning(message)
+            except AttributeError as e:
+                try:
+                    reason = e.__context__.code().value[1]
+                    message = e.__context__.details()
+                    if reason == 'permission denied':
+                        LOGGER.error(f"GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。{message}")
+                    else:
+                        LOGGER.error(message)
+                except:  # noqa
+                    raise
             else:
                 dimensions = []
                 for i in response.dimensions:
