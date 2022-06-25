@@ -78,7 +78,7 @@ class MegatonGA4(object):
             results_iterator = self.admin_client.list_account_summaries()
         except PermissionDenied as e:
             message = getattr(e, 'message', repr(e))
-            LOGGER.warn(message)
+            # LOGGER.warn(message)
             m = re.search(r'reason: "([^"]+)', str(sys.exc_info()[1]))
             if m:
                 reason = m.group(1)
@@ -95,13 +95,13 @@ class MegatonGA4(object):
             LOGGER.error("認証に失敗しました。")
             self.credentials = None
             LOGGER.warn(sys.exc_info()[1])
-            # raise
-        except Exception as e:
-            type, value, _ = sys.exc_info()
-            LOGGER.error(type)
-            LOGGER.error(value)
-            print(f"type={type}, value={value}")
             raise
+        # except Exception as e:
+        #     type_, value, _ = sys.exc_info()
+        #     LOGGER.error(type_)
+        #     LOGGER.error(value)
+        #     # print(f"type={type}, value={value}")
+        #     raise
         else:
             results = []
             for i in results_iterator:
@@ -246,14 +246,17 @@ class MegatonGA4(object):
                         LOGGER.error("GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。")
                 message = getattr(e, 'message', repr(e))
                 LOGGER.warning(message)
+                raise errors.ApiDisabled(message, "Google Analytics Data API")
             except AttributeError as e:
                 try:
                     reason = e.__context__.code().value[1]
                     message = e.__context__.details()
                     if reason == 'permission denied':
                         LOGGER.error(f"GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。{message}")
+                        raise errors.ApiDisabled(message, "Google Analytics Data API")
                     else:
                         LOGGER.error(message)
+                        raise
                 except:  # noqa
                     raise
             else:
