@@ -2,15 +2,15 @@
 Functions for Google Analytics 4 API
 """
 
+import logging
+import re
+import sys
 from collections import OrderedDict
 from datetime import datetime
 from typing import Optional
-import logging
+
 import pandas as pd
 import pytz
-import re
-import sys
-
 from google.analytics.admin import AnalyticsAdminServiceClient
 from google.analytics.admin_v1alpha.types import CustomDimension
 from google.analytics.admin_v1alpha.types import CustomMetric
@@ -23,21 +23,19 @@ from google.analytics.data_v1beta.types import Dimension
 from google.analytics.data_v1beta.types import Filter
 from google.analytics.data_v1beta.types import FilterExpression
 from google.analytics.data_v1beta.types import FilterExpressionList
-from google.analytics.data_v1beta.types import Metadata
 from google.analytics.data_v1beta.types import Metric
 from google.analytics.data_v1beta.types import MetricAggregation
 from google.analytics.data_v1beta.types import MetricType
 from google.analytics.data_v1beta.types import NumericValue
 from google.analytics.data_v1beta.types import OrderBy
 from google.analytics.data_v1beta.types import RunReportRequest
-from google.analytics.data_v1beta.types import RunReportResponse
 from google.api_core.exceptions import PermissionDenied
 from google.api_core.exceptions import ServiceUnavailable
 from google.api_core.exceptions import Unauthenticated
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 
-from . import errors, google_api, utils
+from . import errors, utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -464,7 +462,8 @@ class MegatonGA4(object):
                     return pd.DataFrame(res).sort_values(by=sort_values)
             return pd.DataFrame()
 
-        def create_custom_dimension(self, parameter_name: str, display_name: str, description: str, scope: str = 'EVENT'):
+        def create_custom_dimension(self, parameter_name: str, display_name: str, description: str,
+                                    scope: str = 'EVENT'):
             """Create custom dimension for the property."""
             try:
                 created_cd = self.parent.admin_client.create_custom_dimension(
@@ -982,6 +981,7 @@ def convert_ga4_type_to_bq_type(type):
         return 'FLOAT'
     elif type == 'double':
         return 'FLOAT'
+
 
 def convert_proto_datetime(dt):
     try:

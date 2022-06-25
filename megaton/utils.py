@@ -3,8 +3,9 @@ Common Functions
 """
 
 import os
-import pandas as pd
 import re
+
+import pandas as pd
 
 
 def is_integer(n):

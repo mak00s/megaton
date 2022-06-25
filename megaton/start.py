@@ -35,7 +35,6 @@ if _in_colab:
     json_path = gdrive.link_nbs()
 
 logger = logging.getLogger(__name__)
-required_scopes = constants.DEFAULT_SCOPES
 
 logger.debug("Notebookの準備ができました。")
 
@@ -69,7 +68,7 @@ class Megaton:
         elif os.path.isfile(path):
             # if file, auth with it
             logger.debug(f"auth with a file {path}")
-            self.creds = auth.load_service_account_credentials_from_file(path, required_scopes)
+            self.creds = auth.load_service_account_credentials_from_file(path, constants.DEFAULT_SCOPES)
             self.json = path
             self.select.ga()
 
@@ -147,15 +146,16 @@ class Megaton:
             self.parent = parent
             self.ver = ver
             self.accounts = accounts
-            # build menu of GA accounts
+            logging.debug(f"building menu for GA{ver}")
+            # build blank menus
             self.account_menu = self._get_account_menu()
             self.property_menu = self._get_property_menu()
-            self.view_menu = self._get_view_menu()
-            logging.info(f"building menu for GA{ver}")
-            # if self.ver == '3':
+            if self.ver == '3':
+                self.view_menu = self._get_view_menu()
+                self.view_menu.observe(self._view_menu_selected, names='value')
             self.property_menu.observe(self._property_menu_selected, names='value')
             self.account_menu.observe(self._account_menu_selected, names='value')
-
+            # update menu options
             self._update_account_menu()
 
         def _get_account_menu(self):
@@ -249,13 +249,13 @@ class Megaton:
                 if change.new:
                     creds_type = auth.get_client_secrets_type_from_file(change.new)
                     if creds_type in ['installed', 'web']:
-                        self.flow, auth_url = auth._get_oauth_redirect(change.new, required_scopes)
+                        self.flow, auth_url = auth._get_oauth_redirect(change.new, constants.DEFAULT_SCOPES)
                         self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcodeを以下に貼り付けてエンターを押してください</a>'
                         self.code_selector.layout.display = "block"
 
                     if creds_type in ['service_account']:
                         self.parent.creds = auth.load_service_account_credentials_from_file(change.new,
-                                                                                            required_scopes)
+                                                                                            constants.DEFAULT_SCOPES)
                         self.parent.json = change.new
                         self.parent.select.ga()
 

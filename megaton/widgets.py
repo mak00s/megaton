@@ -2,8 +2,9 @@
 Functions for widgets (forms)
 """
 
-from ipywidgets import Dropdown, HTML, Layout, Output, Tab, Text, VBox
 from typing import List, Tuple
+
+from ipywidgets import Dropdown, HTML, Output, Layout, Text
 
 
 def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] = []):
@@ -17,6 +18,11 @@ def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] =
         options.extend(option_list)
 
     return Dropdown(description=f"{label}: ", options=options)
+
+
+def create_blank_menu(name: str = None, default: str = None):
+    """空のセレクトメニューを作る"""
+    return dropdown_menu(label=name, default=default)
 
 
 def menu_for_credentials(json_files: dict):
@@ -64,22 +70,3 @@ def input_text(value: str, placeholder: str, description: str, disabled: bool = 
 #     tab_set.selected_index = 1
 #
 #     return tab_set
-
-
-def create_blank_menu(name: str = None, default: str = None):
-    """disable化された空のセレクトメニューを作る"""
-    return dropdown_menu(label=name, default=default)
-
-#######
-# def create_menu(options: dict, label=None):
-#     opt = [(d['name'], d['id']) for d in options]
-#     return dropdown_menu(label, 'Please select', opt)
-#
-#
-# def create_ga_account_property_menu(accounts):
-#     # opt = [(d['name'], d['id']) for d in accounts]
-#     # menu1 = dropdown_menu('Account', 'Please select', opt)
-#     menu1 = create_menu(accounts, label='Account')
-#     menu2 = dropdown_menu('Property', '---')
-#     menu3 = dropdown_menu('View', '---')
-#     return menu1, menu2, menu3
