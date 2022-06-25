@@ -84,7 +84,7 @@ class Megaton:
                 logger.warning("GA4はアカウントが無いのでスキップします。")
         except errors.ApiDisabled as e:
             logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
-        except AttributeError as e:
+        except AttributeError:
             value = sys.exc_info()[1]
             if value == "'NoneType' object has no attribute 'from_call'":
                 logger.warning(f"GCPプロジェクトでGA4のAPIを有効化してください")
@@ -152,8 +152,8 @@ class Megaton:
             self.property_menu = self._get_property_menu()
             self.view_menu = self._get_view_menu()
             logging.info(f"building menu for GA{ver}")
-            if self.ver == '3':
-                self.property_menu.observe(self._property_menu_selected, names='value')
+            # if self.ver == '3':
+            self.property_menu.observe(self._property_menu_selected, names='value')
             self.account_menu.observe(self._account_menu_selected, names='value')
 
             self._update_account_menu()
@@ -199,13 +199,14 @@ class Megaton:
             property_id = change.new
             self.parent.ga[self.ver].property.select(property_id)
             # 選択肢が変更されたら
-            if property_id:
-                # 選択されたGAプロパティに紐付くGAビューを得る
-                views = [d for d in self.parent.ga[self.ver].property.views if d['property_id'] == property_id]
-                # メニューの選択肢を更新
-                self.view_menu.options = [(d['name'], d['id']) for d in views]
-            else:
-                self.view_menu.options = []
+            if self.ver == '3':
+                if property_id:
+                    # 選択されたGAプロパティに紐付くGAビューを得る
+                    views = [d for d in self.parent.ga[self.ver].property.views if d['property_id'] == property_id]
+                    # メニューの選択肢を更新
+                    self.view_menu.options = [(d['name'], d['id']) for d in views]
+                else:
+                    self.view_menu.options = []
 
         def _view_menu_selected(self, change):
             view_id = change.new
@@ -269,6 +270,7 @@ class Megaton:
                         self.code_selector.layout.display = "none"
                         self.parent.json = change.new
                         self.parent.select.ga()
+                        self.reset()
                     except InvalidGrantError:
                         logging.error("正しいフォーマットのauthorization codeを貼り付けてください")
 
