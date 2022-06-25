@@ -2,15 +2,15 @@
 Functions for Google Analytics 3 (Universal Analytics) API
 """
 
-from typing import Optional
 import json
 import logging
-import pandas as pd
 import re
 import sys
+from typing import Optional
 
-from googleapiclient import errors as err
+import pandas as pd
 from google.oauth2.credentials import Credentials
+from googleapiclient import errors as err
 
 from . import constants, errors, ga4, google_api, utils
 
@@ -168,7 +168,7 @@ class MegatonUA(ga4.MegatonGA4):
             return results
 
         def _update(self):
-            #self.clear()
+            # self.clear()
             self.get_info()
             # self.get_available()  # Metadata API is not implemented
 
