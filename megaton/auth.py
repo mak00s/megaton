@@ -131,7 +131,7 @@ def delete_credentials(cache_file: str = "creden-cache.json"):
         os.remove(cache_file)
 
 
-def _get_oauth_redirect(client_secret_file: str, scopes: list):
+def get_oauth_redirect(client_secret_file: str, scopes: list):
     """Run OAuth2 Flow"""
     flow = InstalledAppFlow.from_client_secrets_file(
         client_secret_file,
@@ -142,7 +142,7 @@ def _get_oauth_redirect(client_secret_file: str, scopes: list):
     return flow, auth_url
 
 
-def _get_token(flow, code: str):
+def get_token(flow, code: str):
     flow.fetch_token(code=code)
     return flow.credentials
 
