@@ -6,7 +6,7 @@ import os
 import sys
 from time import sleep
 
-_in_colab = "google.colab" in sys.modules
+from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
 try:
     # check if packages for GA4 are installed
@@ -24,14 +24,12 @@ except ModuleNotFoundError:
     sleep(0.5)
     os._exit(0)  # restart
 
-from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
-
 from . import auth, constants, errors, ga3, ga4, widgets
 
+_in_colab = "google.colab" in sys.modules
 if _in_colab:
     # mount google drive
     from . import gdrive
-
     json_path = gdrive.link_nbs()
 
 logger = logging.getLogger(__name__)
@@ -83,10 +81,6 @@ class Megaton:
                 logger.warning("GA4はアカウントが無いのでスキップします。")
         except errors.ApiDisabled as e:
             logger.warning(f"GCPプロジェクトで{e.api}を有効化してください。")
-        # except AttributeError:
-        #     value = sys.exc_info()[1]
-        #     if value == "'NoneType' object has no attribute 'from_call'":
-        #         logger.warning(f"89: GCPプロジェクトでGA4のAPIを有効化してください?")
         # UA
         if self.use_ga3:
             try:
@@ -110,7 +104,6 @@ class Megaton:
     class Select:
         """ 選択するUIの構築と処理
         """
-
         def __init__(self, parent):
             self.parent = parent
             self.menu_ga = {}
@@ -141,7 +134,6 @@ class Megaton:
     class GaMenu:
         """ GAのアカウント・プロパティ（・ビュー）を選択するUI
         """
-
         def __init__(self, parent, ver: str, accounts: list):
             self.parent = parent
             self.ver = ver
@@ -249,7 +241,7 @@ class Megaton:
                 if change.new:
                     creds_type = auth.get_client_secrets_type_from_file(change.new)
                     if creds_type in ['installed', 'web']:
-                        self.flow, auth_url = auth._get_oauth_redirect(change.new, constants.DEFAULT_SCOPES)
+                        self.flow, auth_url = auth.get_oauth_redirect(change.new, constants.DEFAULT_SCOPES)
                         self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcodeを以下に貼り付けてエンターを押してください</a>'
                         self.code_selector.layout.display = "block"
 
@@ -263,9 +255,8 @@ class Megaton:
         def _code_entered(self, change):
             with self.log_text:
                 if change.new:
-                    # print(f"code is entered: {change.new}")
                     try:
-                        self.parent.creds = auth._get_token(self.flow, change.new)
+                        self.parent.creds = auth.get_token(self.flow, change.new)
                         self.code_selector.value = ''
                         self.code_selector.layout.display = "none"
                         self.parent.json = change.new
