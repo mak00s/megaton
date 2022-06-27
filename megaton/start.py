@@ -130,6 +130,8 @@ class Megaton:
                         self.menu_ga[ver].show()
                     except errors.NoDataReturned:
                         logger.error("選択された認証情報でアクセスできるアカウントがありません")
+                    except errors.ApiDisabled as e:
+                        logger.error(f"GCPプロジェクトで{e.api}を有効化してください")
 
     class GaMenu:
         """ GAのアカウント・プロパティ（・ビュー）を選択するUI
