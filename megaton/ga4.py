@@ -96,6 +96,18 @@ class MegatonGA4(object):
             self.credentials = None
             LOGGER.warn(sys.exc_info()[1])
             raise
+        except AttributeError as e:
+            try:
+                reason = e.__context__.code().value[1]
+                message = e.__context__.details()
+                if reason == 'permission denied':
+                    LOGGER.error(f"GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。{message}")
+                    raise errors.ApiDisabled(message, "Google Analytics Data API")
+                else:
+                    LOGGER.error(message)
+                    raise
+            except:  # noqa
+                raise
         # except Exception as e:
         #     type_, value, _ = sys.exc_info()
         #     LOGGER.error(type_)
