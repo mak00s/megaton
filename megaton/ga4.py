@@ -77,13 +77,13 @@ class MegatonGA4(object):
         try:
             results_iterator = self.admin_client.list_account_summaries()
         except PermissionDenied as e:
-            message = getattr(e, 'message', repr(e))
-            # LOGGER.warn(message)
             m = re.search(r'reason: "([^"]+)', str(sys.exc_info()[1]))
             if m:
                 reason = m.group(1)
                 if reason == 'SERVICE_DISABLED':
                     raise errors.ApiDisabled(message, 'Google Analytics Admin API')
+            message = getattr(e, 'message', repr(e))
+            LOGGER.error(f"APIを使う権限がありません。{message}")
         except ServiceUnavailable as e:
             value = str(sys.exc_info()[1])
             m = re.search(r"error: \('([^:']+): ([^']+)", value)
@@ -101,7 +101,6 @@ class MegatonGA4(object):
                 reason = e.__context__.code().value[1]
                 message = e.__context__.details()
                 if reason == 'permission denied':
-                    LOGGER.error(f"GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。{message}")
                     raise errors.ApiDisabled(message, "Google Analytics Data API")
                 else:
                     LOGGER.error(message)
@@ -250,21 +249,19 @@ class MegatonGA4(object):
             try:
                 response = self.parent.data_client.get_metadata(name=path)
             except PermissionDenied as e:
-                LOGGER.error("APIを使う権限がありません。")
                 m = re.search(r'reason: "([^"]+)', str(sys.exc_info()[1]))
                 if m:
                     reason = m.group(1)
                     if reason == 'SERVICE_DISABLED':
-                        LOGGER.error("GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。")
+                        raise errors.ApiDisabled(message, "Google Analytics Data API")
                 message = getattr(e, 'message', repr(e))
-                LOGGER.warning(message)
-                raise errors.ApiDisabled(message, "Google Analytics Data API")
+                LOGGER.error(f"APIを使う権限がありません。{message}")
             except AttributeError as e:
                 try:
                     reason = e.__context__.code().value[1]
                     message = e.__context__.details()
                     if reason == 'permission denied':
-                        LOGGER.error(f"GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。{message}")
+                        # LOGGER.error(f"GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。{message}")
                         raise errors.ApiDisabled(message, "Google Analytics Data API")
                     else:
                         LOGGER.error(message)
