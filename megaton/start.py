@@ -133,7 +133,7 @@ class Megaton:
                         del self.ga[ver]
                     except errors.ApiDisabled as e:
                         logger.error(f"GCPプロジェクトで{e.api}を有効化してください")
-                        del self.ga[ver]
+                        del self.parent.ga[ver]
 
     class GaMenu:
         """ GAのアカウント・プロパティ（・ビュー）を選択するUI

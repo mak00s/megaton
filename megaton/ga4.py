@@ -77,12 +77,12 @@ class MegatonGA4(object):
         try:
             results_iterator = self.admin_client.list_account_summaries()
         except PermissionDenied as e:
+            message = getattr(e, 'message', repr(e))
             m = re.search(r'reason: "([^"]+)', str(sys.exc_info()[1]))
             if m:
                 reason = m.group(1)
                 if reason == 'SERVICE_DISABLED':
                     raise errors.ApiDisabled(message, 'Google Analytics Admin API')
-            message = getattr(e, 'message', repr(e))
             LOGGER.error(f"APIを使う権限がありません。{message}")
         except ServiceUnavailable as e:
             value = str(sys.exc_info()[1])
@@ -249,12 +249,12 @@ class MegatonGA4(object):
             try:
                 response = self.parent.data_client.get_metadata(name=path)
             except PermissionDenied as e:
+                message = getattr(e, 'message', repr(e))
                 m = re.search(r'reason: "([^"]+)', str(sys.exc_info()[1]))
                 if m:
                     reason = m.group(1)
                     if reason == 'SERVICE_DISABLED':
                         raise errors.ApiDisabled(message, "Google Analytics Data API")
-                message = getattr(e, 'message', repr(e))
                 LOGGER.error(f"APIを使う権限がありません。{message}")
             except AttributeError as e:
                 try:
