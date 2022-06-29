@@ -48,7 +48,7 @@ class MegatonUA(ga4.MegatonGA4):
             message = data['error']['message']
             reason = data['error']['errors'][0]['reason']
             if status == 403:
-                if 'not have any Google' in message:
+                if 'not have any Google' in message or 'insufficientPermissions' in reason:
                     raise errors.NoDataReturned
                 elif 'accessNotConfigured' in reason or 'disabled' in message:
                     raise errors.ApiDisabled(message, "Google Analytics API")
