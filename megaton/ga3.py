@@ -415,7 +415,8 @@ class MegatonUA(ga4.MegatonGA4):
                     }
 
         def _format_filter(self, conditions: str, type='dimensions'):
-            """Convert legacy filters format from Core Reporting API v3 to DimensionFilterClause or MetricFilterClause object"""
+            """Convert legacy filters format from Core Reporting API v3
+             to DimensionFilterClause or MetricFilterClause object"""
             if not conditions:
                 return []
 
