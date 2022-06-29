@@ -94,7 +94,7 @@ class MegatonGA4(object):
         except Unauthenticated:
             LOGGER.error("認証に失敗しました。")
             self.credentials = None
-            LOGGER.warn(sys.exc_info()[1])
+            LOGGER.warning(sys.exc_info()[1])
             raise
         except AttributeError as e:
             try:
@@ -167,14 +167,13 @@ class MegatonGA4(object):
                 })
             except ServiceUnavailable as e:
                 # str(sys.exc_info()[1])
-                type, value, traceback = sys.exc_info()
-                LOGGER.debug(type)
+                type_, value, _ = sys.exc_info()
+                LOGGER.debug(type_)
                 LOGGER.debug(value)
-                LOGGER.debug(traceback)
                 raise e
-            except Exception as e:
-                # print(e)
-                raise e
+            # except Exception as e:
+            #     print(e)
+            #     raise e
             else:
                 results = []
                 for i in results_iterator:
@@ -261,10 +260,9 @@ class MegatonGA4(object):
                     reason = e.__context__.code().value[1]
                     message = e.__context__.details()
                     if reason == 'permission denied':
-                        # LOGGER.error(f"GCPのプロジェクトでGoogle Analytics Data APIを有効化してください。{message}")
                         raise errors.ApiDisabled(message, "Google Analytics Data API")
                     else:
-                        LOGGER.error(message)
+                        # LOGGER.error(message)
                         raise
                 except:  # noqa
                     raise
@@ -387,7 +385,7 @@ class MegatonGA4(object):
         def get_dimensions(self):
             self.get_available()
             if not self.api_custom_dimensions:
-                self.api_custom_dimensions = self.custom_dimensions()
+                self.api_custom_dimensions = self.custom_dimensions
             # integrate data
             new = []
             for m in self.api_metadata['dimensions']:
@@ -405,12 +403,12 @@ class MegatonGA4(object):
         def get_metrics(self):
             self.get_available()
             if not self.api_custom_metrics:
-                self.api_custom_metrics = self.custom_metrics()
+                self.api_custom_metrics = self.custom_metrics
             # integrate data
             new = []
             for m in self.api_metadata['metrics']:
                 dict = m.copy()
-                if m['customized'] == True:
+                if m['customized']:
                     for c in self.api_custom_metrics or {}:
                         if m['display_name'] == c['display_name']:
                             dict['description'] = c['description']

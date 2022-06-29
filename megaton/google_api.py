@@ -77,14 +77,14 @@ class GoogleApi(object):
                 self.log.debug("rate limit reached, sleeping for %s seconds", 2 ** retry_count)
                 time.sleep(2 ** retry_count)
                 return self.retry(service_method, retry_count + 1)
-            elif code == 403 and ("accessNotConfigured" in reason or 'disabled' in message):
-                self.log.debug(message)
-                raise
+            # elif code == 403 and ("accessNotConfigured" in reason or 'disabled' in message):
+            #     self.log.debug(message)
+            #     raise
             else:
                 self.log.debug(f"got HttpError (content={data}")
                 raise
         except BrokenPipeError:
-            self.log.info("BrokenPipeError occurred but attempting to retry")
+            self.log.debug("BrokenPipeError occurred but attempting to retry")
             return self.retry(service_method, retry_count + 1)
         except KeyboardInterrupt:
             raise

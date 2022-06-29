@@ -26,7 +26,7 @@ def create_blank_menu(name: str = None, default: str = None):
 
 
 def menu_for_credentials(json_files: dict):
-    options = [('選択して', '')]
+    options = [('GAにアクセスする認証情報を選択してください', '')]
 
     options.append(('OAuth', ''))
     for f, p in json_files['OAuth'].items():

@@ -129,10 +129,10 @@ class Megaton:
                         self.menu_ga[ver] = self.parent.GaMenu(self.parent, ver, self.parent.ga[ver].accounts)
                         self.menu_ga[ver].show()
                     except errors.NoDataReturned:
-                        logger.error("選択された認証情報でアクセスできるアカウントがありません")
+                        logger.warning("選択された認証情報でアクセスできるアカウントがありません")
                         del self.ga[ver]
                     except errors.ApiDisabled as e:
-                        logger.error(f"GCPプロジェクトで{e.api}を有効化してください")
+                        logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
                         del self.parent.ga[ver]
 
     class GaMenu:
