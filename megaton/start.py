@@ -91,11 +91,11 @@ class Megaton:
                 if client.accounts:
                     self.ga['3'] = client
                 else:
-                    logger.warning("UAはアカウントが無いのでスキップします")
+                    logger.warning("UAのアカウントがありません")
             except errors.ApiDisabled as e:
                 logger.warning(f"GCPプロジェクトで{e.api}を有効化してください。")
             except errors.NoDataReturned:
-                logger.warning("UAはアカウントが無いのでスキップします")
+                logger.warning("UAはアカウントが無いのでスキップします。")
 
     def reset_menu(self):
         self.auth_menu.reset()
