@@ -30,13 +30,17 @@ class MegatonUA(ga4.MegatonGA4):
             "v4",
             constants.DEFAULT_SCOPES,
             credentials=self.credentials,
-            credential_cache_file=self.credential_cache_file)
+            # credential_cache_file=self.credential_cache_file,
+            cache_discovery=False,
+        )
         self.admin_client = google_api.GoogleApi(
             "analytics",
             "v3",
             constants.DEFAULT_SCOPES,
             credentials=self.credentials,
-            credential_cache_file=self.credential_cache_file)
+            # credential_cache_file=self.credential_cache_file,
+            cache_discovery=False,
+        )
 
     def _update(self):
         """Returns account summaries accessible by the caller."""
