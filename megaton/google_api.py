@@ -63,16 +63,15 @@ class GoogleApi(object):
             return service_method.execute(num_retries=retry_count)
         except errors.HttpError as e:
             code = e.resp.get('code')
-            reason = ''
+            # reason = ''
             message = ''
             try:
                 data = json.loads(e.content.decode('utf-8'))
                 code = data['error']["code"]
                 message = data['error']['message']
-                reason = data['error']['errors'][0]['reason']
+                # reason = data['error']['errors'][0]['reason']
             except:  # noqa
                 pass
-
             if code == 403 and "rate limit exceeded" in message.lower():
                 self.log.debug("rate limit reached, sleeping for %s seconds", 2 ** retry_count)
                 time.sleep(2 ** retry_count)
