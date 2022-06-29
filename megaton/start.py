@@ -32,7 +32,7 @@ if _in_colab:
     from . import gdrive
     json_path = gdrive.link_nbs()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  #.setLevel(logging.ERROR)
 
 logger.debug("Notebookの準備ができました。")
 
