@@ -315,12 +315,10 @@ class Megaton:
 
         def table(self, df, rows: int = 10, include_index: bool = False):
             if _in_colab:
-                display(
-                    data_table.DataTable(
-                        df,
-                        include_index=include_index,
-                        num_rows_per_page=rows
-                    )
+                return data_table.DataTable(
+                    df,
+                    include_index=include_index,
+                    num_rows_per_page=rows
                 )
             try:
                 itables.show(df)
