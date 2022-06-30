@@ -29,6 +29,7 @@ from . import auth, constants, errors, ga3, ga4, widgets
 _in_colab = "google.colab" in sys.modules
 if _in_colab:
     from google.colab import data_table
+    data_table.enable_dataframe_formatter()
     # mount google drive
     from . import gdrive
     json_path = gdrive.link_nbs()
@@ -314,10 +315,12 @@ class Megaton:
 
         def table(self, df, rows: int = 10, include_index: bool = False):
             if _in_colab:
-                return data_table.DataTable(
-                    df,
-                    include_index=include_index,
-                    num_rows_per_page=rows
+                display(
+                    data_table.DataTable(
+                        df,
+                        include_index=include_index,
+                        num_rows_per_page=rows
+                    )
                 )
             try:
                 itables.show(df)
