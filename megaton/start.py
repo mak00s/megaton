@@ -313,9 +313,7 @@ class Megaton:
                 self.parent.table(df)
 
         def table(self, df, rows: int = 10, include_index: bool = False):
-            print(len(df))
             if _in_colab:
-                print("in colab")
                 return data_table.DataTable(
                     df,
                     include_index=include_index,
@@ -323,7 +321,5 @@ class Megaton:
                 )
             try:
                 itables.show(df)
-                print("iptables")
             except NameError:
-                print("normal display")
                 display(df)
