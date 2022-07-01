@@ -16,13 +16,7 @@ _REQUIRED_CONFIG_KEYS = frozenset(("auth_uri", "token_uri", "client_id"))
 LOGGER = logging.getLogger(__name__)
 
 
-def _is_service_account_json(json_file: str):
-    """Return true if the provided JSON file is for a service account."""
-    with open(json_file, 'r') as f:
-        return _is_service_account_key(f.read())
-
-
-def _is_service_account_key(json_text: str):
+def _is_service_account(json_text: str):
     """Return true if the provided text is a JSON service credentials file."""
     try:
         key_obj = json.loads(json_text)
@@ -33,7 +27,13 @@ def _is_service_account_key(json_text: str):
     return True
 
 
-def get_client_secrets_type(client_config: dict):
+def _is_service_account_json(json_path: str):
+    """Return true if the provided JSON file is for a service account."""
+    with open(json_path, 'r') as f:
+        return _is_service_account(f.read())
+
+
+def get_credential_type(client_config: dict):
     """Gets a client type from client configuration loaded from a Google-format client secrets file.
 
     Args:
@@ -56,28 +56,28 @@ def get_client_secrets_type(client_config: dict):
         return client_type
 
 
-def get_client_secrets_type_from_file(json_file: str):
+def get_credential_type_from_file(json_path: str):
     """Gets a client type from a Google client secrets file.
 
         Args:
-            json_file (str): The path to the client secrets .json file.
+            json_path (str): The path to the client secrets .json file.
 
         Returns:
             client_type [str]: The client type, either ``'service_account'`` or ``'web'`` or ``'installed'``
         """
-    with open(json_file, "r") as json_file:
-        client_config = json.load(json_file)
+    with open(json_path, "r") as json_path:
+        client_config = json.load(json_path)
 
-    return get_client_secrets_type(client_config)
+    return get_credential_type(client_config)
 
 
-def get_credentials_files_from(json_dir: str):
+def get_json_files_from_dir(json_dir: str):
     """Gets a list of valid credentials json files from a directory recursively"""
     json_files = defaultdict(lambda: {})
     for root, dirs, files in os.walk(json_dir):
         for file in files:
             if file.endswith('.json'):
-                client_type = get_client_secrets_type_from_file(os.path.join(root, file))
+                client_type = get_credential_type_from_file(os.path.join(root, file))
                 if client_type == 'service_account':
                     json_files['Service Account'][file] = os.path.join(root, file)
                 elif client_type in ['installed', 'web']:
@@ -85,42 +85,32 @@ def get_credentials_files_from(json_dir: str):
     return json_files
 
 
-def get_client_secrets_from_dir(json_dir: str):
-    """Gets a list of valid client secrets json files from a directory recursively"""
-    client_secrets = []
-    for root, dirs, files in os.walk(json_dir):
-        for file in files:
-            if file.endswith('.json'):
-                client_type = get_client_secrets_type_from_file(os.path.join(root, file))
-                if client_type == 'service_account':
-                    client_secrets.append({"type": client_type, "filename": file, "path": os.path.join(root, file)})
-                elif client_type in ['installed', 'web']:
-                    client_secrets.append({"type": "OAuth", "filename": file, "path": os.path.join(root, file)})
-
-    return client_secrets
+def get_cache_path(json_path: str):
+    """Gets the path to the Google user credentials based on the provided source file
+    """
+    dir_path = os.path.join(os.path.expanduser("~"), ".config")
+    os.makedirs(dir_path, exist_ok=True)
+    base_name = os.path.splitext(os.path.basename(json_path))[0]
+    return os.path.join(dir_path, f"cache_{base_name}.json")
 
 
-def get_cache_filename_from_json(source_file: str):
-    """Name cache file based on the provided source file"""
-    base_name = os.path.splitext(os.path.basename(source_file))[0]
-    return f".{base_name}_cached-cred.json"
-
-
-def save_credentials(cache_file: str, credentials: Credentials):
+def save_credentials(file_path: str, credentials: Credentials):
     """Save Credentials to cache file
     """
-    with open(cache_file, 'w') as w:
-        LOGGER.debug(f"saving credentials to {cache_file}")
+    cache_path = get_cache_path(file_path)
+    with open(cache_path, 'w') as w:
+        LOGGER.debug(f"saving credentials to {cache_path}")
         w.write(credentials.to_json())
     return credentials
 
 
-def load_credentials(cache_file: str, scopes: list):
+def load_credentials(file_path: str, scopes: list):
     """Load Credentials from cache file
     """
-    if os.path.isfile(cache_file):
-        LOGGER.debug(f"loading credentials from {cache_file}")
-        return Credentials.from_authorized_user_file(cache_file, scopes=scopes)
+    cache_path = get_cache_path(file_path)
+    if os.path.isfile(cache_path):
+        LOGGER.debug(f"loading credentials from {cache_path}")
+        return Credentials.from_authorized_user_file(cache_path, scopes=scopes)
 
 
 def delete_credentials(cache_file: str = "creden-cache.json"):
@@ -148,6 +138,12 @@ def get_token(flow, code: str):
 
 
 def load_service_account_credentials_from_file(path: str, scopes: list):
+    """Gets service account credentials from JSON file at ``path``.
+
+    :param path: Path to credentials JSON file.
+    :param scopes: A list of scopes to use when authenticating to Google APIs.
+    :return: google.oauth2.service_account.Credentials
+    """
     credentials = service_account.Credentials.from_service_account_file(path, scopes=scopes)
     if not credentials.valid:
         request = google.auth.transport.requests.Request()
@@ -157,5 +153,4 @@ def load_service_account_credentials_from_file(path: str, scopes: list):
             # Credentials could be expired or revoked.
             LOGGER.error("Error refreshing credentials: {}".format(str(exc)))
             return None
-
     return credentials
