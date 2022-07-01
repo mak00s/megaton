@@ -4,7 +4,7 @@ Functions for widgets (forms)
 
 from typing import List, Tuple
 
-from ipywidgets import Dropdown, HTML, Output, Layout, Text
+from ipywidgets import Dropdown, HTML, Output, Layout, Tab, Text, VBox
 
 
 def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] = []):
@@ -61,12 +61,12 @@ def input_text(value: str, placeholder: str, description: str, disabled: bool = 
     )
 
 
-# def tag_for_ga(ga: dict):
-#     tab1 = VBox([input_text("tab1", "please", "this")])
-#     tab2 = VBox([input_text("tab2", "please", "this")])
-#     tab_set = Tab([tab1, tab2])
-#     tab_set.set_title(0, 'UA')
-#     tab_set.set_title(1, 'GA4')
-#     tab_set.selected_index = 1
-#
-#     return tab_set
+def tab(ga: list):
+    return VBox(ga)
+
+
+def tab_set(tabs: list, titles: list):
+    return Tab(
+        children=tabs,
+        _titles={i: v for i, v in enumerate(titles)}
+    )
