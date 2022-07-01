@@ -16,8 +16,7 @@ _REQUIRED_CONFIG_KEYS = frozenset(("auth_uri", "token_uri", "client_id"))
 class GoogleApi(object):
     """Google API helper object"""
 
-    def __init__(self, api="oauth2", version="v2", scopes=None, *args,
-                 **kwargs):
+    def __init__(self, api="oauth2", version="v2", scopes=None, **kwargs):
         """constructor"""
         if scopes is None:
             scopes = ['https://www.googleapis.com/auth/analytics.readonly']
@@ -28,8 +27,8 @@ class GoogleApi(object):
         self._service = None
         self.discovery_url = kwargs.get('discovery_url', DISCOVERY_URI)
         self.retries = kwargs.get('retries', 3)
-        self.credential_cache_file = kwargs.get('credential_cache_file', "creden-cache.json")
-        self.cache_dir = kwargs.get('cache_dir', ".")
+        # self.credential_cache_file = kwargs.get('credential_cache_file', "creden-cache.json")
+        # self.cache_dir = kwargs.get('cache_dir', ".")
         self.log = logging.getLogger("__name__")
 
     @property
@@ -40,20 +39,21 @@ class GoogleApi(object):
             self._service = build(self.api,
                                   self.api_version,
                                   credentials=self.credentials,
+                                  cache_discovery=False,
                                   # cache=program_memory_cache,
                                   discoveryServiceUrl=self.discovery_url)
         return self._service
 
-    def auth(self, file: str):
-        if not os.path.isdir(self.cache_dir):
-            os.makedirs(self.cache_dir)
-        cache_path = os.path.join(self.cache_dir, self.credential_cache_file)
-
-        credentials = get_credentials(file, self.scopes, cache_path)
-
-        self.credentials = credentials
-        self._service = None
-        return self
+    # def auth(self, file: str):
+    #     if not os.path.isdir(self.cache_dir):
+    #         os.makedirs(self.cache_dir)
+    #     cache_path = os.path.join(self.cache_dir, self.credential_cache_file)
+    #
+    #     credentials = get_credentials(file, self.scopes, cache_path)
+    #
+    #     self.credentials = credentials
+    #     self._service = None
+    #     return self
 
     def retry(self, service_method, retry_count=0):
         """
@@ -98,15 +98,15 @@ class GoogleApi(object):
         """
         return getattr(MethodHelper(self, self.service), name)
 
-    @classmethod
-    def ga_reporting(cls, version="v4"):
-        """Google Analytics Reporting API v4"""
-        return GoogleApi("analyticsreporting", version, ["https://www.googleapis.com/auth/analytics.readonly"])
-
-    @classmethod
-    def ga_management(cls, version="v3"):
-        """Google Analytics Management API v3"""
-        return GoogleApi("analytics", version, ["https://www.googleapis.com/auth/analytics.readonly"])
+    # @classmethod
+    # def ga_reporting(cls, version="v4"):
+    #     """Google Analytics Reporting API v4"""
+    #     return GoogleApi("analyticsreporting", version, ["https://www.googleapis.com/auth/analytics.readonly"])
+    #
+    # @classmethod
+    # def ga_management(cls, version="v3"):
+    #     """Google Analytics Management API v3"""
+    #     return GoogleApi("analytics", version, ["https://www.googleapis.com/auth/analytics.readonly"])
 
 
 class MethodHelper(object):
