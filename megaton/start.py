@@ -120,8 +120,9 @@ class Megaton:
         # when json is selected
         def _json_selected(self, change):
             with self.log_text:
-                self.parent.reset_menu()
+                clear_output()
                 if change.new:
+                    self.parent.select.reset()
                     creds_type = auth.get_credential_type_from_file(change.new)
                     # OAuth
                     if creds_type in ['installed', 'web']:
@@ -153,6 +154,7 @@ class Megaton:
                         self.parent.creds = auth.get_token(self.flow, change.new)
                         # save cache
                         auth.save_credentials(self.parent.json, self.parent.creds)
+                        # reset menu
                         self.code_selector.value = ''
                         self.code_selector.layout.display = "none"
                         self.parent.json = change.new
@@ -246,12 +248,18 @@ class Megaton:
             view_id = change.new
             self.parent.ga[self.ver].view.select(view_id)
 
-        def show(self):
-            clear_output()
+        def list(self):
             if self.ver == '3':
-                display(self.account_menu, self.property_menu, self.view_menu)
+                return [self.account_menu, self.property_menu, self.view_menu]
             else:
-                display(self.account_menu, self.property_menu)
+                return [self.account_menu, self.property_menu]
+
+        # def show(self):
+        #     clear_output()
+        #     if self.ver == '3':
+        #         display(self.account_menu, self.property_menu, self.view_menu)
+        #     else:
+        #         display(self.account_menu, self.property_menu)
 
         def reset(self):
             if self.ver in self.parent.ga.keys():
@@ -284,17 +292,20 @@ class Megaton:
             self.reset()
 
             # GA選択メニューを表示
+            tab_children, titles = [], []
             for ver in ['3', '4']:
                 if ver in self.parent.ga.keys():
                     try:
                         self.menu_ga[ver] = self.parent.GaMenu(self.parent, ver, self.parent.ga[ver].accounts)
-                        self.menu_ga[ver].show()
+                        tab_children.append(widgets.tab(self.menu_ga[ver].list()))
+                        titles.append(f"GA{ver}")
                     except errors.NoDataReturned:
                         logger.warning("選択された認証情報でアクセスできるアカウントがありません")
                         del self.ga[ver]
                     except errors.ApiDisabled as e:
                         logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
                         del self.parent.ga[ver]
+            display(widgets.tab_set(tab_children, titles))
 
     class Show:
         def __init__(self, parent):
