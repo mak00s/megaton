@@ -30,14 +30,12 @@ class MegatonUA(ga4.MegatonGA4):
             "v4",
             constants.DEFAULT_SCOPES,
             credentials=self.credentials,
-            cache_discovery=False,
         )
         self.admin_client = google_api.GoogleApi(
             "analytics",
             "v3",
             constants.DEFAULT_SCOPES,
             credentials=self.credentials,
-            cache_discovery=False,
         )
 
     def _update(self):
