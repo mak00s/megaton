@@ -300,20 +300,20 @@ class Megaton:
 
             # GA選択メニューを表示
             tab_children, titles = [], []
-            for ver in self.parent.ga.keys():
-                # if ver in self.parent.ga.keys():
-                try:
-                    self.ga_menu[ver] = self.parent.GaMenu(self.parent,
-                                                           ver,
-                                                           self.parent.ga[ver].accounts)
-                    tab_children.append(widgets.tab(self.ga_menu[ver].list()))
-                    titles.append(f"GA{ver}")
-                except errors.NoDataReturned:
-                    logger.warning("選択された認証情報でアクセスできるアカウントがありません")
-                    del self.ga[ver]
-                except errors.ApiDisabled as e:
-                    logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
-                    del self.parent.ga[ver]
+            for ver in ['3', '4']:
+                if ver in self.parent.ga.keys():
+                    try:
+                        self.ga_menu[ver] = self.parent.GaMenu(self.parent,
+                                                               ver,
+                                                               self.parent.ga[ver].accounts)
+                        tab_children.append(widgets.tab(self.ga_menu[ver].list()))
+                        titles.append(f"GA{ver}")
+                    except errors.NoDataReturned:
+                        logger.warning("選択された認証情報でアクセスできるアカウントがありません")
+                        del self.ga[ver]
+                    except errors.ApiDisabled as e:
+                        logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
+                        del self.parent.ga[ver]
             self.ga_tab = widgets.tab_set(tab_children, titles)
             display(self.ga_tab)
 
@@ -366,19 +366,23 @@ class Megaton:
 
         @property
         def start_date(self):
-            return self.parent.ga[self.parent.ga_ver].report.start_date
+            if self.parent.ga_ver:
+                return self.parent.ga[self.parent.ga_ver].report.start_date
 
         @start_date.setter
         def start_date(self, date):
-            self.parent.ga[self.parent.ga_ver].report.start_date = date
+            if self.parent.ga_ver:
+                self.parent.ga[self.parent.ga_ver].report.start_date = date
 
         @property
         def end_date(self):
-            return self.parent.ga[self.parent.ga_ver].report.end_date
+            if self.parent.ga_ver:
+                return self.parent.ga[self.parent.ga_ver].report.end_date
 
         @end_date.setter
         def end_date(self, date):
-            self.parent.ga[self.parent.ga_ver].report.end_date = date
+            if self.parent.ga_ver:
+                self.parent.ga[self.parent.ga_ver].report.end_date = date
 
         def set_dates(self, date1, date2):
             self.start_date = date1
@@ -387,9 +391,11 @@ class Megaton:
         def run(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
             dimensions = [i for i in d if i]
             metrics = [i for i in m if i]
+            ver = self.parent.ga_ver
             try:
-                if self.parent.ga_ver == '3':
-                    return self.parent.ga['3'].report.show(
+                # if ver == '3':
+                if ver:
+                    return self.parent.ga[ver].report.run(
                         dimensions,
                         metrics,
                         dimension_filter=filter_d,
@@ -397,15 +403,15 @@ class Megaton:
                         order_bys=sort,
                         segments=kwargs.get('segments'),
                     )
-                elif self.parent.ga_ver == '4':
-                    return self.parent.ga['4'].report.run(
-                        dimensions,
-                        metrics,
-                        dimension_filter=filter_d,
-                        metric_filter=filter_m,
-                        order_bys=sort,
-                    )
+                # elif ver == '4':
+                #     return self.parent.ga[ver].report.run(
+                #         dimensions,
+                #         metrics,
+                #         dimension_filter=filter_d,
+                #         metric_filter=filter_m,
+                #         order_bys=sort,
+                #     )
                 else:
                     logger.warning("GAのアカウントを選択してください。")
             except (errors.BadRequest, ValueError) as e:
-                logger.warning("抽出条件に問題があります。", e)
+                print("抽出条件に問題があります。", e.message)

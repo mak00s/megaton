@@ -511,12 +511,12 @@ class MegatonUA(ga4.MegatonGA4):
             except err.HttpError as e:
                 data = json.loads(e.content.decode('utf-8'))
                 code = data['error']["code"]
-                # message = data['error']['message']
+                message = data['error']['message']
                 status = data['error']['status']
                 if code == 400 and status == 'INVALID_ARGUMENT':
-                    raise errors.BadRequest(status)
-            except Exceptions as e:
-                raise e
+                    raise errors.BadRequest(message)
+            # except Exceptions as e:
+            #     raise e
 
             report_data = response.get('reports', [])[0]
             total_rows = report_data['data'].get('rowCount', 0)
@@ -580,7 +580,7 @@ class MegatonUA(ga4.MegatonGA4):
 
                 token = next_token
 
-        def show(self, dimensions: list, metrics: list, return_generator: Optional[bool] = None, **kwargs):
+        def run(self, dimensions: list, metrics: list, return_generator: Optional[bool] = None, **kwargs):
             """Get Analytics report data"""
             if not self.parent.view.id:
                 LOGGER.error("Viewを先に選択してから実行してください。")
