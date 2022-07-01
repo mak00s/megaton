@@ -30,7 +30,6 @@ class MegatonUA(ga4.MegatonGA4):
             "v4",
             constants.DEFAULT_SCOPES,
             credentials=self.credentials,
-            # credential_cache_file=self.credential_cache_file,
             cache_discovery=False,
         )
         self.admin_client = google_api.GoogleApi(
@@ -38,7 +37,6 @@ class MegatonUA(ga4.MegatonGA4):
             "v3",
             constants.DEFAULT_SCOPES,
             credentials=self.credentials,
-            # credential_cache_file=self.credential_cache_file,
             cache_discovery=False,
         )
 
@@ -65,18 +63,19 @@ class MegatonUA(ga4.MegatonGA4):
         if response:
             results = []
             for i in response.get('items', []):
-                account = {
-                    'id': i['id'],
-                    'name': i['name'],
-                    'properties': [],
-                }
-                for p in i['webProperties']:
-                    prop = {
-                        'id': p['id'],
-                        'name': p['name']
+                if i['webProperties']:
+                    account = {
+                        'id': i['id'],
+                        'name': i['name'],
+                        'properties': [],
                     }
-                    account['properties'].append(prop)
-                results.append(account)
+                    for p in i['webProperties']:
+                        prop = {
+                            'id': p['id'],
+                            'name': p['name']
+                        }
+                        account['properties'].append(prop)
+                    results.append(account)
             self.accounts = results
             return results
 

@@ -116,18 +116,19 @@ class MegatonGA4(object):
         else:
             results = []
             for i in results_iterator:
-                dict1 = {
-                    'id': self._get_account_id_from_account_path(i.account),
-                    'name': i.display_name,
-                    'properties': [],
-                }
-                for p in i.property_summaries:
-                    dict2 = {
-                        'id': self._get_property_id_from_property_path(p.property),
-                        'name': p.display_name
+                if i.property_summaries:
+                    dict1 = {
+                        'id': self._get_account_id_from_account_path(i.account),
+                        'name': i.display_name,
+                        'properties': [],
                     }
-                    dict1['properties'].append(dict2)
-                results.append(dict1)
+                    for p in i.property_summaries:
+                        dict2 = {
+                            'id': self._get_property_id_from_property_path(p.property),
+                            'name': p.display_name
+                        }
+                        dict1['properties'].append(dict2)
+                    results.append(dict1)
             self.accounts = results
             return results
 

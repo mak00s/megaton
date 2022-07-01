@@ -1,4 +1,5 @@
-"""run megaton"""
+"""An app for Jupyter Notebook/Google Colaboratory to get data from Google Analytics
+"""
 
 from IPython.display import clear_output
 import logging
@@ -26,8 +27,9 @@ except ModuleNotFoundError:
 
 from . import auth, constants, errors, ga3, ga4, widgets
 
-_in_colab = "google.colab" in sys.modules
-if _in_colab:
+IN_COLAB = "google.colab" in sys.modules
+if IN_COLAB:
+    # enable data table
     from google.colab import data_table
     data_table.enable_dataframe_formatter()
     # mount google drive
@@ -43,9 +45,10 @@ class Megaton:
     """ メガトンはGAを使うアナリストの味方
     """
     def __init__(self, path: str = None, use_ga3: bool = True):
-        if not path and _in_colab:
+        if not path and IN_COLAB:
             path = '/nbs'
         self.json = None
+        self.required_scopes = constants.DEFAULT_SCOPES
         self.creds = None
         self.auth_menu = None
         self.use_ga3 = use_ga3
@@ -61,7 +64,7 @@ class Megaton:
         """
         if os.path.isdir(path):
             # if directory, show menu
-            json_files = auth.get_credentials_files_from(path)
+            json_files = auth.get_json_files_from_dir(path)
             self.auth_menu = self.AuthMenu(self, json_files)
             self.auth_menu.show()
 
@@ -86,10 +89,7 @@ class Megaton:
         # UA
         if self.use_ga3:
             try:
-                client = ga3.MegatonUA(
-                    self.creds,
-                    credential_cache_file=auth.get_cache_filename_from_json(self.json)
-                )
+                client = ga3.MegatonUA(self.creds)
                 if client.accounts:
                     self.ga['3'] = client
                 else:
@@ -122,15 +122,25 @@ class Megaton:
             with self.log_text:
                 self.parent.reset_menu()
                 if change.new:
-                    creds_type = auth.get_client_secrets_type_from_file(change.new)
+                    creds_type = auth.get_credential_type_from_file(change.new)
+                    # OAuth
                     if creds_type in ['installed', 'web']:
-                        self.flow, auth_url = auth.get_oauth_redirect(change.new, constants.DEFAULT_SCOPES)
-                        self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcodeを以下に貼り付けてエンターを押してください</a>'
-                        self.code_selector.layout.display = "block"
+                        # load from cache
+                        cache = auth.load_credentials(change.new, self.parent.required_scopes)
+                        if cache:
+                            self.parent.creds = cache
+                            self.parent.select.ga()
+                        else:
+                            # run flow
+                            self.flow, auth_url = auth.get_oauth_redirect(change.new, self.parent.required_scopes)
+                            self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcodeを以下に貼り付けてエンターを押してください</a>'
+                            self.code_selector.layout.display = "block"
+                        self.parent.json = change.new
 
+                    # Service Account
                     if creds_type in ['service_account']:
                         self.parent.creds = auth.load_service_account_credentials_from_file(change.new,
-                                                                                            constants.DEFAULT_SCOPES)
+                                                                                            self.parent.required_scopes)
                         self.parent.json = change.new
                         self.parent.select.ga()
 
@@ -139,7 +149,10 @@ class Megaton:
             with self.log_text:
                 if change.new:
                     try:
+                        # get token from auth code
                         self.parent.creds = auth.get_token(self.flow, change.new)
+                        # save cache
+                        auth.save_credentials(self.parent.json, self.parent.creds)
                         self.code_selector.value = ''
                         self.code_selector.layout.display = "none"
                         self.parent.json = change.new
@@ -314,7 +327,7 @@ class Megaton:
                 self.parent.table(df)
 
         def table(self, df, rows: int = 10, include_index: bool = False):
-            if _in_colab:
+            if IN_COLAB:
                 return data_table.DataTable(
                     df,
                     include_index=include_index,
