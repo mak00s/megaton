@@ -1,22 +1,30 @@
+import os
 import sys
+from IPython.display import clear_output
 from pkg_resources import get_distribution
+from time import sleep
 
 
-def get_ver(package):
-    return get_distribution(package).version
+__all__ = ['start']
+__author__ = "Makoto Shimizu"
+__version__ = get_distribution('megaton').version
 
 
-def ipython_shell():
-    """Same as `get_ipython` but returns `False` if not in IPython"""
-    try:
-        return get_ipython()
-    except NameError:
-        return False
+try:
+    # check if packages for GA4 are installed
+    from google.analytics.data import BetaAnalyticsDataClient
+    from google.analytics.admin import AnalyticsAdminServiceClient
+except ModuleNotFoundError:
+    clear_output()
+    print("Installing packages for GA4...")
+    from .install import ga4
 
-
-def in_ipython():
-    """Check if code is running in some kind of IPython environment"""
-    return bool(ipython_shell())
+    clear_output()
+    # print("Runtime is now restarting...")
+    # print("You can ignore the error message [Your session crashed for an unknown reason.]")
+    print("もう一度このセルを実行してください。")
+    sleep(0.5)
+    os._exit(0)  # restart
 
 
 def in_colab():
@@ -24,22 +32,13 @@ def in_colab():
     return 'google.colab' in sys.modules
 
 
-def in_jupyter():
-    """Check if the code is running in a jupyter notebook"""
-    if not in_ipython():
-        return False
-    return ipython_shell().__class__.__name__ == 'ZMQInteractiveShell'
-
-
-IN_JUPYTER, IN_COLAB = in_jupyter(), in_colab()
-__version__ = get_ver('megaton')
+IN_COLAB = in_colab()
 
 if IN_COLAB:
     # enable data table
     from google.colab import data_table
     data_table.enable_dataframe_formatter()
+
     # mount google drive
     from . import gdrive
     json_path = gdrive.link_nbs()
-
-print("__init__")

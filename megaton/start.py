@@ -5,25 +5,25 @@ from IPython.display import clear_output
 import logging
 import os
 import pandas as pd
-from time import sleep
+# from time import sleep
 
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-try:
-    # check if packages for GA4 are installed
-    from google.analytics.data import BetaAnalyticsDataClient
-    from google.analytics.admin import AnalyticsAdminServiceClient
-except ModuleNotFoundError:
-    clear_output()
-    print("Installing packages for GA4...")
-    from .install import ga4
-
-    clear_output()
-    # print("Runtime is now restarting...")
-    # print("You can ignore the error message [Your session crashed for an unknown reason.]")
-    print("もう一度このセルを実行してください。")
-    sleep(0.5)
-    os._exit(0)  # restart
+# try:
+#     # check if packages for GA4 are installed
+#     from google.analytics.data import BetaAnalyticsDataClient
+#     from google.analytics.admin import AnalyticsAdminServiceClient
+# except ModuleNotFoundError:
+#     clear_output()
+#     print("Installing packages for GA4...")
+#     from .install import ga4
+#
+#     clear_output()
+#     # print("Runtime is now restarting...")
+#     # print("You can ignore the error message [Your session crashed for an unknown reason.]")
+#     print("もう一度このセルを実行してください。")
+#     sleep(0.5)
+#     os._exit(0)  # restart
 
 from . import auth, constants, errors, ga3, ga4, utils, widgets
 
