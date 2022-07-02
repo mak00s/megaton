@@ -96,8 +96,7 @@ class Megaton:
         else:
             print(f"CSVファイル{new_filename}を保存しました。")
 
-    @staticmethod
-    def download(df: pd.core.frame.DataFrame, filename: str = None):
+    def download(self, df: pd.core.frame.DataFrame, filename: str = None):
         """データフレームを保存し、Google Colaboratoryからダウンロード
         """
         if not filename:
@@ -350,6 +349,7 @@ class Megaton:
 
         def table(self, df, rows: int = 10, include_index: bool = False):
             if self.parent.in_colab:
+                from google.colab import data_table
                 return data_table.DataTable(
                     df,
                     include_index=include_index,
