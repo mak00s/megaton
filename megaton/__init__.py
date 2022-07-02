@@ -6,8 +6,7 @@ from time import sleep
 
 
 __all__ = ['start']
-__author__ = "Makoto Shimizu"
-__version__ = get_distribution('megaton').version
+# __version__ = get_distribution('megaton').version
 
 
 try:
@@ -27,14 +26,8 @@ except ModuleNotFoundError:
     os._exit(0)  # restart
 
 
-def in_colab():
-    """Check if the code is running in Google Colaboratory"""
-    return 'google.colab' in sys.modules
-
-
-IN_COLAB = in_colab()
-
-if IN_COLAB:
+# if the code is running in Google Colaboratory
+if 'google.colab' in sys.modules:
     # enable data table
     from google.colab import data_table
     data_table.enable_dataframe_formatter()
