@@ -31,7 +31,7 @@ def in_jupyter():
     return ipython_shell().__class__.__name__ == 'ZMQInteractiveShell'
 
 
-IN_COLAB, IN_NOTEBOOK = in_jupyter(), in_colab()
+IN_JUPYTER, IN_COLAB = in_jupyter(), in_colab()
 __version__ = get_ver('megaton')
 
 if IN_COLAB:
@@ -41,3 +41,5 @@ if IN_COLAB:
     # mount google drive
     from . import gdrive
     json_path = gdrive.link_nbs()
+
+print("__init__")
