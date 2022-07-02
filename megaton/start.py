@@ -4,7 +4,7 @@
 from IPython.display import clear_output
 import logging
 import os
-import sys
+import pandas as pd
 from time import sleep
 
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
@@ -25,16 +25,7 @@ except ModuleNotFoundError:
     sleep(0.5)
     os._exit(0)  # restart
 
-from . import auth, constants, errors, ga3, ga4, widgets
-
-IN_COLAB = "google.colab" in sys.modules
-if IN_COLAB:
-    # enable data table
-    from google.colab import data_table
-    data_table.enable_dataframe_formatter()
-    # mount google drive
-    from . import gdrive
-    json_path = gdrive.link_nbs()
+from . import auth, constants, errors, ga3, ga4, utils, widgets
 
 logger = logging.getLogger(__name__)  #.setLevel(logging.ERROR)
 
@@ -384,6 +375,12 @@ class Megaton:
             if self.parent.ga_ver:
                 self.parent.ga[self.parent.ga_ver].report.end_date = date
 
+        @property
+        def dates(self):
+            """セットされているレポート対象期間を文字列に変換"""
+            if self.parent.ga_ver:
+                return f"{self.start_date.replace('-', '')}-{self.end_date.replace('-', '')}"
+
         def set_dates(self, date1, date2):
             self.start_date = date1
             self.end_date = date2
@@ -393,7 +390,6 @@ class Megaton:
             metrics = [i for i in m if i]
             ver = self.parent.ga_ver
             try:
-                # if ver == '3':
                 if ver:
                     return self.parent.ga[ver].report.run(
                         dimensions,
@@ -403,15 +399,26 @@ class Megaton:
                         order_bys=sort,
                         segments=kwargs.get('segments'),
                     )
-                # elif ver == '4':
-                #     return self.parent.ga[ver].report.run(
-                #         dimensions,
-                #         metrics,
-                #         dimension_filter=filter_d,
-                #         metric_filter=filter_m,
-                #         order_bys=sort,
-                #     )
                 else:
                     logger.warning("GAのアカウントを選択してください。")
             except (errors.BadRequest, ValueError) as e:
                 print("抽出条件に問題があります。", e.message)
+
+    """Download
+    """
+
+    def save(self, df: pd.core.frame.DataFrame, filename: str, quiet: bool = None):
+        """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与"""
+        new_filename = utils.append_suffix_to_filename(filename, f"_{self.report.dates}")
+        utils.save_df(df, new_filename)
+        if quiet:
+            return new_filename
+        else:
+            print(f"CSVファイル{new_filename}を保存しました。")
+
+    def download(self, df: pd.core.frame.DataFrame, filename: str = None):
+        """データフレームを保存し、Google Colaboratoryからダウンロード"""
+        filename = filename if filename else "report"
+        new_filename = self.save(df, filename, quiet=True)
+        if IN_COLAB:
+            files.download(new_filename)
