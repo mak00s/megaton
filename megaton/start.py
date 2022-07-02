@@ -1,33 +1,17 @@
 """An app for Jupyter Notebook/Google Colaboratory to get data from Google Analytics
 """
 
-from IPython.display import clear_output
 import logging
 import os
+import sys
+
 import pandas as pd
-# from time import sleep
-
+from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
-
-# try:
-#     # check if packages for GA4 are installed
-#     from google.analytics.data import BetaAnalyticsDataClient
-#     from google.analytics.admin import AnalyticsAdminServiceClient
-# except ModuleNotFoundError:
-#     clear_output()
-#     print("Installing packages for GA4...")
-#     from .install import ga4
-#
-#     clear_output()
-#     # print("Runtime is now restarting...")
-#     # print("You can ignore the error message [Your session crashed for an unknown reason.]")
-#     print("もう一度このセルを実行してください。")
-#     sleep(0.5)
-#     os._exit(0)  # restart
 
 from . import auth, constants, errors, ga3, ga4, utils, widgets
 
-logger = logging.getLogger(__name__)  #.setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
 logger.debug("Notebookの準備ができました。")
 
@@ -35,8 +19,9 @@ logger.debug("Notebookの準備ができました。")
 class Megaton:
     """ メガトンはGAを使うアナリストの味方
     """
+
     def __init__(self, path: str = None, use_ga3: bool = True):
-        if not path and IN_COLAB:
+        if not path and self.in_colab:
             path = '/nbs'
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
@@ -49,6 +34,11 @@ class Megaton:
         self.report = self.Report(self)
 
         self.auth(path)
+
+    @property
+    def in_colab(self):
+        """Check if the code is running in Google Colaboratory"""
+        return 'google.colab' in sys.modules
 
     def auth(self, path: str):
         """ JSONファイルへのパスが指定されたら認証情報を生成、ディレクトリの場合は選択メニューを表示
@@ -175,6 +165,7 @@ class Megaton:
     class GaMenu:
         """ GAのアカウント・プロパティ（・ビュー）を選択するUI
         """
+
         def __init__(self, parent, ver: str, accounts: list):
             self.parent = parent
             self.ver = ver
@@ -251,13 +242,6 @@ class Megaton:
             else:
                 return [self.account_menu, self.property_menu]
 
-        # def show(self):
-        #     clear_output()
-        #     if self.ver == '3':
-        #         display(self.account_menu, self.property_menu, self.view_menu)
-        #     else:
-        #         display(self.account_menu, self.property_menu)
-
         def reset(self):
             if self.ver in self.parent.ga.keys():
                 self.parent.ga[self.ver].account.select('')
@@ -270,6 +254,7 @@ class Megaton:
     class Select:
         """ 選択するUIの構築と処理
         """
+
         def __init__(self, parent):
             self.parent = parent
             self.ga_menu = {}
@@ -289,7 +274,7 @@ class Megaton:
             # メニューをリセット
             self.reset()
 
-            # GA選択メニューを表示
+            # GA選択メニューのタブを構築
             tab_children, titles = [], []
             for ver in ['3', '4']:
                 if ver in self.parent.ga.keys():
@@ -306,7 +291,10 @@ class Megaton:
                         logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
                         del self.parent.ga[ver]
             self.ga_tab = widgets.tab_set(tab_children, titles)
-            display(self.ga_tab)
+
+            # GA選択メニュのタブを表示
+            if tab_children:
+                display(self.ga_tab)
 
     class Show:
         def __init__(self, parent):
@@ -352,6 +340,7 @@ class Megaton:
 
     class Report:
         """GA/GA4からデータを抽出"""
+
         def __init__(self, parent):
             self.parent = parent
 
