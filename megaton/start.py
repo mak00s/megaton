@@ -3,13 +3,13 @@
 
 import logging
 import os
+import pandas as pd
 import sys
 
-import pandas as pd
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import auth, constants, errors, ga3, ga4, utils, widgets
+from . import auth, constants, errors, files, ga3, ga4, widgets
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
@@ -84,6 +84,27 @@ class Megaton:
         self.auth_menu.reset()
         self.select.reset()
 
+    def save(self, df: pd.core.frame.DataFrame, filename: str = None, quiet: bool = None):
+        """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
+        """
+        if not filename:
+            filename = 'report'
+        new_filename = files.append_suffix_to_filename(filename, f"_{self.report.dates}")
+        files.save_df(df, new_filename)
+        if quiet:
+            return new_filename
+        else:
+            print(f"CSVファイル{new_filename}を保存しました。")
+
+    @staticmethod
+    def download(df: pd.core.frame.DataFrame, filename: str = None):
+        """データフレームを保存し、Google Colaboratoryからダウンロード
+        """
+        if not filename:
+            filename = 'report'
+        new_filename = self.save(df, filename, quiet=True)
+        files.download_file(new_filename)
+
     @property
     def ga_ver(self):
         ver = list(self.select.ga_menu.keys())
@@ -121,7 +142,8 @@ class Megaton:
                         else:
                             # run flow
                             self.flow, auth_url = auth.get_oauth_redirect(change.new, self.parent.required_scopes)
-                            self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcodeを以下に貼り付けてエンターを押してください</a>'
+                            self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcode' \
+                                                      f'を以下に貼り付けてエンターを押してください</a> '
                             self.code_selector.layout.display = "block"
                         self.parent.json = change.new
 
@@ -312,22 +334,22 @@ class Megaton:
             def dimensions(self):
                 print("dimensions are:")
                 df = self.parent.parent.ga['4'].property.show('dimensions')
-                self.parent.table(df)
+                return self.parent.table(df)
 
             @property
             def metrics(self):
                 print("metrics are:")
                 df = self.parent.parent.ga['4'].property.show('metrics')
-                self.parent.table(df)
+                return self.parent.table(df)
 
             @property
             def properties(self):
                 print("properties are:")
                 df = self.parent.parent.ga['4'].property.show('info')
-                self.parent.table(df)
+                return self.parent.table(df)
 
         def table(self, df, rows: int = 10, include_index: bool = False):
-            if IN_COLAB:
+            if self.parent.in_colab:
                 return data_table.DataTable(
                     df,
                     include_index=include_index,
@@ -392,22 +414,3 @@ class Megaton:
                     logger.warning("GAのアカウントを選択してください。")
             except (errors.BadRequest, ValueError) as e:
                 print("抽出条件に問題があります。", e.message)
-
-    """Download
-    """
-
-    def save(self, df: pd.core.frame.DataFrame, filename: str, quiet: bool = None):
-        """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与"""
-        new_filename = utils.append_suffix_to_filename(filename, f"_{self.report.dates}")
-        utils.save_df(df, new_filename)
-        if quiet:
-            return new_filename
-        else:
-            print(f"CSVファイル{new_filename}を保存しました。")
-
-    def download(self, df: pd.core.frame.DataFrame, filename: str = None):
-        """データフレームを保存し、Google Colaboratoryからダウンロード"""
-        filename = filename if filename else "report"
-        new_filename = self.save(df, filename, quiet=True)
-        if IN_COLAB:
-            files.download(new_filename)

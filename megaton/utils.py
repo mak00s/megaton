@@ -24,12 +24,6 @@ def extract_integer_from_string(s):
         return int(m.group(1))
 
 
-def append_suffix_to_filename(filename, suffix):
-    name, ext = os.path.splitext(filename)
-    ext = ext if ext else '.csv'
-    return f"{name}{suffix}{ext}"
-
-
 def change_column_type(df: pd.DataFrame, to_date=None, to_datetime=None):
     """Change column type in dataframe from str to date or datetime"""
     if not to_date:
@@ -59,11 +53,6 @@ def format_df(df: pd.DataFrame, rules: list):
         except KeyError as e:
             print(e)
             pass
-
-
-def save_df(df: pd.DataFrame, filename: str, format: str = 'CSV'):
-    """DataFrameを保存"""
-    df.to_csv(filename, index=False)
 
 
 def get_date_range(start_date: str, end_date: str, format: str = None):
