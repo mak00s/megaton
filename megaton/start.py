@@ -439,7 +439,7 @@ class Megaton:
                         segments=kwargs.get('segments'),
                     )
                     # return self.data
-                    self.show()
+                    return self.show()
                 else:
                     logger.warning("GAのアカウントを選択してください。")
             except (errors.BadRequest, ValueError) as e:
@@ -447,7 +447,7 @@ class Megaton:
 
         def show(self):
             """Displays dataframe"""
-            self.parent.show.table(self.data)
+            return self.parent.show.table(self.data)
 
         def save(self, filename: str = 'report', quiet: bool = False):
             """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
