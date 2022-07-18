@@ -498,4 +498,4 @@ class Megaton:
             df = utils.prep_df(df, delete_columns, type_columns, rename_columns)
             self.data = df
             # return df
-            self.show()
+            return self.show()
