@@ -458,6 +458,9 @@ class Megaton:
             """
             self.parent.save(filename, quiet)
 
+        def download(self, filename: str):
+            self.parent.download(self.data, filename)
+
         def prep(self, conf: dict, df: pd.core.frame.DataFrame = None):
             """dataframeを前処理
 
