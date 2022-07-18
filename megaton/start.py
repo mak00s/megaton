@@ -9,15 +9,13 @@ import sys
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import auth, constants, errors, files, ga3, ga4, widgets
+from . import auth, constants, errors, files, ga3, ga4, utils, widgets
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
-logger.debug("Notebookの準備ができました。")
-
 
 class Megaton:
-    """ メガトンはGAを使うアナリストの味方
+    """メガトンはGAを使うアナリストの味方
     """
 
     def __init__(self, path: str = None, use_ga3: bool = True):
@@ -41,7 +39,9 @@ class Megaton:
         return 'google.colab' in sys.modules
 
     def auth(self, path: str):
-        """ JSONファイルへのパスが指定されたら認証情報を生成、ディレクトリの場合は選択メニューを表示
+        """認証
+        ・JSONファイルへのパスが指定された場合は認証情報を生成
+        ・ディレクトリへのパスが指定された場合は選択メニューを表示
         """
         if os.path.isdir(path):
             # if directory, show menu
@@ -57,6 +57,7 @@ class Megaton:
             self.select.ga()
 
     def build_ga_clients(self):
+        """APIの準備"""
         self.ga = {}
         # GA4
         try:
@@ -81,10 +82,11 @@ class Megaton:
                 logger.warning("UAはアカウントが無いのでスキップします。")
 
     def reset_menu(self):
+        """メニューの表示と内容をリセット"""
         self.auth_menu.reset()
         self.select.reset()
 
-    def save(self, df: pd.core.frame.DataFrame, filename: str = None, quiet: bool = None):
+    def save(self, df: pd.core.frame.DataFrame, filename: str = None, quiet: bool = False):
         """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
         """
         if not filename:
@@ -97,7 +99,7 @@ class Megaton:
             print(f"CSVファイル{new_filename}を保存しました。")
 
     def download(self, df: pd.core.frame.DataFrame, filename: str = None):
-        """データフレームを保存し、Google Colaboratoryからダウンロード
+        """データフレームをCSV保存し、Google Colaboratoryからダウンロード
         """
         if not filename:
             filename = 'report'
@@ -106,11 +108,13 @@ class Megaton:
 
     @property
     def ga_ver(self):
+        """タブの状態でGAのバージョンを切り替える"""
         ver = list(self.select.ga_menu.keys())
         if ver:
             return ver[self.select.ga_tab.selected_index]
 
     class AuthMenu:
+        """認証用のメニュー生成と選択時の処理"""
         def __init__(self, parent, json_files: dict):
             self.parent = parent
             # build menu of json files
@@ -184,7 +188,7 @@ class Megaton:
             self.log_text.value = ''
 
     class GaMenu:
-        """ GAのアカウント・プロパティ（・ビュー）を選択するUI
+        """GAのアカウント・プロパティ（・ビュー）を選択するUI
         """
 
         def __init__(self, parent, ver: str, accounts: list):
@@ -273,7 +277,7 @@ class Megaton:
                 self.view_menu.options = []
 
     class Select:
-        """ 選択するUIの構築と処理
+        """選択するUIの構築と処理
         """
 
         def __init__(self, parent):
@@ -288,7 +292,7 @@ class Megaton:
                 self.ga_menu['4'].reset()
 
         def ga(self):
-            """ GAアカウントを選択するパネルを表示
+            """GAアカウントを選択するパネルを表示
             """
             # 選択された認証情報でGAクライアントを生成
             self.parent.build_ga_clients()
@@ -347,7 +351,7 @@ class Megaton:
                 df = self.parent.parent.ga['4'].property.show('info')
                 return self.parent.table(df)
 
-        def table(self, df, rows: int = 10, include_index: bool = False):
+        def table(self, df: pd.core.frame.DataFrame, rows: int = 10, include_index: bool = False):
             if self.parent.in_colab:
                 from google.colab import data_table
                 return data_table.DataTable(
@@ -365,6 +369,7 @@ class Megaton:
 
         def __init__(self, parent):
             self.parent = parent
+            self.data = None
 
         @property
         def start_date(self):
@@ -373,6 +378,10 @@ class Megaton:
 
         @start_date.setter
         def start_date(self, date):
+            """Sets start date for later reporting.
+            Args:
+                date: date in 'YYYY-MM-DD' / 'NdaysAgo' format or 'yesterday' or 'today'
+            """
             if self.parent.ga_ver:
                 self.parent.ga[self.parent.ga_ver].report.start_date = date
 
@@ -383,6 +392,10 @@ class Megaton:
 
         @end_date.setter
         def end_date(self, date):
+            """Sets end date for later reporting.
+            Args:
+                date: date in 'YYYY-MM-DD' / 'NdaysAgo' format or 'yesterday' or 'today'
+            """
             if self.parent.ga_ver:
                 self.parent.ga[self.parent.ga_ver].report.end_date = date
 
@@ -393,16 +406,31 @@ class Megaton:
                 return f"{self.start_date.replace('-', '')}-{self.end_date.replace('-', '')}"
 
         def set_dates(self, date1, date2):
+            """開始日と終了日を同時に指定
+            Args:
+                date1: start date
+                date2: end date
+            """
             self.start_date = date1
             self.end_date = date2
 
         def run(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
+            """レポートを実行
+
+            Args:
+                d: list of dimensions
+                m: list of metrics
+                filter_d: dimension filter
+                filter_m: metric filter
+                sort:
+                segments: segment (only for GA3)
+            """
             dimensions = [i for i in d if i]
             metrics = [i for i in m if i]
             ver = self.parent.ga_ver
             try:
                 if ver:
-                    return self.parent.ga[ver].report.run(
+                    self.data = self.parent.ga[ver].report.run(
                         dimensions,
                         metrics,
                         dimension_filter=filter_d,
@@ -410,7 +438,64 @@ class Megaton:
                         order_bys=sort,
                         segments=kwargs.get('segments'),
                     )
+                    # return self.data
+                    self.show()
                 else:
                     logger.warning("GAのアカウントを選択してください。")
             except (errors.BadRequest, ValueError) as e:
                 print("抽出条件に問題があります。", e.message)
+
+        def show(self):
+            """Displays dataframe"""
+            self.parent.show.table(self.data)
+
+        def save(self, filename: str = 'report', quiet: bool = False):
+            """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
+
+            Args:
+                filename: path to a file
+                quiet: when True, message won't be displayed
+            """
+            self.parent.save(filename, quiet)
+
+        def prep(self, conf: dict, df: pd.core.frame.DataFrame = None):
+            """dataframeを前処理
+
+            Args:
+                conf: dict
+                df: dataframe to be processed. If omitted, self.data is processed.
+
+            Returns:
+                processed dataframe
+            """
+            if not isinstance(df, pd.DataFrame):
+                df = self.data
+
+            rename_columns = {}
+            delete_columns = []
+            type_columns = {}
+
+            for col in conf.keys():
+                # filter
+                if 'replace' in conf[col].keys():
+                    filters = conf[col]['replace']
+                    # make it a list if it is a single item
+                    if not isinstance(filters, list):
+                        filters = [filters]
+                    for f in filters:
+                        utils.replace_columns(df, [(col, f, '')])
+                # delete
+                if 'delete' in conf[col].keys():
+                    if conf[col]['delete']:
+                        delete_columns.append(col)
+                # rename
+                if 'name' in conf[col].keys():
+                    rename_columns[col] = conf[col]['name']
+                # change type
+                if 'type' in conf[col].keys():
+                    type_columns[col] = conf[col]['type']
+
+            df = utils.prep_df(df, delete_columns, type_columns, rename_columns)
+            self.data = df
+            # return df
+            self.show()
