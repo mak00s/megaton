@@ -41,8 +41,7 @@ class GoogleApi(object):
         return self._service
 
     def retry(self, service_method, retry_count=0):
-        """
-        retry a google api call and check for rate limits
+        """retry a google api call and check for rate limits
         """
         try:
             return service_method.execute(num_retries=retry_count)
@@ -74,7 +73,7 @@ class GoogleApi(object):
             raise
 
     def __getattr__(self, name):
-        """ get attribute or service wrapper
+        """get attribute or service wrapper
         :param name: attribute / service name
         :return:
         """
@@ -82,11 +81,10 @@ class GoogleApi(object):
 
 
 class MethodHelper(object):
-    """ helper to streamline api calls"""
+    """helper to streamline api calls"""
 
     def __init__(self, google_api, service, name=None, path=None):
-        """
-        create a method helper
+        """create a method helper
         :param google_api GoogleApi instance of api
         :param service Google API service (GoogleApi.service) or method of it
         :param name method name
@@ -106,8 +104,7 @@ class MethodHelper(object):
         return self.google_api.retry(self.service)
 
     def call(self, *args, **kwargs):
-        """
-        wrapper for service methods
+        """wrapper for service methods
         this wraps an GoogleApi.service call so the next level can also use helpers
         i.e. for compute v1 api GoogleApi.service.instances() can be used as Google.instances()
         and will return a MethodHelper instance
@@ -116,7 +113,7 @@ class MethodHelper(object):
         return MethodHelper(self.google_api, getattr(self.service, self.name)(*args, **kwargs))
 
     def __getattr__(self, name):
-        """ get service method """
+        """get service method"""
         # self.log.info("getattr %s", name)
         if not hasattr(self.service, name):
             err_msg = u"API method {} unknown on {} {}".format(u".".join(self.path + [name]),

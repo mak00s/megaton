@@ -673,7 +673,7 @@ def get_cid_date_page(ga3, conf: dict):
     if len(df):
         # 値を変換
         if conf['page_regex']:
-            utils.format_df(df, [('pagePath', conf['page_regex'], '')])
+            utils.replace_columns(df, [('pagePath', conf['page_regex'], '')])
         # カラム名を変更
         return df.rename(columns={
             'pagePath': 'page',
@@ -766,9 +766,9 @@ def get_page_title(ga3, conf: dict):
 
     # 値を変換
     if conf['page_regex']:
-        utils.format_df(df, [('pagePath', conf['page_regex'], '')])
+        utils.replace_columns(df, [('pagePath', conf['page_regex'], '')])
     if conf['title_regex']:
-        utils.format_df(df, [('title', conf['title_regex'], '')])
+        utils.replace_columns(df, [('title', conf['title_regex'], '')])
 
     # group byでまとめる
     try:

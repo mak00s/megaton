@@ -31,6 +31,7 @@ if 'google.colab' in sys.modules:
     # enable data table
     from google.colab import data_table
     data_table.enable_dataframe_formatter()
+    data_table._DEFAULT_FORMATTERS[float] = lambda x: f"{x:.3f}"
 
     # mount google drive
     from . import gdrive

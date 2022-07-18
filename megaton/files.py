@@ -25,10 +25,11 @@ def append_suffix_to_filename(filename: str, suffix: str):
 
 
 def save_df(df: pd.DataFrame, filename: str):
-    """DataFrameを保存"""
+    """Save a DataFrame as CSV"""
     df.to_csv(filename, index=False)
 
 
 def download_file(filename: str):
+    """Download a file from Google Colaboratory"""
     if IN_COLAB:
         files.download(filename)
