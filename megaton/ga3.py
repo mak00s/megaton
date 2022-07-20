@@ -513,10 +513,15 @@ class MegatonUA(ga4.MegatonGA4):
                 code = data['error']["code"]
                 message = data['error']['message']
                 status = data['error']['status']
+                reason = data['error']['errors'][0]['reason']
                 if code == 400 and status == 'INVALID_ARGUMENT':
                     raise errors.BadRequest(message)
-            # except Exceptions as e:
-            #     raise e
+                if status == 403:
+                    if 'not have any Google' in message or 'insufficientPermissions' in reason:
+                        raise errors.NoDataReturned
+                    elif 'accessNotConfigured' in reason or 'disabled' in message:
+                        raise errors.ApiDisabled(message, "Google Analytics API")
+                raise e
 
             report_data = response.get('reports', [])[0]
             total_rows = report_data['data'].get('rowCount', 0)
