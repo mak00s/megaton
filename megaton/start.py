@@ -444,6 +444,8 @@ class Megaton:
                     logger.warning("GAのアカウントを選択してください。")
             except (errors.BadRequest, ValueError) as e:
                 print("抽出条件に問題があります。", e.message)
+            except errors.ApiDisabled as e:
+                logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
 
         def show(self):
             """Displays dataframe"""
