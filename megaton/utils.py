@@ -43,6 +43,7 @@ def change_column_type(df: pd.DataFrame, to_date=None, to_datetime=None):
 
 def replace_columns(df: pd.DataFrame, rules: list):
     """Converts dataframe columns using regex.
+
     Args
         df: dataframe to be converted
         rules: list of tuple (column name, regex, to)
@@ -57,7 +58,8 @@ def replace_columns(df: pd.DataFrame, rules: list):
 
 
 def prep_df(df, delete_columns: list = None, type_columns: dict = None, rename_columns: dict = None):
-    """各種変換
+    """Processes dataframe
+
     Args
         delete_columns:
             list of column name to be deleted
