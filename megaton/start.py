@@ -9,7 +9,7 @@ import sys
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import auth, constants, errors, files, ga3, ga4, utils, widgets
+from . import auth, constants, errors, files, ga3, ga4, gsheet, utils, widgets
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
@@ -27,6 +27,9 @@ class Megaton:
         self.auth_menu = None
         self.use_ga3 = use_ga3
         self.ga = {}  # GA clients
+        self.gs = None  # Google Sheets client
+        self.open = self.Open(self)
+        self.save = self.Save(self)
         self.select = self.Select(self)
         self.show = self.Show(self)
         self.report = self.Report(self)
@@ -37,6 +40,25 @@ class Megaton:
     def in_colab(self):
         """Check if the code is running in Google Colaboratory"""
         return 'google.colab' in sys.modules
+
+    @property
+    def ga_ver(self):
+        """タブの状態でGAのバージョンを切り替える"""
+        ver = list(self.select.ga_menu.keys())
+        if ver:
+            return ver[self.select.ga_tab.selected_index]
+
+    @property
+    def enabled(self):
+        """有効化されたサービス"""
+        enabled = []
+        if '3' in self.ga.keys():
+            enabled.append('ga3')
+        if '4' in self.ga.keys():
+            enabled.append('ga4')
+        if self.ga:
+            enabled.append('gs')
+        return enabled
 
     def auth(self, path: str):
         """認証
@@ -56,8 +78,8 @@ class Megaton:
             self.json = path
             self.select.ga()
 
-    def build_ga_clients(self):
-        """APIの準備"""
+    def _build_ga_clients(self):
+        """GA APIの準備"""
         self.ga = {}
         # GA4
         try:
@@ -81,12 +103,12 @@ class Megaton:
             except errors.NoDataReturned:
                 logger.warning("UAはアカウントが無いのでスキップします。")
 
-    def reset_menu(self):
-        """メニューの表示と内容をリセット"""
-        self.auth_menu.reset()
-        self.select.reset()
+    # def reset_menu(self):
+    #     """メニューの表示と内容をリセット"""
+    #     self.auth_menu.reset()
+    #     self.select.reset()
 
-    def save(self, df: pd.core.frame.DataFrame, filename: str = None, quiet: bool = False):
+    def save_df(self, df: pd.DataFrame, filename: str = None, quiet: bool = False):
         """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
         """
         if not filename:
@@ -98,20 +120,20 @@ class Megaton:
         else:
             print(f"CSVファイル{new_filename}を保存しました。")
 
-    def download(self, df: pd.core.frame.DataFrame, filename: str = None):
+    def download(self, df: pd.DataFrame, filename: str = None):
         """データフレームをCSV保存し、Google Colaboratoryからダウンロード
         """
         if not filename:
             filename = 'report'
-        new_filename = self.save(df, filename, quiet=True)
+        new_filename = self.save_df(df, filename, quiet=True)
         files.download_file(new_filename)
 
-    @property
-    def ga_ver(self):
-        """タブの状態でGAのバージョンを切り替える"""
-        ver = list(self.select.ga_menu.keys())
-        if ver:
-            return ver[self.select.ga_tab.selected_index]
+    def load_cell(self, row, col, what: str = None):
+        self.gs.sheet.cell.select(row, col)
+        value = self.gs.sheet.cell.data
+        if what:
+            print(f"{what}は{value}")
+        return value
 
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
@@ -276,6 +298,34 @@ class Megaton:
             if self.ver == '3':
                 self.view_menu.options = []
 
+    class Save:
+        """DaraFrameをCSVやGoogle Sheetsとして保存
+        """
+        def __init__(self, parent):
+            self.parent = parent
+            self.to = self.To(self)
+
+        class To:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def csv(self, df: pd.DataFrame, filename: str = 'report', quiet: bool = False):
+                """DataFrameをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
+
+                Args:
+                    df: DataFrame
+                    filename: path to a file
+                    quiet: when True, message won't be displayed
+                """
+                self.parent.parent.save_df(df, filename, quiet)
+
+            def sheet(self, df: pd.DataFrame, sheet_name: str):
+                """DataFrameをGoogle Sheetsへ反映する
+                """
+                if self.parent.parent.select.sheet(sheet_name):
+                    if self.parent.parent.gs.sheet.overwrite_data(df, include_index=False):
+                        print(f"レポートのデータを上書き保存しました。")
+
     class Select:
         """選択するUIの構築と処理
         """
@@ -295,7 +345,7 @@ class Megaton:
             """GAアカウントを選択するパネルを表示
             """
             # 選択された認証情報でGAクライアントを生成
-            self.parent.build_ga_clients()
+            self.parent._build_ga_clients()
             # メニューをリセット
             self.reset()
 
@@ -320,6 +370,44 @@ class Megaton:
             # GA選択メニュのタブを表示
             if tab_children:
                 display(self.ga_tab)
+
+        def sheet(self, sheet_name: str):
+            """開いたGoogle Sheetsのシートを選択"""
+            try:
+                name = self.parent.gs.sheet.select(sheet_name)
+                if name:
+                    print(f"「{sheet_name}」シートを選択しました。")
+                    return True
+            except errors.SheetNotFound:
+                print(f"{sheet_name} シートが存在しません。")
+
+    class Open:
+        def __init__(self, parent):
+            self.parent = parent
+
+        def sheet(self, url):
+            """Google Sheets APIの準備"""
+            self.parent.gs = None
+            try:
+                self.parent.gs = gsheet.MegatonGS(self.parent.creds, url)
+            except errors.BadCredentialFormat:
+                print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
+            except errors.BadCredentialScope:
+                print("認証情報のスコープ不足のため、Google Sheets APIを利用できません。")
+            except errors.BadUrlFormat:
+                print("URLのフォーマットが正しくありません")
+            except errors.ApiDisabled:
+                print("Google SheetsのAPIが有効化されていません。")
+            except errors.UrlNotFound:
+                print("URLが見つかりません。")
+            except errors.BadPermission:
+                print("該当スプレッドシートを読み込む権限がありません。")
+            except Exception as e:
+                raise e
+            else:
+                if self.parent.gs.title:
+                    print(f"Googleスプレッドシート「{self.parent.gs.title}」を開きました。")
+                    return True
 
     class Show:
         def __init__(self, parent):
@@ -365,11 +453,12 @@ class Megaton:
                 display(df)
 
     class Report:
-        """GA/GA4からデータを抽出"""
-
+        """GA/GA4からデータを抽出
+        """
         def __init__(self, parent):
             self.parent = parent
             self.data = None
+            self.to = self.To(self)
 
         @property
         def start_date(self):
@@ -379,6 +468,7 @@ class Megaton:
         @start_date.setter
         def start_date(self, date):
             """Sets start date for later reporting.
+
             Args:
                 date: date in 'YYYY-MM-DD' / 'NdaysAgo' format or 'yesterday' or 'today'
             """
@@ -393,6 +483,7 @@ class Megaton:
         @end_date.setter
         def end_date(self, date):
             """Sets end date for later reporting.
+
             Args:
                 date: date in 'YYYY-MM-DD' / 'NdaysAgo' format or 'yesterday' or 'today'
             """
@@ -407,6 +498,7 @@ class Megaton:
 
         def set_dates(self, date1, date2):
             """開始日と終了日を同時に指定
+
             Args:
                 date1: start date
                 date2: end date
@@ -451,19 +543,10 @@ class Megaton:
             """Displays dataframe"""
             return self.parent.show.table(self.data)
 
-        def save(self, filename: str = 'report', quiet: bool = False):
-            """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
-
-            Args:
-                filename: path to a file
-                quiet: when True, message won't be displayed
-            """
-            self.parent.save(filename, quiet)
-
         def download(self, filename: str):
             self.parent.download(self.data, filename)
 
-        def prep(self, conf: dict, df: pd.core.frame.DataFrame = None):
+        def prep(self, conf: dict, df: pd.DataFrame = None):
             """dataframeを前処理
 
             Args:
@@ -504,3 +587,23 @@ class Megaton:
             self.data = df
             # return df
             return self.show()
+
+        class To:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def csv(self, filename: str = 'report', quiet: bool = False):
+                """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
+
+                Args:
+                    filename: path to a file
+                    quiet: when True, message won't be displayed
+                """
+                self.parent.parent.save_df(self.parent.data, filename, quiet)
+
+            def sheet(self, sheet_name: str):
+                """レポートをGoogle Sheetsへ反映する
+                """
+                if self.parent.parent.select.sheet(sheet_name):
+                    if self.parent.parent.gs.sheet.overwrite_data(self.parent.data, include_index=False):
+                        print(f"レポートのデータを上書き保存しました。")
