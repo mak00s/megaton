@@ -103,7 +103,8 @@ class MegatonGS(object):
 
         def _refresh(self):
             """Rebuild the Gspread client"""
-            self._driver = self.parent._client.worksheet(self.name)
+            # self._driver = self.parent._driver.worksheet(self.name)
+            self.select(self.name)
 
         def clear(self):
             """Blank all the cells on the sheet"""
@@ -249,7 +250,7 @@ class MegatonGS(object):
                     self._driver,
                     df,
                     include_index=include_index,
-                    include_column_header=True,
+                    include_column_header=False,
                     row=next_row,
                     resize=False
                 )

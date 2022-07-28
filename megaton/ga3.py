@@ -53,11 +53,6 @@ class MegatonUA(ga4.MegatonGA4):
                 elif 'accessNotConfigured' in reason or 'disabled' in message:
                     raise errors.ApiDisabled(message, "Google Analytics API")
             raise e
-        # except Exception as e:
-        #     type, value, _ = sys.exc_info()
-        #     LOGGER.debug(f"type = {type}")
-        #     LOGGER.debug(f"value = {value}")
-        #     raise e
         if response:
             results = []
             for i in response.get('items', []):
@@ -509,14 +504,22 @@ class MegatonUA(ga4.MegatonGA4):
                     }
                 ).execute()
             except err.HttpError as e:
-                data = json.loads(e.content.decode('utf-8'))
-                code = data['error']["code"]
-                message = data['error']['message']
-                status = data['error']['status']
-                reason = data['error']['errors'][0]['reason']
-                if code == 400 and status == 'INVALID_ARGUMENT':
-                    raise errors.BadRequest(message)
-                if status == 403:
+                code = e.resp.get('code')
+                message = ''
+                reason = ''
+                status = ''
+                try:
+                    data = json.loads(e.content.decode('utf-8'))
+                    code = data['error']["code"]
+                    message = data['error']['message']
+                    reason = data['error']['errors'][0]['reason']
+                    status = data['error']['status']
+                except:  # noqa
+                    pass
+                if code == 400:
+                    if status == 'INVALID_ARGUMENT' or 'nknown ' in message:
+                        raise errors.BadRequest(message)
+                elif status == 403:
                     if 'not have any Google' in message or 'insufficientPermissions' in reason:
                         raise errors.NoDataReturned
                     elif 'accessNotConfigured' in reason or 'disabled' in message:

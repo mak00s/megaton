@@ -30,6 +30,7 @@ class Megaton:
         self.gs = None  # Google Sheets client
         self.open = self.Open(self)
         self.save = self.Save(self)
+        self.append = self.Append(self)
         self.select = self.Select(self)
         self.show = self.Show(self)
         self.report = self.Report(self)
@@ -108,17 +109,19 @@ class Megaton:
     #     self.auth_menu.reset()
     #     self.select.reset()
 
-    def save_df(self, df: pd.DataFrame, filename: str = None, quiet: bool = False):
+    def save_df(self, df: pd.DataFrame, filename: str = None, mode: str = 'w', quiet: bool = False):
         """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
         """
         if not filename:
             filename = 'report'
         new_filename = files.append_suffix_to_filename(filename, f"_{self.report.dates}")
-        files.save_df(df, new_filename)
+        files.save_df(df, new_filename, mode=mode)
         if quiet:
             return new_filename
-        else:
+        if mode == 'w':
             print(f"CSVファイル{new_filename}を保存しました。")
+        elif mode == 'a':
+            print(f"CSVファイル{new_filename}に追記しました。")
 
     def download(self, df: pd.DataFrame, filename: str = None):
         """データフレームをCSV保存し、Google Colaboratoryからダウンロード
@@ -298,6 +301,34 @@ class Megaton:
             if self.ver == '3':
                 self.view_menu.options = []
 
+    class Append:
+        """DaraFrameをCSVやGoogle Sheetsに追記
+        """
+        def __init__(self, parent):
+            self.parent = parent
+            self.to = self.To(self)
+
+        class To:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def csv(self, df: pd.DataFrame, filename: str = 'report', quiet: bool = False):
+                """DataFrameをCSVに追記：ファイル名に期間を付与。拡張子がなければ付与
+
+                Args:
+                    df: DataFrame
+                    filename: path to a file
+                    quiet: when True, message won't be displayed
+                """
+                self.parent.parent.save_df(df, filename, mode='a', quiet=quiet)
+
+            def sheet(self, df: pd.DataFrame, sheet_name: str):
+                """DataFrameをGoogle Sheetsへ反映する
+                """
+                if self.parent.parent.select.sheet(sheet_name):
+                    if self.parent.parent.gs.sheet.save_data(df, include_index=False):
+                        print(f"データを「{sheet_name}」シートに追記しました。")
+
     class Save:
         """DaraFrameをCSVやGoogle Sheetsとして保存
         """
@@ -317,14 +348,14 @@ class Megaton:
                     filename: path to a file
                     quiet: when True, message won't be displayed
                 """
-                self.parent.parent.save_df(df, filename, quiet)
+                self.parent.parent.save_df(df, filename, mode='w', quiet=quiet)
 
             def sheet(self, df: pd.DataFrame, sheet_name: str):
                 """DataFrameをGoogle Sheetsへ反映する
                 """
                 if self.parent.parent.select.sheet(sheet_name):
                     if self.parent.parent.gs.sheet.overwrite_data(df, include_index=False):
-                        print(f"レポートのデータを上書き保存しました。")
+                        print(f"データを「{sheet_name}」シートへ反映しました。")
 
     class Select:
         """選択するUIの構築と処理

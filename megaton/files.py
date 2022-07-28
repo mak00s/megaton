@@ -24,12 +24,17 @@ def append_suffix_to_filename(filename: str, suffix: str):
     return f"{name}{suffix}{ext}"
 
 
-def save_df(df: pd.DataFrame, filename: str):
-    """Save a DataFrame as CSV"""
-    df.to_csv(filename, index=False)
+def save_df(df: pd.DataFrame, filename: str, mode: str = 'w', include_header: bool = True):
+    """Save a DataFrame as CSV
+    """
+    if mode == 'a':
+        include_header = False
+
+    df.to_csv(filename, mode=mode, index=False, header=include_header)
 
 
 def download_file(filename: str):
-    """Download a file from Google Colaboratory"""
+    """Download a file from Google Colaboratory
+    """
     if IN_COLAB:
         files.download(filename)
