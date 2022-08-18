@@ -594,25 +594,27 @@ class Megaton:
             delete_columns = []
             type_columns = {}
 
-            for col in conf.keys():
-                # filter
-                if 'replace' in conf[col].keys():
-                    filters = conf[col]['replace']
-                    # make it a list if it is a single item
-                    if not isinstance(filters, list):
-                        filters = [filters]
-                    for f in filters:
-                        utils.replace_columns(df, [(col, f, '')])
-                # delete
-                if 'delete' in conf[col].keys():
-                    if conf[col]['delete']:
-                        delete_columns.append(col)
-                # rename
-                if 'name' in conf[col].keys():
-                    rename_columns[col] = conf[col]['name']
-                # change type
-                if 'type' in conf[col].keys():
-                    type_columns[col] = conf[col]['type']
+            # loop dimensions and metrics
+            for col, d in conf.items():
+                for act, v in d.items():
+                    if act == "cut":
+                        # make it a list if it is a single item
+                        if not isinstance(v, list):
+                            v = [v]
+                        for before in v:
+                            utils.replace_columns(df, [(col, before, '')])
+                    if act == "delete":
+                        if v:
+                            delete_columns.append(col)
+                    elif act == "name":
+                        rename_columns[col] = v
+                    elif act == "replace":
+                        if isinstance(v, tuple):
+                            before, after = v
+                            utils.replace_columns(df, [(col, before, after)])
+                    elif act == "type":
+                        if v:
+                            type_columns[col] = v
 
             df = utils.prep_df(df, delete_columns, type_columns, rename_columns)
             self.data = df
