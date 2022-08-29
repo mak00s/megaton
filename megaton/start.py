@@ -109,11 +109,14 @@ class Megaton:
     #     self.auth_menu.reset()
     #     self.select.reset()
 
-    def save_df(self, df: pd.DataFrame, filename: str = None, mode: str = 'w', include_dates: bool = True, quiet: bool = False):
+    def load_df(self, filename: str):
+        """指定ディレクトリ中のCSVファイルをロードして結合しDataFrame化"""
+        df = files.load_df(filename)
+        return df
+
+    def save_df(self, df: pd.DataFrame, filename: str, mode: str = 'w', include_dates: bool = True, quiet: bool = False):
         """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
         """
-        if not filename:
-            filename = 'report'
         if include_dates:
             new_filename = files.append_suffix_to_filename(filename, f"_{self.report.dates}")
         else:
@@ -315,18 +318,19 @@ class Megaton:
             def __init__(self, parent):
                 self.parent = parent
 
-            def csv(self, df: pd.DataFrame = None, filename: str = 'report', quiet: bool = False):
+            def csv(self, df: pd.DataFrame = None, filename: str = 'report', include_dates: bool = True, quiet: bool = False):
                 """DataFrameをCSVに追記：ファイル名に期間を付与。拡張子がなければ付与
 
                 Args:
                     df: DataFrame
                     filename: path to a file
+                    include_dates: when True, start_date and end_date is added to the filename
                     quiet: when True, message won't be displayed
                 """
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                self.parent.parent.save_df(df, filename, mode='a', quiet=quiet)
+                self.parent.parent.save_df(df, filename, mode='a', include_dates=include_dates, quiet=quiet)
 
             def sheet(self, sheet_name: str, df: pd.DataFrame = None):
                 """DataFrameをGoogle Sheetsへ反映する
@@ -349,7 +353,7 @@ class Megaton:
             def __init__(self, parent):
                 self.parent = parent
 
-            def csv(self, df: pd.DataFrame = None, filename: str = 'report', mode: str = 'w', include_dates: bool = True, quiet: bool = False):
+            def csv(self, df: pd.DataFrame = None, filename: str = 'report', include_dates: bool = True, quiet: bool = False):
                 """DataFrameをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
 
                 Args:
@@ -362,7 +366,7 @@ class Megaton:
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                self.parent.parent.save_df(df, filename, mode=mode, include_dates=include_dates, quiet=quiet)
+                self.parent.parent.save_df(df, filename, mode='w', include_dates=include_dates, quiet=quiet)
 
             def sheet(self, sheet_name: str, df: pd.DataFrame = None):
                 """DataFrameをGoogle Sheetsへ反映する
@@ -664,13 +668,13 @@ class Megaton:
                 self.parent = parent
 
             def csv(self, filename: str = 'report', quiet: bool = False):
-                """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
+                """レポート結果をCSV保存：ファイル名に期間を付与。拡張子がなければ付与
 
                 Args:
                     filename: path to a file
                     quiet: when True, message won't be displayed
                 """
-                self.parent.parent.save_df(self.parent.data, filename, quiet)
+                self.parent.parent.save_df(self.parent.data, filename, quiet=quiet)
 
             def sheet(self, sheet_name: str):
                 """レポートをGoogle Sheetsへ反映する
