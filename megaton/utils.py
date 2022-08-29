@@ -73,13 +73,13 @@ def prep_df(df, delete_columns: list = None, type_columns: dict = None, rename_c
     """
     if len(df) > 0:
         if delete_columns:
-            # 不要カラムを削除
+            # delete
             df.drop(delete_columns, axis=1, inplace=True)
         if type_columns:
-            # 型を変換
+            # change type
             df = df.astype(type_columns)
         if rename_columns:
-            # カラム名を変更
+            # rename
             df.columns = df.columns.to_series().replace(rename_columns, regex=True)
         return df
 
@@ -99,7 +99,7 @@ def get_chunked_list(original_list: list, chunk_size: int = 100):
 
 
 def get_clean_url(url: str, params_to_keep: list = None):
-    """URLのQuery Stringから指定外のパラメータを除外する"""
+    """Remove parameters from URL Query String"""
 
     if not params_to_keep:
         params_to_keep = []
@@ -120,10 +120,10 @@ def get_clean_url(url: str, params_to_keep: list = None):
                 # print(f"deleting {arg}")
                 pass
         if len(new_args) > 0:
-            # 残ったパラメータを結合
+            # if param remains
             return "?".join([base_url, "&".join(new_args)])
         else:
-            # 何も残らなかったら
+            # all params are removed
             return base_url
     else:
         return url
