@@ -315,7 +315,7 @@ class Megaton:
             def __init__(self, parent):
                 self.parent = parent
 
-            def csv(self, df: pd.DataFrame, filename: str = 'report', quiet: bool = False):
+            def csv(self, df: pd.DataFrame = None, filename: str = 'report', quiet: bool = False):
                 """DataFrameをCSVに追記：ファイル名に期間を付与。拡張子がなければ付与
 
                 Args:
@@ -323,11 +323,17 @@ class Megaton:
                     filename: path to a file
                     quiet: when True, message won't be displayed
                 """
+                if not isinstance(df, pd.DataFrame):
+                    df = self.parent.parent.report.data
+
                 self.parent.parent.save_df(df, filename, mode='a', quiet=quiet)
 
-            def sheet(self, df: pd.DataFrame, sheet_name: str):
+            def sheet(self, sheet_name: str, df: pd.DataFrame = None):
                 """DataFrameをGoogle Sheetsへ反映する
                 """
+                if not isinstance(df, pd.DataFrame):
+                    df = self.parent.parent.report.data
+
                 if self.parent.parent.select.sheet(sheet_name):
                     if self.parent.parent.gs.sheet.save_data(df, include_index=False):
                         print(f"データを「{sheet_name}」シートに追記しました。")
@@ -343,19 +349,31 @@ class Megaton:
             def __init__(self, parent):
                 self.parent = parent
 
-            def csv(self, df: pd.DataFrame, filename: str = 'report', quiet: bool = False):
+            def csv(self, df: pd.DataFrame = None, filename: str = 'report', mode: str = 'w', include_dates: bool = True, quiet: bool = False):
                 """DataFrameをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
 
                 Args:
                     df: DataFrame
                     filename: path to a file
+                    mode: w for overwrite, a for append
+                    include_dates: if True, "_" + start date + "_" + end date is added to the filename
                     quiet: when True, message won't be displayed
                 """
-                self.parent.parent.save_df(df, filename, mode='w', quiet=quiet)
+                if not isinstance(df, pd.DataFrame):
+                    df = self.parent.parent.report.data
 
-            def sheet(self, df: pd.DataFrame, sheet_name: str):
+                self.parent.parent.save_df(df, filename, mode=mode, include_dates=include_dates, quiet=quiet)
+
+            def sheet(self, sheet_name: str, df: pd.DataFrame = None):
                 """DataFrameをGoogle Sheetsへ反映する
+
+                Args:
+                    sheet_name: path to a file
+                    df: DataFrame. If omitted, mg.report.data will be saved.
                 """
+                if not isinstance(df, pd.DataFrame):
+                    df = self.parent.parent.report.data
+
                 if self.parent.parent.select.sheet(sheet_name):
                     if self.parent.parent.gs.sheet.overwrite_data(df, include_index=False):
                         print(f"データを「{sheet_name}」シートへ反映しました。")
