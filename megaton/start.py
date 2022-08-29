@@ -109,15 +109,15 @@ class Megaton:
     #     self.auth_menu.reset()
     #     self.select.reset()
 
-    def save_df(self, df: pd.DataFrame, filename: str = None, mode: str = 'w', inculde_dates: bool = True, quiet: bool = False):
+    def save_df(self, df: pd.DataFrame, filename: str = None, mode: str = 'w', include_dates: bool = True, quiet: bool = False):
         """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
         """
         if not filename:
             filename = 'report'
-        if inculde_dates:
+        if include_dates:
             new_filename = files.append_suffix_to_filename(filename, f"_{self.report.dates}")
         else:
-            new_filename = filename
+            new_filename = files.append_suffix_to_filename(filename, "")
         files.save_df(df, new_filename, mode=mode)
         if quiet:
             return new_filename
