@@ -675,7 +675,7 @@ class MegatonGA4(object):
                         )
                     )
                 else:
-                    LOGGER.warn(f"ignoring unknown field '{field}'.")
+                    LOGGER.warning(f"ignoring unknown field '{field}'.")
             return result
 
         def _format_request(self, **kwargs):
@@ -757,7 +757,7 @@ class MegatonGA4(object):
                     reason = m.group(1)
                     if reason == 'SERVICE_DISABLED':
                         LOGGER.error("GCPのプロジェクトでData APIを有効化してください。")
-                LOGGER.warn(message)
+                LOGGER.warning(message)
             except Exception as e:
                 type_, value, traceback_ = sys.exc_info()
                 LOGGER.debug(type_)
@@ -774,10 +774,10 @@ class MegatonGA4(object):
                 return
 
             if len(dimensions) > 9:
-                LOGGER.warn("Up to 9 dimensions are allowed.")
+                LOGGER.warning("Up to 9 dimensions are allowed.")
                 dimensions = dimensions[:9]
             if len(metrics) > 10:
-                LOGGER.warn("Up to 10 dimensions are allowed.")
+                LOGGER.warning("Up to 10 dimensions are allowed.")
                 metrics = metrics[:10]
 
             limit = kwargs.get('limit', 10000)
@@ -824,7 +824,7 @@ class MegatonGA4(object):
                 else:
                     return all_rows, headers, types
             else:
-                LOGGER.warn("no data found.")
+                LOGGER.warning("no data found.")
                 if to_pd:
                     return pd.DataFrame()
                 else:
