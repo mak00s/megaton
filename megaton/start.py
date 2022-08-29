@@ -544,15 +544,32 @@ class Megaton:
             """レポートを実行
 
             Args:
-                d: list of dimensions
-                m: list of metrics
+                d: list of dimensions. Item can be an api_name or a display_name
+                    or a tuple of api_name and a new column name.
+                m: list of metrics. Item can be an api_name or a display_name
+                    or a tuple of api_name and a new column name.
                 filter_d: dimension filter
                 filter_m: metric filter
-                sort:
+                sort: dimension or metric to order by
                 segments: segment (only for GA3)
             """
-            dimensions = [i for i in d if i]
-            metrics = [i for i in m if i]
+            rename_columns = {}
+            dimensions = []
+            for i in d:
+                if isinstance(i, tuple):
+                    dimensions.append(i[0])
+                    rename_columns[i[0]] = i[1]
+                else:
+                    dimensions.append(i)
+
+            metrics = []
+            for i in m:
+                if isinstance(i, tuple):
+                    metrics.append(i[0])
+                    rename_columns[i[0]] = i[1]
+                else:
+                    metrics.append(i)
+
             ver = self.parent.ga_ver
             try:
                 if ver:
@@ -564,7 +581,7 @@ class Megaton:
                         order_bys=sort,
                         segments=kwargs.get('segments'),
                     )
-                    # return self.data
+                    self.data = utils.prep_df(self.data, rename_columns=rename_columns)
                     return self.show()
                 else:
                     logger.warning("GAのアカウントを選択してください。")
