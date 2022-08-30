@@ -31,6 +31,7 @@ class Megaton:
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
+        self.load = self.Load(self)
         self.select = self.Select(self)
         self.show = self.Show(self)
         self.report = self.Report(self)
@@ -104,16 +105,6 @@ class Megaton:
             except errors.NoDataReturned:
                 logger.warning("UAはアカウントが無いのでスキップします。")
 
-    # def reset_menu(self):
-    #     """メニューの表示と内容をリセット"""
-    #     self.auth_menu.reset()
-    #     self.select.reset()
-
-    def load_df(self, filename: str):
-        """指定ディレクトリ中のCSVファイルをロードして結合しDataFrame化"""
-        df = files.load_df(filename)
-        return df
-
     def save_df(self, df: pd.DataFrame, filename: str, mode: str = 'w', include_dates: bool = True, quiet: bool = False):
         """データフレームをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
         """
@@ -137,12 +128,12 @@ class Megaton:
         new_filename = self.save_df(df, filename, quiet=True)
         files.download_file(new_filename)
 
-    def load_cell(self, row, col, what: str = None):
-        self.gs.sheet.cell.select(row, col)
-        value = self.gs.sheet.cell.data
-        if what:
-            print(f"{what}は{value}")
-        return value
+    # def load_cell(self, row, col, what: str = None):
+    #     self.gs.sheet.cell.select(row, col)
+    #     value = self.gs.sheet.cell.data
+    #     if what:
+    #         print(f"{what}は{value}")
+    #     return value
 
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
@@ -464,6 +455,24 @@ class Megaton:
                 if self.parent.gs.title:
                     print(f"Googleスプレッドシート「{self.parent.gs.title}」を開きました。")
                     return True
+
+    class Load:
+        """DaraFrameをCSVやGoogle Sheetsから読み込む
+        """
+        def __init__(self, parent):
+            self.parent = parent
+
+        def csv(self, filename: str):
+            """指定ディレクトリ中のCSVファイルをロードして結合しDataFrame化"""
+            df = files.load_df(filename)
+            return df
+
+        def cell(self, row, col, what: str = None):
+            self.parent.gs.sheet.cell.select(row, col)
+            value = self.parent.gs.sheet.cell.data
+            if what:
+                print(f"{what}は{value}")
+            return value
 
     class Show:
         def __init__(self, parent):
