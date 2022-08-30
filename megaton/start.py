@@ -353,7 +353,7 @@ class Megaton:
             def __init__(self, parent):
                 self.parent = parent
 
-            def csv(self, df: pd.DataFrame = None, filename: str = 'report', include_dates: bool = True, quiet: bool = False):
+            def csv(self, df: pd.DataFrame = None, filename: str = 'report', mode: str = 'w', include_dates: bool = True, quiet: bool = False):
                 """DataFrameをCSV保存：ファイル名に期間を付与。拡張子がなければ付与
 
                 Args:
@@ -366,7 +366,7 @@ class Megaton:
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                self.parent.parent.save_df(df, filename, mode='w', include_dates=include_dates, quiet=quiet)
+                self.parent.parent.save_df(df, filename, mode=mode, include_dates=include_dates, quiet=quiet)
 
             def sheet(self, sheet_name: str, df: pd.DataFrame = None):
                 """DataFrameをGoogle Sheetsへ反映する
