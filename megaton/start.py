@@ -505,17 +505,20 @@ class Megaton:
                 return self.parent.table(df)
 
         def table(self, df: pd.core.frame.DataFrame, rows: int = 10, include_index: bool = False):
-            if self.parent.in_colab:
-                from google.colab import data_table
-                return data_table.DataTable(
-                    df,
-                    include_index=include_index,
-                    num_rows_per_page=rows
-                )
-            try:
-                itables.show(df)
-            except NameError:
-                display(df)
+            if isinstance(df, pd.DataFrame):
+                if self.parent.in_colab:
+                    from google.colab import data_table
+                    return data_table.DataTable(
+                        df,
+                        include_index=include_index,
+                        num_rows_per_page=rows
+                    )
+                try:
+                    itables.show(df)
+                except NameError:
+                    display(df)
+            else:
+                print("該当するデータがありません。")
 
     class Report:
         """GA/GA4からデータを抽出
