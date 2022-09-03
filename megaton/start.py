@@ -147,6 +147,7 @@ class Megaton:
                 value='',
                 placeholder='コードをここへ',
                 description='Auth Code:',
+                width=('210px', '700px')
             )
             self.flow = None
 
@@ -231,19 +232,19 @@ class Megaton:
 
         def _get_account_menu(self):
             if self.ver == '3':
-                return widgets.create_blank_menu('GAアカウント')
+                return widgets.create_blank_menu('GAアカウント', width=('110px', 'max-content'))
             elif self.ver == '4':
-                return widgets.create_blank_menu('GA4アカウント')
+                return widgets.create_blank_menu('GA4アカウント', width=('110px', 'max-content'))
 
         def _get_property_menu(self):
             if self.ver == '3':
-                return widgets.create_blank_menu('GAプロパティ')
+                return widgets.create_blank_menu('GAプロパティ', width=('110px', 'max-content'))
             elif self.ver == '4':
-                return widgets.create_blank_menu('GA4プロパティ')
+                return widgets.create_blank_menu('GA4プロパティ', width=('110px', 'max-content'))
 
         def _get_view_menu(self):
             if self.ver == '3':
-                return widgets.create_blank_menu('GAビュー')
+                return widgets.create_blank_menu('GAビュー', width=('110px', 'max-content'))
             elif self.ver == '4':
                 return None  # widget.create_blank_menu('')
 
@@ -615,8 +616,9 @@ class Megaton:
                         order_bys=sort,
                         segments=kwargs.get('segments'),
                     )
-                    self.data = utils.prep_df(self.data, rename_columns=rename_columns)
-                    return self.show()
+                    if isinstance(self.data, pd.DataFrame):
+                        self.data = utils.prep_df(self.data, rename_columns=rename_columns)
+                        return self.show()
                 else:
                     logger.warning("GAのアカウントを選択してください。")
             except (errors.BadRequest, ValueError) as e:
