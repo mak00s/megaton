@@ -7,9 +7,11 @@ from typing import List, Tuple
 from ipywidgets import Dropdown, HTML, Output, Layout, Tab, Text, VBox
 
 
-def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] = []):
+def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] = [], width: Tuple[str, str] = None):
     """Create a drop-down menu
     """
+    description_width, menu_width = width
+
     # set label
     options = [(default, '')] if default else []
 
@@ -17,12 +19,23 @@ def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] =
     if option_list:
         options.extend(option_list)
 
-    return Dropdown(description=f"{label}: ", options=options)
+    style = {'description_width': description_width} if description_width else Non
+    layout = {'width': menu_width}
+
+    return Dropdown(description=f"{label}: ", options=options, style=style, layout=layout)
 
 
-def create_blank_menu(name: str = None, default: str = None):
-    """空のセレクトメニューを作る"""
-    return dropdown_menu(label=name, default=default)
+def create_blank_menu(name: str = None, default: str = None, width: Tuple[str, str] = None):
+    """空のセレクトメニューを作る
+
+    Args
+        name: label
+        default: default value for the menu
+        width: Tuple of label_width and menu_width in str
+            label_width
+            menu_width: 'max-content', 'initial'
+    """
+    return dropdown_menu(label=name, default=default, width=width)
 
 
 def menu_for_credentials(json_files: dict):
@@ -52,12 +65,18 @@ def html_text(value: str, placeholder: str, description: str):
     )
 
 
-def input_text(value: str, placeholder: str, description: str, disabled: bool = False):
+def input_text(value: str, placeholder: str, description: str, disabled: bool = False, width: Tuple[str, str] = None):
+    description_width, menu_width = width
+    style = {'description_width': description_width} if description_width else None
+    layout = {'width': menu_width}
+
     return Text(
         value=value,
         placeholder=placeholder,
         description=description,
-        disabled=disabled
+        style=style,
+        layout=layout,
+        disabled=disabled,
     )
 
 
