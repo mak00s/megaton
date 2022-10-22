@@ -128,13 +128,6 @@ class Megaton:
         new_filename = self.save_df(df, filename, quiet=True)
         files.download_file(new_filename)
 
-    # def load_cell(self, row, col, what: str = None):
-    #     self.gs.sheet.cell.select(row, col)
-    #     value = self.gs.sheet.cell.data
-    #     if what:
-    #         print(f"{what}は{value}")
-    #     return value
-
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
         def __init__(self, parent, json_files: dict):
@@ -490,13 +483,13 @@ class Megaton:
             @property
             def dimensions(self):
                 print("dimensions are:")
-                df = self.parent.parent.ga['4'].property.show('dimensions')
+                df = pd.DataFrame(self.parent.parent.ga['4'].property.dimensions)
                 return self.parent.table(df)
 
             @property
             def metrics(self):
                 print("metrics are:")
-                df = self.parent.parent.ga['4'].property.show('metrics')
+                df = pd.DataFrame(self.parent.parent.ga['4'].property.metrics)
                 return self.parent.table(df)
 
             @property
