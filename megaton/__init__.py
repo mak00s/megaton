@@ -16,7 +16,7 @@ try:
 except ModuleNotFoundError:
     clear_output()
     print("Installing packages for GA4...")
-    from .install import ga4
+    from .install import ga4, bigquery
 
     clear_output()
     # print("Runtime is now restarting...")

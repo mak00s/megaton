@@ -16,7 +16,8 @@ class MegatonBQ:
     """Class for Google Cloud BigQuery client
     """
 
-    def __init__(self, credentials, project_id: str):
+    def __init__(self, parent, credentials, project_id: str):
+        self.parent = parent
         self.id = project_id
         self.datasets = None
         self.credentials = credentials
@@ -29,10 +30,10 @@ class MegatonBQ:
         )
         self.dataset = self.Dataset(self)
         self.table = self.Table(self)
-        self.for_ga4 = self.ForGA4(self)
+        self.ga4 = self.ForGA4(self)
         self.update()
 
-    def update(self):
+    def update(self) -> None:
         """Get a list of dataset ids for the project"""
         # Make an API request.
         datasets = list(self.client.list_datasets())
@@ -43,15 +44,21 @@ class MegatonBQ:
         else:
             print(f"project {self.id} does not have any datasets.")
 
-    def run(self, query: str):
-        """Run a SQL query and return data
+    def run(self, query: str, to_dataframe: bool = False):
+        """Run a query and return data
         Args:
             query (str):
                 SQL query to be executed.
+            to_dataframe (bool):
+                if true, data is retured as pandas DataFrame
         """
         job = self.client.query(query=query)
         results = job.result()  # Waits for job to complete.
-        return results
+
+        if to_dataframe:
+            return results.to_dataframe()
+        else:
+            return results
 
     class Dataset:
         def __init__(self, parent):
@@ -60,23 +67,33 @@ class MegatonBQ:
             self.instance = None
             self.id = None
             self.tables = None
+            # self._clear()
 
-        def select(self, id: str):
-            if id:
-                if id in self.parent.datasets:
-                    if id != self.id:
-                        self.update(id)
+        def _clear(self) -> None:
+            self.ref = None
+            self.instance = None
+            self.id = None
+            self.tables = None
+            self.parent.table.select()
+
+        def select(self, dataset_id: str) -> None:
+            """select dataset"""
+            if dataset_id:
+                if dataset_id in self.parent.datasets:
+                    if dataset_id != self.id:
+                        self.update(dataset_id)
                 else:
-                    print(f"dataset {id} is not found in the project {self.parent.id}")
+                    print(f"dataset {dataset_id} is not found in the project {self.parent.id}")
             else:
-                self.ref = None
-                self.instance = None
-                self.id = None
-                self.tables = None
-                self.parent.table.select()
+                # self.ref = None
+                # self.instance = None
+                # self.id = None
+                # self.tables = None
+                # self.parent.table.select()
+                self._clear()
 
         def update(self, dataset_id: str = ''):
-            """Get a list of table ids for the dataset"""
+            """Get a list of table ids for the dataset specified"""
             id = dataset_id if dataset_id else self.id
 
             try:
@@ -105,23 +122,24 @@ class MegatonBQ:
             self.instance = None
             self.id = None
 
-        def _get_info(self):
-            """Get metadata of the table"""
+        # def _get_info(self):
+        #     """Get metadata for the table"""
 
-        def select(self, id: str):
-            if id:
-                if id in self.parent.dataset.tables:
-                    if id != self.id:
-                        self.update(id)
+        def select(self, table_id: str) -> None:
+            """select a table"""
+            if table_id:
+                if table_id in self.parent.dataset.tables:
+                    if table_id != self.id:
+                        self.update(table_id)
                 else:
-                    print(f"table {id} is not found in the dataset {self.parent.dataset.id}")
+                    print(f"table {table_id} is not found in the dataset {self.parent.dataset.id}")
             else:
                 self.ref = None
                 self.instance = None
                 self.id = None
 
         def update(self, table_id: str = ''):
-            """Get an api reference for a table"""
+            """Get an api reference for the table"""
             id = table_id if table_id else self.id
             if self.parent.dataset.ref:
                 try:
@@ -129,7 +147,7 @@ class MegatonBQ:
                     self.ref = table_ref
                     self.instance = self.parent.client.get_table(self.ref)
                     self.id = id
-                    self._get_info()
+                    # self._get_info()
                 except Exception as e:
                     raise e
             else:
@@ -168,19 +186,49 @@ class MegatonBQ:
             self.parent = parent
             self.clustering_fields = ['client_id', 'event_name']
             self.clean_table_id = 'clean'
+            self.start_date = ''
+            self.end_date = ''
 
-        def get_first_date_recorded(self):
+        @property
+        def first_date_recorded(self) -> str:
+            """the first date GA4 data was transferred to BigQuery in YYYYMMDD format"""
             partitions = [t for t in self.parent.dataset.tables if t.startswith('events_')]
             if partitions:
                 return sorted(partitions)[0].replace("events_", "")
 
+        def set_dates(self, start_date: str, end_date: str) -> None:
+            self.start_date = start_date.strip()
+            self.end_date = end_date.strip()
+
+        def audit_ep(self):
+            sql = f'''--Event Parameterの発生状況
+                SELECT
+                    param.key AS parameter_name,
+                    event_name,
+                    DATE(timestamp_micros(event_timestamp), 'Asia/Tokyo') AS date,
+                    COUNT(1) AS count,
+                    COUNT(param.value.string_value) AS string,
+                    COUNT(param.value.int_value) AS int,
+                    COUNT(param.value.float_value) AS float,
+                    COUNT(param.value.double_value) AS double,
+                FROM
+                    `analytics_{self.parent.parent.ga['4'].property.id}.events_*`
+                        CROSS JOIN UNNEST(event_params) AS param
+                WHERE
+                    _TABLE_SUFFIX >= '{self.start_date}' AND _TABLE_SUFFIX <= '{self.end_date}'
+                GROUP BY 1,2,3
+                ORDER BY 1,2,3
+            '''
+            df = self.parent.run(sql, to_dataframe=True)
+            return df
+
         def create_clean_table(self, schema: Dict):
-            """Create a table to store flatten GA data."""
-            print(f"Creating a table to store flattened GA data.")
+            """Create a table to store flattened GA4 data."""
+            print(f"Creating a table to store flattened GA4 data.")
             # Make an API request.
             self.parent.table.create(
                 table_id=self.clean_table_id,
-                description='This is a table to store flattened and optimized GA4 data based on the exported raw data.',
+                description='This is a table to store flattened and optimized GA4 data exported.',
                 schema=self.dict_to_bq_schema(schema),
                 partitioning_field='date',
                 clustering_fields=self.clustering_fields
@@ -198,7 +246,6 @@ class MegatonBQ:
                     description=x.get('description') if x.get('description') else '')
                 for x in schema
             ]
-            return schema
 
         def flatten_events(
                 self,
@@ -209,7 +256,7 @@ class MegatonBQ:
                 user_properties: list = [],
                 to: str = 'dataframe'
         ):
-            """Flatten event tables exported from GA4"""
+            """Flattened event tables exported from GA4"""
 
             sql = self.get_query_to_flatten_events(
                 date1,
@@ -255,7 +302,7 @@ class MegatonBQ:
                 user_properties: list = [],
                 to: str = 'select'
         ):
-            """Return a query to flatten event tables exported from GA4"""
+            """Return a query to flatten GA4 event tables exported"""
 
             project_id = self.parent.id
             dataset = self.parent.dataset.id
@@ -354,7 +401,7 @@ END IF;"""
 
             try:
                 response = self.parent.dts_client.create_transfer_config(request=request)
-                print(f"Schedule query was created: {response.name}")
+                print(f"Scheduled query was created: {response.name}")
                 return response
             except PermissionDenied as e:
                 print("権限がありません。")
