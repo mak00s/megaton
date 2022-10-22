@@ -9,7 +9,7 @@ import sys
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import auth, constants, errors, files, ga3, ga4, gsheet, utils, widgets
+from . import auth, bq, constants, errors, files, ga3, ga4, gsheet, utils, widgets
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
@@ -28,6 +28,7 @@ class Megaton:
         self.use_ga3 = use_ga3
         self.ga = {}  # GA clients
         self.gs = None  # Google Sheets client
+        self.bq = None  # BigQuery
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
@@ -127,6 +128,10 @@ class Megaton:
             filename = 'report'
         new_filename = self.save_df(df, filename, quiet=True)
         files.download_file(new_filename)
+
+    def enable_bigquery(self, gcp_project: str):
+        self.bq = bq.MegatonBQ(self, self.creds, gcp_project)
+        return self.bq
 
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
