@@ -223,8 +223,6 @@ class MegatonGA4(object):
             self.api_custom_dimensions = None
             self.api_custom_metrics = None
             self.api_metadata = None
-            self.dimensions = None
-            self.metrics = None
 
         def clear(self):
             self.id = None
@@ -240,8 +238,14 @@ class MegatonGA4(object):
             self.api_custom_dimensions = None
             self.api_custom_metrics = None
             self.api_metadata = None
-            self.dimensions = None
-            self.metrics = None
+
+        def select(self, id: str):
+            if id:
+                if id != self.id:
+                    self.id = id
+                    self._update()
+            else:
+                self.clear()
 
         def _get_metadata(self):
             """Returns available dimensions and metrics for the property."""
@@ -292,8 +296,21 @@ class MegatonGA4(object):
                     })
                 return {'dimensions': dimensions, 'metrics': metrics}
 
-        @property
-        def custom_dimensions(self):
+        def _get_data_retention(self):
+            """Returns data retention settings for the property."""
+            try:
+                item = self.parent.admin_client.get_data_retention_settings(
+                    name=f"properties/{self.id}/dataRetentionSettings")
+            except Exception as e:
+                LOGGER.error(e)
+            else:
+                dict = {
+                    'data_retention': DataRetentionSettings.RetentionDuration(item.event_data_retention).name,
+                    'reset_user_data_on_new_activity': item.reset_user_data_on_new_activity,
+                }
+                return dict
+
+        def _get_custom_dimensions(self):
             """Returns custom dimensions for the property."""
             try:
                 results_iterator = self.parent.admin_client.list_custom_dimensions(
@@ -313,8 +330,7 @@ class MegatonGA4(object):
                     results.append(dict)
                 return results
 
-        @property
-        def custom_metrics(self):
+        def _get_custom_metrics(self):
             """Returns custom metrics for the property."""
             try:
                 results_iterator = self.parent.admin_client.list_custom_metrics(
@@ -336,32 +352,10 @@ class MegatonGA4(object):
                     results.append(dict)
                 return results
 
-        def _get_data_retention(self):
-            """Returns data retention settings for the property."""
-            try:
-                item = self.parent.admin_client.get_data_retention_settings(
-                    name=f"properties/{self.id}/dataRetentionSettings")
-            except Exception as e:
-                LOGGER.error(e)
-            else:
-                dict = {
-                    'data_retention': DataRetentionSettings.RetentionDuration(item.event_data_retention).name,
-                    'reset_user_data_on_new_activity': item.reset_user_data_on_new_activity,
-                }
-                return dict
-
         def _update(self):
             # self.clear()
             self.get_info()
             self.get_available()
-
-        def select(self, id: str):
-            if id:
-                if id != self.id:
-                    self.id = id
-                    self._update()
-            else:
-                self.clear()
 
         def get_info(self):
             """Get property data from parent account"""
@@ -378,33 +372,50 @@ class MegatonGA4(object):
             self.currency = dict.get('currency', None)  # GA4 only
             return dict
 
-        def get_available(self):
-            if not self.api_metadata:
-                self.api_metadata = self._get_metadata()
-            return self.api_metadata
+        def get_available(self) -> None:
+            """get metadata for dimensions and metrics from api"""
+            # if not self.api_metadata:
+            self.api_metadata = self._get_metadata()
+            self.api_custom_dimensions = self._get_custom_dimensions()
+            self.api_custom_metrics = self._get_custom_metrics()
 
-        def get_dimensions(self):
-            self.get_available()
-            if not self.api_custom_dimensions:
-                self.api_custom_dimensions = self.custom_dimensions
+        @property
+        def dimensions(self):
+            """Returns all available dimensions for the property."""
             # integrate data
             new = []
             for m in self.api_metadata['dimensions']:
                 dict = m.copy()
                 if m['customized']:
                     for c in self.api_custom_dimensions:
-                        if m['display_name'] == c['display_name'] or m['display_name'] == c['parameter_name']:
+                        if m['display_name'] == c['display_name']: #or m['display_name'] == c['parameter_name']:
                             dict['description'] = c['description']
-                            dict['parameter_name'] = c['parameter_name']
-                            dict['scope'] = c['scope']
+                            # dict['parameter_name'] = c['parameter_name']
+                            # dict['scope'] = c['scope']
                 new.append(dict)
-            self.dimensions = new
-            return self.dimensions
+            return new
 
-        def get_metrics(self):
-            self.get_available()
-            if not self.api_custom_metrics:
-                self.api_custom_metrics = self.custom_metrics
+        @property
+        def custom_dimensions(self):
+            """Returns custom dimensions for the property."""
+            # integrate data
+            new = []
+            for m in self.api_metadata['dimensions']:
+                if m['customized']:
+                    for c in self.api_custom_dimensions:
+                        if m['display_name'] == c['display_name']: #or m['display_name'] == c['parameter_name']:
+                            new.append({
+                                'api_name': m['api_name'],
+                                'display_name': m['display_name'],
+                                'parameter_name': c['parameter_name'],
+                                'description': c['description'],
+                                'scope': c['scope'],
+                            })
+            return new
+
+        @property
+        def metrics(self):
+            """Returns all available metrics for the property."""
             # integrate data
             new = []
             for m in self.api_metadata['metrics']:
@@ -413,14 +424,34 @@ class MegatonGA4(object):
                     for c in self.api_custom_metrics or {}:
                         if m['display_name'] == c['display_name']:
                             dict['description'] = c['description']
-                            dict['parameter_name'] = c['parameter_name']
-                            dict['scope'] = c['scope']
-                            dict['unit'] = c['measurement_unit']
+                            # dict['parameter_name'] = c['parameter_name']
+                            # dict['scope'] = c['scope']
+                            # dict['unit'] = c['measurement_unit']
                 if 'type' in m.keys():
                     dict['type'] = MetricType(m['type']).name
                 new.append(dict)
-            self.metrics = new
-            return self.metrics
+            return new
+
+        @property
+        def custom_metrics(self):
+            """Returns custom metrics for the property."""
+            # integrate data
+            new = []
+            for m in self.api_metadata['metrics']:
+                if m['customized']:
+                    for c in self.api_custom_metrics or {}:
+                        if m['display_name'] == c['display_name']:
+                            type = MetricType(m['type']).name if 'type' in m.keys() else None
+                            new.append({
+                                'api_name': m['api_name'],
+                                'display_name': m['display_name'],
+                                'parameter_name': c['parameter_name'],
+                                'description': c['description'],
+                                'scope': c['scope'],
+                                'unit': c['measurement_unit'],
+                                'type': type,
+                            })
+            return new
 
         def show(self, me: str = 'info', index_col: Optional[str] = None):
             res = None
@@ -442,33 +473,10 @@ class MegatonGA4(object):
                 sort_values = ['category', 'display_name']
             elif me == 'custom_dimensions':
                 index_col = 'api_name'
-                dict = self.get_dimensions()
-                res = []
-                for r in dict:
-                    if r['customized']:
-                        res.append({
-                            'display_name': r['display_name'],
-                            'api_name': r['api_name'],
-                            'parameter_name': r['parameter_name'],
-                            'description': r['description'],
-                            'scope': r['scope'],
-                        })
+                res = self.custom_dimensions
             elif me == 'custom_metrics':
                 index_col = 'api_name'
-                dict = self.get_metrics()
-                res = []
-                for r in dict:
-                    if r['customized']:
-                        res.append({
-                            'display_name': r['display_name'],
-                            'api_name': r['api_name'],
-                            'description': r['description'],
-                            'type': r['type'] if 'type' in r else '',
-                            'scope': r['scope'] if 'scope' in r else '',
-                            'parameter_name': r['parameter_name'] if 'parameter_name' in r else '',
-                            'unit': r['unit'] if 'unit' in r else '',
-                            'expression': r['expression'],
-                        })
+                res = self.custom_metrics
             elif me == 'info':
                 res = [self.get_info()]
                 index_col = 'id'
@@ -895,14 +903,7 @@ class MegatonGA4(object):
                     string_filter=Filter.StringFilter(value="page_view"),
                 )
             )
-            order_bys = [
-                OrderBy(
-                    desc=False,
-                    dimension=OrderBy.DimensionOrderBy(
-                        dimension_name="date"
-                    )
-                ),
-            ]
+            order_bys = 'date'
             return self.run(
                 dimensions,
                 metrics,
@@ -918,20 +919,7 @@ class MegatonGA4(object):
             metrics = [
                 'eventCount',
             ]
-            order_bys = [
-                OrderBy(
-                    desc=False,
-                    dimension=OrderBy.DimensionOrderBy(
-                        dimension_name="date"
-                    )
-                ),
-                OrderBy(
-                    desc=True,
-                    metric=OrderBy.MetricOrderBy(
-                        metric_name="eventCount"
-                    )
-                ),
-            ]
+            order_bys = 'date'
             return self.run(
                 dimensions,
                 metrics,
