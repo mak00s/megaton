@@ -11,6 +11,8 @@ from google.cloud import bigquery
 from google.cloud import bigquery_datatransfer
 from google.cloud.exceptions import NotFound
 
+from . import constants, ga4
+
 
 class MegatonBQ:
     """Class for Google Cloud BigQuery client
@@ -30,7 +32,7 @@ class MegatonBQ:
         )
         self.dataset = self.Dataset(self)
         self.table = self.Table(self)
-        self.ga4 = self.ForGA4(self)
+        self.ga4 = self.GA4(self)
         self.update()
 
     def update(self) -> None:
@@ -153,8 +155,10 @@ class MegatonBQ:
             else:
                 print("Please select a dataset first.")
 
-        def create(self, table_id: str, schema: bigquery.SchemaField, description: str = '', partitioning_field: str = '',
-                   clustering_fields: list = []):
+        def create(self, table_id: str, schema: bigquery.SchemaField, description: str = '',
+                   partitioning_field: str = '', clustering_fields=None):
+            if clustering_fields is None:
+                clustering_fields = []
             dataset_ref = self.parent.dataset.ref
             table_ref = dataset_ref.table(table_id)
             table = bigquery.Table(table_ref, schema=schema)
@@ -172,20 +176,20 @@ class MegatonBQ:
             # Make an API request.
             table = self.parent.client.create_table(table)
 
-            print(f"Created table {table.table_id}", end='')
+            print(f"Created a table '{table.table_id}'", end='')
             if table.time_partitioning.field:
-                print(f", partitioned on column {table.time_partitioning.field}")
+                print(f", partitioned on a column '{table.time_partitioning.field}'")
             self.parent.dataset.update()
 
             return table
 
-    class ForGA4:
+    class GA4:
         """utilities to manage GA4"""
 
         def __init__(self, parent):
             self.parent = parent
             self.clustering_fields = ['client_id', 'event_name']
-            self.clean_table_id = 'clean'
+            self.clean_table_id = 'flat'
             self.start_date = ''
             self.end_date = ''
 
@@ -222,19 +226,31 @@ class MegatonBQ:
             df = self.parent.run(sql, to_dataframe=True)
             return df
 
-        def create_clean_table(self, schema: Dict):
-            """Create a table to store flattened GA4 data."""
-            print(f"Creating a table to store flattened GA4 data.")
-            # Make an API request.
-            self.parent.table.create(
-                table_id=self.clean_table_id,
-                description='This is a table to store flattened and optimized GA4 data exported.',
-                schema=self.dict_to_bq_schema(schema),
-                partitioning_field='date',
-                clustering_fields=self.clustering_fields
-            )
+        def template_schema(self):
+            self.parent.parent.launch_gs(constants.GOOGLE_SHEET_GA4_TEMPLATE_URL)
+            if self.parent.parent.gs.sheet.select('推奨BQ'):
+                return [d for d in self.parent.parent.gs.sheet.data if d['Valid']]
 
-        def dict_to_bq_schema(self, schema: Dict) -> List[bigquery.SchemaField]:
+        def get_flat_schema(self, ep: list, up: list):
+            gs_data = self.template_schema()
+            basic_schema = [
+                {
+                    'name': d['Field Name'],
+                    'type': d['Type'],
+                    'description': d['Description']
+                 } for d in gs_data
+            ]
+
+            custom_schema = []
+            for d in up + ep:
+                custom_schema.append({
+                    'name': d['field_name'],
+                    'type': ga4.convert_ga4_type_to_bq_type(d['type']),
+                    'description': d['description']
+                })
+            return basic_schema + custom_schema
+
+        def get_bq_schema(self, schema: list) -> List[bigquery.SchemaField]:
             """Converts a dictionary to list of bigquery.SchemaField
             for use with bigquery client library.
             Dict must contain name and type keys.
@@ -247,11 +263,22 @@ class MegatonBQ:
                 for x in schema
             ]
 
+        def create_flat_table(self, schema: list):
+            """Create a table to store flattened GA4 data."""
+            print(f"Creating a table to store flattened GA4 data.")
+            # Make an API request.
+            self.parent.table.create(
+                table_id=self.clean_table_id,
+                description='This is a table to store flattened and optimized GA4 data exported.',
+                schema=self.get_bq_schema(schema),
+                partitioning_field='date',
+                clustering_fields=self.clustering_fields
+            )
+
         def flatten_events(
                 self,
                 date1: str,
                 date2: str,
-                schema: Dict,
                 event_parameters: list = [],
                 user_properties: list = [],
                 to: str = 'dataframe'
@@ -261,7 +288,6 @@ class MegatonBQ:
             sql = self.get_query_to_flatten_events(
                 date1,
                 date2,
-                schema,
                 event_parameters=event_parameters,
                 user_properties=user_properties,
             )
@@ -297,16 +323,15 @@ class MegatonBQ:
                 self,
                 date1: str,
                 date2: str,
-                schema: Dict,
                 event_parameters: list = [],
                 user_properties: list = [],
                 to: str = 'select'
         ):
             """Return a query to flatten GA4 event tables exported"""
 
-            project_id = self.parent.id
             dataset = self.parent.dataset.id
             table_id = self.clean_table_id
+            schema = self.template_schema()
 
             if to == 'scheduled_query':
                 query = f'''DECLARE Yesterday DATE DEFAULT DATE_SUB(DATE(@run_time, "Asia/Tokyo"), INTERVAL 1 DAY);
@@ -368,13 +393,11 @@ END IF;"""
 
         def schedule_query_to_flatten_events(
                 self,
-                schema: Dict,
                 event_parameters: list = [],
                 user_properties: list = []
         ):
             """Save a scheduled query to flatten event tables exported from GA4"""
             sql = self.get_query_to_flatten_events('', '',
-                                                   schema,
                                                    event_parameters,
                                                    user_properties,
                                                    to='scheduled_query')
@@ -404,7 +427,7 @@ END IF;"""
                 print(f"Scheduled query was created: {response.name}")
                 return response
             except PermissionDenied as e:
-                print("権限がありません。")
+                print("APIを実行する権限がありません。")
                 m = re.search(r'reason: "([^"]+)', str(sys.exc_info()[1]))
                 if m:
                     reason = m.group(1)
