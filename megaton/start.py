@@ -129,9 +129,32 @@ class Megaton:
         new_filename = self.save_df(df, filename, quiet=True)
         files.download_file(new_filename)
 
-    def enable_bigquery(self, gcp_project: str):
+    def launch_bigquery(self, gcp_project: str):
         self.bq = bq.MegatonBQ(self, self.creds, gcp_project)
         return self.bq
+
+    def launch_gs(self, url):
+        """APIでGoogle Sheetsにアクセスする準備"""
+        try:
+            self.gs = gsheet.MegatonGS(self.creds, url)
+        except errors.BadCredentialFormat:
+            print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
+        except errors.BadCredentialScope:
+            print("認証情報のスコープ不足のため、Google Sheets APIを利用できません。")
+        except errors.BadUrlFormat:
+            print("URLのフォーマットが正しくありません")
+        except errors.ApiDisabled:
+            print("Google SheetsのAPIが有効化されていません。")
+        except errors.UrlNotFound:
+            print("URLが見つかりません。")
+        except errors.BadPermission:
+            print("該当スプレッドシートを読み込む権限がありません。")
+        except Exception as e:
+            raise e
+        else:
+            if self.gs.title:
+                print(f"Googleスプレッドシート「{self.gs.title}」を開きました。")
+                return True
 
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
