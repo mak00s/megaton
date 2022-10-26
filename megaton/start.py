@@ -45,11 +45,16 @@ class Megaton:
         return 'google.colab' in sys.modules
 
     @property
-    def ga_ver(self):
-        """タブの状態でGAのバージョンを切り替える"""
-        ver = list(self.select.ga_menu.keys())
-        if ver:
-            return ver[self.select.ga_tab.selected_index]
+    def ga_ver(self) -> str:
+        """現在選択されたGAのバージョン"""
+        if len(self.ga.keys()) == 1:
+            # タブが一つなら確定
+            return list(self.ga.keys())[0]
+        else:
+            # タブの状態でGAのバージョンを切り替える
+            ver = list(self.select.ga_menu.keys())
+            if ver:
+                return ver[self.select.ga_tab.selected_index]
 
     @property
     def enabled(self):
