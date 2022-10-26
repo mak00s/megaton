@@ -402,7 +402,10 @@ INSERT INTO `{dataset}.{table_id}` (
 
             if to == 'scheduled_query':
                 query += f"""_TABLE_SUFFIX = processing_date
-);"""
+);
+
+SELECT FORMAT("%d rows (%d bytes) of data for %s were successfully inserted into %s.", @@row_count, @@script.bytes_processed, processing_date, output_dataset);
+"""
 
             else:
                 query += f"""_TABLE_SUFFIX >= '{date1}' AND _TABLE_SUFFIX <= '{date2}'"""
