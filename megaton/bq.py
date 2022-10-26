@@ -2,7 +2,7 @@
 Functions for Google Cloud BigQuery
 """
 
-from typing import Dict, List
+from typing import List
 import re
 import sys
 
@@ -44,7 +44,7 @@ class MegatonBQ:
             # extract dataset id
             self.datasets = [d.dataset_id for d in datasets]
         else:
-            print(f"project {self.id} does not have any datasets.")
+            print(f"project {self.id} has no datasets.")
 
     def run(self, query: str, to_dataframe: bool = False):
         """Run a query and return data
@@ -69,7 +69,6 @@ class MegatonBQ:
             self.instance = None
             self.id = None
             self.tables = None
-            # self._clear()
 
         def _clear(self) -> None:
             self.ref = None
@@ -87,11 +86,6 @@ class MegatonBQ:
                 else:
                     print(f"dataset {dataset_id} is not found in the project {self.parent.id}")
             else:
-                # self.ref = None
-                # self.instance = None
-                # self.id = None
-                # self.tables = None
-                # self.parent.table.select()
                 self._clear()
 
         def update(self, dataset_id: str = ''):
@@ -108,14 +102,14 @@ class MegatonBQ:
                     print(f"Dataset {dataset_id} is not found in the project {self.parent.id}")
                 return False
 
-            # Make an API request.
+            # Make an API request
             tables = list(self.parent.client.list_tables(dataset))
 
             if tables:
                 # extract table id
                 self.tables = [d.table_id for d in tables]
             else:
-                print(f"dataset {self.id} does not have any tables.")
+                print(f"dataset {self.id} has no tables.")
 
     class Table:
         def __init__(self, parent):
@@ -156,7 +150,7 @@ class MegatonBQ:
                 print("Please select a dataset first.")
 
         def create(self, table_id: str, schema: bigquery.SchemaField, description: str = '',
-                   partitioning_field: str = '', clustering_fields=None):
+                   partitioning_field: str = '', clustering_fields=None) -> bigquery.table.Table:
             if clustering_fields is None:
                 clustering_fields = []
             dataset_ref = self.parent.dataset.ref
@@ -189,7 +183,7 @@ class MegatonBQ:
         def __init__(self, parent):
             self.parent = parent
             self.clustering_fields = ['client_id', 'event_name']
-            self.clean_table_id = 'flat'
+            self.flat_table_id = 'flat'
             self.start_date = ''
             self.end_date = ''
 
@@ -226,12 +220,12 @@ class MegatonBQ:
             df = self.parent.run(sql, to_dataframe=True)
             return df
 
-        def template_schema(self):
+        def template_schema(self) -> list:
             self.parent.parent.launch_gs(constants.GOOGLE_SHEET_GA4_TEMPLATE_URL)
             if self.parent.parent.gs.sheet.select('推奨BQ'):
                 return [d for d in self.parent.parent.gs.sheet.data if d['Valid']]
 
-        def get_flat_schema(self, ep: list, up: list):
+        def get_flat_schema(self, ep: list, up: list) -> list:
             gs_data = self.template_schema()
             basic_schema = [
                 {
@@ -263,12 +257,12 @@ class MegatonBQ:
                 for x in schema
             ]
 
-        def create_flat_table(self, schema: list):
+        def create_flat_table(self, schema: list) -> None:
             """Create a table to store flattened GA4 data."""
             print(f"Creating a table to store flattened GA4 data.")
             # Make an API request.
             self.parent.table.create(
-                table_id=self.clean_table_id,
+                table_id=self.flat_table_id,
                 description='This is a table to store flattened and optimized GA4 data exported.',
                 schema=self.get_bq_schema(schema),
                 partitioning_field='date',
@@ -282,7 +276,7 @@ class MegatonBQ:
                 event_parameters: list = [],
                 user_properties: list = [],
                 to: str = 'dataframe'
-        ):
+        ) -> None:
             """Flattened event tables exported from GA4"""
 
             sql = self.get_query_to_flatten_events(
@@ -298,11 +292,11 @@ class MegatonBQ:
                 print(f"{len(df)} rows were retrieved.")
                 return df
             elif to == 'table':
-                # append data to the clean table
-                self.parent.table.select(self.clean_table_id)
+                # append the data to a table
+                self.parent.table.select(self.flat_table_id)
                 table_ref = self.parent.table.ref
                 rows_before = self.parent.table.instance.num_rows
-                print(f"The table '{self.clean_table_id}' had {rows_before} rows.")
+                print(f"The table '{self.flat_table_id}' had {rows_before} rows.")
 
                 job_config = bigquery.QueryJobConfig(
                     # clustering_fields=self.clustering_fields,
@@ -314,8 +308,8 @@ class MegatonBQ:
                 result_iterator = query_job.result()  # Wait for the job to complete.
 
                 rows_after = result_iterator.total_rows
-                print(f"{rows_after - rows_before} rows were added for the period ({date1} - {date2})")
-                return result_iterator
+                print(f"{rows_after - rows_before} rows were added for the period {date1} - {date2}")
+                # return result_iterator
             else:
                 print(f"Unknown destination: {to}")
 
@@ -330,61 +324,85 @@ class MegatonBQ:
             """Return a query to flatten GA4 event tables exported"""
 
             dataset = self.parent.dataset.id
-            table_id = self.clean_table_id
+            table_id = self.flat_table_id
             schema = self.template_schema()
 
             if to == 'scheduled_query':
-                query = f'''DECLARE Yesterday DATE DEFAULT DATE_SUB(DATE(@run_time, "Asia/Tokyo"), INTERVAL 1 DAY);
-DECLARE YesterdayRecords DEFAULT (
-    --check if data already exists
-    SELECT COUNT(1)
-    FROM `{dataset}.{table_id}`
-    WHERE date = Yesterday
-);
+                query = f'''--未処理のGA4生データを変換しflatテーブルへ追記
+DECLARE last_exported_date DATE;
+DECLARE next_date_to_be_processed DATE;
+DECLARE processing_date STRING;
 
-IF YesterdayRecords > 0 THEN
-    --skip
-    RAISE USING MESSAGE = FORMAT("%t already has %d records. skipping...", Yesterday, YesterdayRecords);
+EXECUTE IMMEDIATE FORMAT("""
+  --最後にエクスポートされたGA4データの日付
+  SELECT CAST(RIGHT(table_name, 8) AS DATE FORMAT 'YYYYMMDD')
+  FROM `{dataset}.INFORMATION_SCHEMA.TABLES`
+  WHERE REGEXP_CONTAINS(table_name, r'^events_2')
+  ORDER BY 1 DESC
+  LIMIT 1
+""") INTO last_exported_date;
+
+EXECUTE IMMEDIATE FORMAT("""
+  --未処理の最初の日付
+  SELECT DATE_ADD(date, INTERVAL 1 DAY)
+  FROM `{dataset}.{table_id}`
+  WHERE date > DATE_SUB('%t', INTERVAL 10 DAY)--節約のため直近に絞る
+  GROUP BY 1
+  ORDER BY 1 DESC
+  LIMIT 1
+""", last_exported_date) INTO next_date_to_be_processed;
+
+--処理すべき日付を判定
+IF next_date_to_be_processed = last_exported_date THEN
+  SET processing_date = FORMAT_DATE("%Y%m%d", last_exported_date);
+  SELECT FORMAT('New data for %t found. Processing events_%s...', next_date_to_be_processed, processing_date);
+ELSEIF next_date_to_be_processed < last_exported_date THEN
+  SET processing_date = FORMAT_DATE("%Y%m%d", next_date_to_be_processed);
+  SELECT FORMAT('New data for %t found, but processing events_%s first...', last_exported_date, processing_date);
 ELSE
-    --go ahead
-    INSERT INTO `{dataset}.{table_id}` (
-        '''
+  --skip
+  RAISE USING MESSAGE = FORMAT("%t has already been processed. Skipping...", last_exported_date);
+END IF;
+
+--go ahead
+INSERT INTO `{dataset}.{table_id}` (
+  '''
+
             else:
-                query = '        '
-            query += f'''--GA4 flatten events
-                SELECT'''
+                query = ''
+            query += f'''--Flatten GA4 events
+  SELECT'''
 
             for s in schema:
                 if s['Category']:
                     query += f'''
-                    --{s['Category']}'''
+    --{s['Category']}'''
                 query += f'''
-                    {s['Select']} AS {s['Field Name']},'''
+    {s['Select']} AS {s['Field Name']},'''
 
             if user_properties:
                 query += f'''
-                    --Custom User Properties'''
+    --Custom User Properties'''
                 for d in user_properties:
                     query += f'''
-                    (SELECT value.{d['type']}_value FROM UNNEST(user_properties) WHERE key = '{d['key']}') AS {d['field_name']},'''
+    (SELECT value.{d['type']}_value FROM UNNEST(user_properties) WHERE key = '{d['key']}') AS {d['field_name']},'''
 
             if event_parameters:
                 query += f'''
-                    --Custom Event Parameters'''
+    --Custom Event Parameters'''
                 for d in event_parameters:
                     query += f'''
-                    (SELECT value.{d['type']}_value FROM UNNEST(event_params) WHERE key = '{d['key']}') AS {d['field_name']},'''
+    (SELECT value.{d['type']}_value FROM UNNEST(event_params) WHERE key = '{d['key']}') AS {d['field_name']},'''
 
             query += f'''
-                FROM
-                    `{dataset}.events_*`
-                WHERE
-                    '''
+  FROM
+    `{dataset}.events_*`
+  WHERE
+    '''
 
             if to == 'scheduled_query':
-                query += f"""_TABLE_SUFFIX = FORMAT_DATE("%Y%m%d", Yesterday)
-    );
-END IF;"""
+                query += f"""_TABLE_SUFFIX = processing_date
+);"""
 
             else:
                 query += f"""_TABLE_SUFFIX >= '{date1}' AND _TABLE_SUFFIX <= '{date2}'"""
