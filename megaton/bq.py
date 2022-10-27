@@ -404,7 +404,7 @@ INSERT INTO `{dataset}.{table_id}` (
                 query += f"""_TABLE_SUFFIX = processing_date
 );
 
-SELECT FORMAT("%d rows (%d bytes) of data for %s were successfully inserted into %s.", @@row_count, @@script.bytes_processed, processing_date, output_dataset);
+SELECT FORMAT("%d rows (%d bytes) of data for %s were successfully inserted.", @@row_count, @@script.bytes_processed, processing_date);
 """
 
             else:
