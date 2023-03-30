@@ -64,7 +64,7 @@ class Megaton:
             enabled.append('ga3')
         if '4' in self.ga.keys():
             enabled.append('ga4')
-        if self.ga:
+        if self.gs:
             enabled.append('gs')
         return enabled
 
@@ -138,7 +138,7 @@ class Megaton:
         self.bq = bq.MegatonBQ(self, self.creds, gcp_project)
         return self.bq
 
-    def launch_gs(self, url):
+    def launch_gs(self, url: str):
         """APIでGoogle Sheetsにアクセスする準備"""
         try:
             self.gs = gsheet.MegatonGS(self.creds, url)
