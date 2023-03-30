@@ -457,7 +457,7 @@ class MegatonGA4(object):
             res = None
             sort_values = []
             if me == 'metrics':
-                list_of_dict = self.get_metrics()
+                list_of_dict = self.metrics
                 my_order = ["category", "display_name", "description", "api_name", "parameter_name", "scope", "unit",
                             "expression"]
                 res = []
@@ -465,7 +465,7 @@ class MegatonGA4(object):
                     res.append(OrderedDict((k, d[k]) for k in my_order if k in d.keys()))
                 sort_values = ['category', 'display_name']
             elif me == 'dimensions':
-                list_of_dict = self.get_dimensions()
+                list_of_dict = self.dimensions
                 my_order = ["category", "display_name", "description", "api_name", "parameter_name", "scope"]
                 res = []
                 for d in list_of_dict:
