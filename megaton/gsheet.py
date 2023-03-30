@@ -271,6 +271,11 @@ class MegatonGS(object):
                 if self.address:
                     return self.parent._driver.acell(self.address).value
 
+            @data.setter
+            def data(self, value):
+                if self.address:
+                    self.parent._driver.update(self.address, value)
+
             def select(self, row: Union[int, str], col: Optional[int] = None):
                 if not self.parent._driver:
                     LOGGER.error("Please select a sheet first.")
