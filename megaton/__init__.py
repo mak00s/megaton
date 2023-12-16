@@ -21,9 +21,9 @@ except ModuleNotFoundError:
     clear_output()
     # print("Runtime is now restarting...")
     # print("You can ignore the error message [Your session crashed for an unknown reason.]")
-    print("もう一度このセルを実行してください。")
-    sleep(0.5)
-    os._exit(0)  # restart
+    # print("もう一度このセルを実行してください。")
+    # sleep(0.5)
+    # os._exit(0)  # restart
 
 
 # if the code is running in Google Colaboratory
