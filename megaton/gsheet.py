@@ -114,6 +114,9 @@ class MegatonGS(object):
             if not self.parent._client:
                 LOGGER.warn("Open URL first.")
                 return
+            self.parent._driver.add_worksheet(
+                title=name, rows=100, cols=20)
+            self.select(name)
 
         def select(self, name: str):
             if not self.parent._client:
