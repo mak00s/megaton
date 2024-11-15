@@ -51,7 +51,7 @@ def replace_columns(df: pd.DataFrame, rules: list):
     for r in rules:
         col, rule, to = r
         try:
-            _ = df[col].replace(rule, to, inplace=True, regex=True)
+            df[col] = df[col].replace(rule, to, regex=True)
         except KeyError as e:
             print(e)
             pass
