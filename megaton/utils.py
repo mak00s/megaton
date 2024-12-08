@@ -34,9 +34,9 @@ def change_column_type(df: pd.DataFrame, to_date=None, to_datetime=None):
 
     for col in df.columns:
         if col in to_date:
-            df[col] = pd.to_datetime(df[col], infer_datetime_format=True, errors='coerce').dt.date
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
         if col in to_datetime:
-            df[col] = pd.to_datetime(df[col], infer_datetime_format=True, errors='coerce')
+            df[col] = pd.to_datetime(df[col], errors='coerce')
 
     return df
 
