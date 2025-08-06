@@ -18,7 +18,7 @@ class Megaton:
     """メガトンはGAを使うアナリストの味方
     """
 
-    def __init__(self, path: str = None, use_ga3: bool = True):
+    def __init__(self, path: str = None, use_ga3: bool = False):
         if not path and self.in_colab:
             path = '/nbs'
         self.json = None
