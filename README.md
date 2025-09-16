@@ -25,20 +25,13 @@ Megaton は Google アナリティクス（GA4／GA3）、Google Sheets、BigQue
 
 ## インストール
 
-配布パッケージはまだ PyPI で公開していません。利用するには GitHub から取得したソースをローカルに配置し、以下のコマンドを実行してください。
+配布パッケージは PyPI には未公開です。以下のコマンドで依存ライブラリと本体を GitHub から直接インストールできます。
 
 ```bash
-pip install /path/to/megaton
+pip install -r https://raw.githubusercontent.com/mak00s/megaton/main/requirements.txt
+pip install -U "git+https://github.com/mak00s/megaton"
 ```
 
-※ `/path/to/megaton` はこのリポジトリを配置したディレクトリへのパスに置き換えてください。
-
-GA4 や BigQuery 機能を利用する場合は、同梱の追加要件もインストールしてください。
-
-```bash
-pip install -r install/requirements-ga4.txt
-pip install -r install/requirements-bigquery.txt
-```
 ## はじめ方
 
 1. 認証 JSON を用意し、Notebook からアクセスできる場所に配置します。
