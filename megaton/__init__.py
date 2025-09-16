@@ -1,12 +1,8 @@
-import os
 import sys
 from IPython.display import clear_output
-from pkg_resources import get_distribution
-from time import sleep
 
 
 __all__ = ['start']
-# __version__ = get_distribution('megaton').version
 
 
 try:
