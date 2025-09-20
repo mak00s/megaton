@@ -51,6 +51,35 @@ class Megaton:
         self._credential = credential
         self.auth(credential=self._credential, cache_key=cache_key)
 
+    def _notify_invalid_oauth_config(self, message: str):
+        clear_output(wait=True)
+        logger.error(message)
+        print(message)
+        self._reset_pending_oauth()
+
+    def _validate_oauth_client(self, info: dict) -> bool:
+        ctype = None
+        if 'installed' in info:
+            ctype = 'installed'
+        elif 'web' in info:
+            ctype = 'web'
+        if not ctype:
+            self._notify_invalid_oauth_config('OAuth クライアント設定を認識できません。')
+            return False
+        config = info.get(ctype, {})
+        redirects = config.get('redirect_uris') or []
+        if not isinstance(redirects, list):
+            redirects = []
+        if self.in_colab:
+            if 'urn:ietf:wg:oauth:2.0:oob' not in redirects:
+                self._notify_invalid_oauth_config('Colab で使用するには redirect_uris に urn:ietf:wg:oauth:2.0:oob を追加してください。')
+                return False
+            return True
+        if not any(uri.startswith('http://127.0.0.1') or uri.startswith('http://localhost') for uri in redirects):
+            self._notify_invalid_oauth_config('ローカル環境では redirect_uris に http://127.0.0.1 などのループバック URI を登録してください。')
+            return False
+        return True
+
     def _notify_invalid_service_account(self, email: Optional[str] = None):
         clear_output(wait=True)
         if email:
@@ -170,6 +199,8 @@ class Megaton:
                 return
 
             if ctype in ("installed", "web"):
+                if not self._validate_oauth_client(info):
+                    return
                 if not cache_key:
                     client_id = info.get(ctype, {}).get("client_id", "")
                     scope_sig = hashlib.sha256(" ".join(sorted(self.required_scopes)).encode()).hexdigest()[:10]
@@ -198,6 +229,8 @@ class Megaton:
                         info = json.load(fp)
                 except Exception as exc:
                     logger.error('OAuth クライアント設定の読み込みに失敗しました: %s', exc)
+                    return
+                if not self._validate_oauth_client(info):
                     return
                 if self.in_colab:
                     if self._handle_oauth_credentials(info, credential, credential):
@@ -366,6 +399,8 @@ class Megaton:
                         except Exception as exc:
                             logger.error('OAuth クライアント設定の読み込みに失敗しました: %s', exc)
                             return
+                        if not self.parent._validate_oauth_client(info):
+                            return
                         if self.parent.in_colab:
                             if self.parent._handle_oauth_credentials(info, change.new, change.new, menu=self):
                                 return
@@ -413,9 +448,9 @@ class Megaton:
                         self.code_selector.value = ''
                         self.code_selector.layout.display = "none"
                         self.parent.json = self.parent._pending_json_marker or cache_identifier
+                        self.reset()
                         self.parent.select.ga()
                         self.parent._reset_pending_oauth()
-                        self.reset()
                     except InvalidGrantError:
                         logging.error("正しいフォーマットのauthorization codeを貼り付けてください")
 
