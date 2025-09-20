@@ -166,7 +166,8 @@ def get_oauth_redirect(client_secret_file: str, scopes: list):
 def get_oauth_redirect_from_info(info: dict, scopes: list):
     # mirrors get_oauth_redirect(file, scopes) but uses in-memory client config
     flow = InstalledAppFlow.from_client_config(info, scopes=scopes)
-    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
+    flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+    auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes=True)
     return flow, auth_url
 
 
