@@ -4,8 +4,13 @@ Common Functions
 
 from urllib.parse import unquote
 import re
+from datetime import datetime, timedelta
 
 import pandas as pd
+import pytz
+from dateutil.relativedelta import relativedelta
+
+DEFAULT_TIMEZONE = "UTC"
 
 
 def is_integer(n):
@@ -96,6 +101,34 @@ def get_chunked_list(original_list: list, chunk_size: int = 100):
     for i in range(0, len(original_list), chunk_size):
         chunked_list.append(original_list[i:i + chunk_size])
     return chunked_list
+
+
+def get_past_date(n_days=None, n_months=None, timezone=DEFAULT_TIMEZONE, return_date_obj=False):
+    """Return a date string (YYYY-MM-DD) N days or months ago.
+
+    Args:
+        n_days: Number of days to subtract from today.
+        n_months: Number of months to subtract (returns first day of that month).
+        timezone: Olson timezone name used for "today".
+        return_date_obj: When True, return ``datetime.date`` instead of string.
+
+    Raises:
+        ValueError: When both ``n_days`` and ``n_months`` are provided.
+    """
+    tz = pytz.timezone(timezone)
+    now = datetime.now(tz)
+
+    if n_days is None and n_months is None:
+        result = now
+    elif n_days is not None and n_months is not None:
+        raise ValueError("Specify either 'n_days' or 'n_months', not both.")
+    elif n_days is not None:
+        result = now - timedelta(days=n_days)
+    else:
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        result = start_of_month - relativedelta(months=n_months)
+
+    return result.date() if return_date_obj else result.strftime("%Y-%m-%d")
 
 
 def get_clean_url(url: str, params_to_keep: list = None):
