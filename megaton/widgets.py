@@ -85,7 +85,7 @@ def tab(ga: list):
 
 
 def tab_set(tabs: list, titles: list):
-    return Tab(
-        children=tabs,
-        _titles={i: v for i, v in enumerate(titles)}
-    )
+    tab_widget = Tab(children=tabs)
+    for i, title in enumerate(titles):
+        tab_widget.set_title(i, title)
+    return tab_widget

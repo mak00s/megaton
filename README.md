@@ -40,11 +40,11 @@ pip install -U "git+https://github.com/mak00s/megaton"
 ```python
 from megaton.start import Megaton
 
-app = Megaton(path="/path/to/credentials", use_ga3=True)
+app = Megaton("/path/to/credentials", use_ga3=True)
 ```
 
-- `path` にディレクトリを渡すと、含まれる JSON を自動探索し選択メニューが表示されます。
-- 単一ファイル、JSON 文字列、辞書形式でも認証可能です。
+- 引数にはディレクトリパス・サービスアカウント JSON のファイルパス・JSON 文字列のいずれか 1 つを指定できます。
+- 何も渡さない場合は `MEGATON_CREDS_JSON` 環境変数を参照します。
 - `use_ga3=True` を指定すると GA3 のウィジェットも有効化されます。
 
 3. 表示されたウィジェットで認証を完了し、アカウント／プロパティ／データセットを選択します。
