@@ -71,6 +71,17 @@ def get_credential_type_from_file(json_path: str):
     return get_credential_type(client_config)
 
 
+def get_credential_type_from_info(info: dict) -> str:
+    if isinstance(info, dict):
+        if info.get("type") == "service_account":
+            return "service_account"
+        if "installed" in info:
+            return "installed"
+        if "web" in info:
+            return "web"
+    return "unknown"
+
+
 def get_json_files_from_dir(json_dir: str):
     """Gets a list of valid credentials json files from a directory recursively"""
     json_files = defaultdict(lambda: {})
@@ -83,17 +94,6 @@ def get_json_files_from_dir(json_dir: str):
                 elif client_type in ['installed', 'web']:
                     json_files['OAuth'][file] = os.path.join(root, file)
     return json_files
-
-
-def get_credential_type_from_info(info: dict) -> str:
-    if isinstance(info, dict):
-        if info.get("type") == "service_account":
-            return "service_account"
-        if "installed" in info:
-            return "installed"
-        if "web" in info:
-            return "web"
-    return "unknown"
 
 
 def get_cache_path(json_path: str):
@@ -165,7 +165,7 @@ def get_oauth_redirect(client_secret_file: str, scopes: list):
 
 def get_oauth_redirect_from_info(info: dict, scopes: list):
     # mirrors get_oauth_redirect(file, scopes) but uses in-memory client config
-    flow = InstalledAppFlow.from_client_config(info, scopes=scopes, redirect_uri="urn:ietf:wg:oauth:2.0:oob")
+    flow = InstalledAppFlow.from_client_config(info, scopes=scopes)
     auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
     return flow, auth_url
 
