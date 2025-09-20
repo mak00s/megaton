@@ -10,7 +10,7 @@ from typing import Optional
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import auth as auth_module, bq, constants, errors, files, ga3, ga4, gsheet, utils, widgets
+from . import auth as auth_module, bq, constants, errors, files, ga3, ga4, gsheet, searchconsole, utils, widgets, mount_google_drive
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
@@ -22,14 +22,17 @@ class Megaton:
     def __init__(self,
                  credential: Optional[str] = None,
                  use_ga3: bool = False,
-                 cache_key: Optional[str] = None):
+                 cache_key: Optional[str] = None,
+                 headless: bool = False):
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
         self.creds = None
         self.auth_menu = None
         self.use_ga3 = use_ga3
+        self.headless = headless
         self.ga = {}  # GA clients
         self.gs = None  # Google Sheets client
+        self.sc = None  # Google Search Console client
         self.bq = None  # BigQuery
         self.open = self.Open(self)
         self.save = self.Save(self)
@@ -49,6 +52,8 @@ class Megaton:
                 credential = '/nbs'
 
         self._credential = credential
+        if self.in_colab:
+            mount_google_drive()
         self.auth(credential=self._credential, cache_key=cache_key)
 
     def _notify_invalid_oauth_config(self, message: str):
@@ -101,7 +106,10 @@ class Megaton:
         if cache:
             self.creds = cache
             self.json = json_marker
-            self.select.ga()
+            if not self.headless:
+                self.select.ga()
+            else:
+                logger.debug('Headless mode enabled; skipping GA menu display.')
             self._reset_pending_oauth()
             return True
 
@@ -109,6 +117,10 @@ class Megaton:
         self._pending_flow = flow
         self._pending_cache_identifier = cache_identifier
         self._pending_json_marker = json_marker
+
+        if self.headless:
+            logger.debug('Headless mode: OAuth prompt suppressed. Please authorize via provided URL manually.')
+            return False
 
         if menu is None:
             placeholder = {'OAuth': {}, 'Service Account': {}}
@@ -122,12 +134,26 @@ class Megaton:
         menu.show_oauth_prompt(auth_url)
         return False
 
+    def _handle_headless_oauth(self, info: dict, cache_identifier: str, json_marker: str) -> bool:
+        logger.debug('Headless mode: attempting to reuse cached OAuth credentials only.')
+        cache = auth_module.load_credentials(cache_identifier, self.required_scopes)
+        if cache:
+            self.creds = cache
+            self.json = json_marker
+            self._reset_pending_oauth()
+            return True
+        self._notify_invalid_oauth_config('headless=True では既存の認証キャッシュが必要です。cache_key を指定するか先にブラウザ環境で認証してください。')
+        return False
+
     def _handle_oauth_local_server(self, info: dict, cache_identifier: str, json_marker: str) -> bool:
         cache = auth_module.load_credentials(cache_identifier, self.required_scopes)
         if cache:
             self.creds = cache
             self.json = json_marker
-            self.select.ga()
+            if not self.headless:
+                self.select.ga()
+            else:
+                logger.debug('Headless mode: using cached credentials without UI.')
             return True
 
         try:
@@ -146,7 +172,10 @@ class Megaton:
         self.json = json_marker
         if cache_identifier:
             auth_module.save_credentials(cache_identifier, self.creds)
-        self.select.ga()
+        if not self.headless:
+            self.select.ga()
+        else:
+            logger.debug('Headless mode: OAuth completed without UI.')
         self._reset_pending_oauth()
         return True
 
@@ -170,14 +199,13 @@ class Megaton:
     @property
     def enabled(self):
         """有効化されたサービス"""
-        enabled = []
-        if '3' in self.ga.keys():
-            enabled.append('ga3')
-        if '4' in self.ga.keys():
-            enabled.append('ga4')
-        if self.gs:
-            enabled.append('gs')
-        return enabled
+        services = [
+            ('ga3', self.ga.get('3')),
+            ('ga4', self.ga.get('4')),
+            ('gs', getattr(self, 'gs', None)),
+            ('sc', getattr(self, 'sc', None)),
+        ]
+        return [name for name, active in services if active]
 
     def auth(self, credential: Optional[str] = None, cache_key: Optional[str] = None):
         """認証
@@ -194,7 +222,11 @@ class Megaton:
                     self._notify_invalid_service_account(info.get('client_email'))
                     return
                 self.json = "<inline:service_account>"
-                self.select.ga()
+                if not self.headless:
+                    self.select.ga()
+                else:
+                    logger.debug('Headless mode: service account credentials loaded without UI.')
+                    self._build_ga_clients()
                 self._reset_pending_oauth()
                 return
 
@@ -206,6 +238,10 @@ class Megaton:
                     scope_sig = hashlib.sha256(" ".join(sorted(self.required_scopes)).encode()).hexdigest()[:10]
                     cache_key = f"inline_oauth_{client_id}_{scope_sig}"
                 json_marker = f"<inline:oauth:{cache_key}>"
+                if self.headless:
+                    if self._handle_headless_oauth(info, cache_key, json_marker):
+                        return
+                    return
                 if self.in_colab:
                     if self._handle_oauth_credentials(info, cache_key, json_marker):
                         return
@@ -215,6 +251,12 @@ class Megaton:
                 return
 
         if credential and os.path.isdir(credential):
+            if self.headless and self.in_colab:
+                logger.debug('headless mode on Colab: mounting Google Drive for credential selection.')
+                mount_google_drive()
+            if self.headless and not self.in_colab:
+                logger.error('headless=True ではディレクトリ選択メニューを表示できません。個別の JSON ファイルを指定してください。')
+                return
             json_files = auth_module.get_json_files_from_dir(credential)
             self.auth_menu = self.AuthMenu(self, json_files)
             self.auth_menu.show()
@@ -232,6 +274,10 @@ class Megaton:
                     return
                 if not self._validate_oauth_client(info):
                     return
+                if self.headless:
+                    if self._handle_headless_oauth(info, credential, credential):
+                        return
+                    return
                 if self.in_colab:
                     if self._handle_oauth_credentials(info, credential, credential):
                         return
@@ -246,7 +292,11 @@ class Megaton:
                     self._notify_invalid_service_account(email)
                     return
                 self.json = credential
-                self.select.ga()
+                if not self.headless:
+                    self.select.ga()
+                else:
+                    logger.debug('Headless mode: service account credentials loaded without UI.')
+                    self._build_ga_clients()
                 self._reset_pending_oauth()
                 return
 
@@ -335,6 +385,24 @@ class Megaton:
         new_filename = self.save_df(df, filename, quiet=True)
         files.download_file(new_filename)
 
+    def launch_sc(self, site_url: Optional[str] = None):
+        if not self.creds:
+            logger.warning('Search Console を利用するには先に認証を完了してください。')
+            return None
+        try:
+            self.sc = searchconsole.MegatonSC(self.creds, site_url=site_url)
+        except errors.BadCredentialFormat:
+            logger.error('Search Console の資格情報形式が正しくありません。')
+            return None
+        except errors.BadCredentialScope:
+            logger.error('Search Console に必要なスコープが不足しています。')
+            return None
+        except Exception as exc:
+            logger.error('Search Console client の初期化に失敗しました: %s', exc)
+            return None
+        logger.debug('Search Console client initialized%s', f" for {site_url}" if site_url else "")
+        return self.sc
+
     def launch_bigquery(self, gcp_project: str):
         if not self.creds:
             logger.warning('認証が完了していないため、BigQuery を初期化できません。')
@@ -347,6 +415,8 @@ class Megaton:
         if not self.creds:
             logger.warning('認証が完了していないため、Google Sheets API を初期化できません。')
             return None
+        if self.in_colab:
+            mount_google_drive()
         try:
             self.gs = gsheet.MegatonGS(self.creds, url)
         except errors.BadCredentialFormat:

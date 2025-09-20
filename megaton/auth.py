@@ -65,8 +65,16 @@ def get_credential_type_from_file(json_path: str):
         Returns:
             client_type [str]: The client type, either ``'service_account'`` or ``'web'`` or ``'installed'``
         """
-    with open(json_path, "r") as json_path:
-        client_config = json.load(json_path)
+    try:
+        with open(json_path, "r") as fp:
+            client_config = json.load(fp)
+    except (OSError, json.JSONDecodeError):
+        LOGGER.debug("Skipping non JSON credential file: %s", json_path)
+        return None
+
+    if not isinstance(client_config, dict):
+        LOGGER.debug('Credential file %s does not contain a JSON object; skipping.', json_path)
+        return None
 
     return get_credential_type(client_config)
 

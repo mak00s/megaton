@@ -5,10 +5,10 @@ with open("README.md", "r") as f:
 
 setup(
     name='megaton',
-    version='0.5.7',
+    version='0.6.0',
     author='Makoto Shimizu',
     author_email='aa.analyst.ga@gmail.com',
-    description='Utilities for Google Analytics, Google Analytics 4 and Google Cloud Platform.',
+    description='Utilities for Google Analytics, Google Analytics 4, Google Sheets, Search Console and Google Cloud Platform.',
     long_description=readme,
     long_description_content_type='ext/markdown',
     packages=find_packages(),
@@ -17,5 +17,5 @@ setup(
         "Operating System :: OS Independent",
         "Topic :: Internet",
     ],
-    python_requires='>=3.7',
+    python_requires='>=3.9',
 )

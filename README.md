@@ -41,10 +41,13 @@ pip install -U "git+https://github.com/mak00s/megaton"
 from megaton.start import Megaton
 
 app = Megaton("/path/to/credentials", use_ga3=True)
+# バッチなど UI 不要の場合
+app_headless = Megaton("/path/to/credentials", headless=True)
 ```
 
 - 引数にはディレクトリパス・サービスアカウント JSON のファイルパス・JSON 文字列のいずれか 1 つを指定できます。
 - 何も渡さない場合は `MEGATON_CREDS_JSON` 環境変数を参照します。
+- `headless=True` を指定するとウィジェット UI を表示せず、既存の認証キャッシュのみで実行できます。必要な場合は `megaton.mount_google_drive()` で手動マウントしてください。
 - `use_ga3=True` を指定すると GA3 のウィジェットも有効化されます。
 
 3. 表示されたウィジェットで認証を完了し、アカウント／プロパティ／データセットを選択します。
