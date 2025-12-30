@@ -1,12 +1,8 @@
-import os
 import sys
 from IPython.display import clear_output
-from pkg_resources import get_distribution
-from time import sleep
 
 
-__all__ = ['start']
-# __version__ = get_distribution('megaton').version
+__all__ = ['start', 'mount_google_drive']
 
 
 try:
@@ -20,20 +16,19 @@ except ModuleNotFoundError:
     from .install import install_bigquery
 
     clear_output()
-    # print("Runtime is now restarting...")
-    # print("You can ignore the error message [Your session crashed for an unknown reason.]")
-    # print("もう一度このセルを実行してください。")
-    # sleep(0.5)
-    # os._exit(0)  # restart
 
+IS_COLAB = 'google.colab' in sys.modules
 
-# if the code is running in Google Colaboratory
-if 'google.colab' in sys.modules:
-    # enable data table
+if IS_COLAB:
     from google.colab import data_table
     data_table.enable_dataframe_formatter()
     data_table._DEFAULT_FORMATTERS[float] = lambda x: f"{x:.3f}"
 
-    # mount google drive
+
+def mount_google_drive():
+    '''Mount Google Drive when running in Google Colab.'''
+    if not IS_COLAB:
+        print("Google Drive mounting is only available in Google Colab.")
+        return None
     from . import gdrive
-    json_path = gdrive.link_nbs()
+    return gdrive.link_nbs()

@@ -1,15 +1,16 @@
 """An app for Jupyter Notebook/Google Colaboratory to get data from Google Analytics
 """
 
+import json, base64, hashlib
 import logging
 import os
 import pandas as pd
 import sys
-
+from typing import Optional
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import auth, bq, constants, errors, files, ga3, ga4, gsheet, utils, widgets
+from . import auth as auth_module, bq, constants, errors, files, ga3, ga4, gsheet, searchconsole, utils, widgets, mount_google_drive
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
@@ -18,16 +19,20 @@ class Megaton:
     """メガトンはGAを使うアナリストの味方
     """
 
-    def __init__(self, path: str = None, use_ga3: bool = False):
-        if not path and self.in_colab:
-            path = '/nbs'
+    def __init__(self,
+                 credential: Optional[str] = None,
+                 use_ga3: bool = False,
+                 cache_key: Optional[str] = None,
+                 headless: bool = False):
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
         self.creds = None
         self.auth_menu = None
         self.use_ga3 = use_ga3
+        self.headless = headless
         self.ga = {}  # GA clients
         self.gs = None  # Google Sheets client
+        self.sc = None  # Google Search Console client
         self.bq = None  # BigQuery
         self.open = self.Open(self)
         self.save = self.Save(self)
@@ -36,8 +41,143 @@ class Megaton:
         self.select = self.Select(self)
         self.show = self.Show(self)
         self.report = self.Report(self)
+        self._pending_flow = None
+        self._pending_cache_identifier = None
+        self._pending_json_marker = None
+        if credential is None:
+            env_val = os.environ.get("MEGATON_CREDS_JSON")
+            if env_val:
+                credential = env_val
+            elif self.in_colab:
+                credential = '/nbs'
 
-        self.auth(path)
+        self._credential = credential
+        if self.in_colab:
+            mount_google_drive()
+        self.auth(credential=self._credential, cache_key=cache_key)
+
+    def _notify_invalid_oauth_config(self, message: str):
+        clear_output(wait=True)
+        logger.error(message)
+        print(message)
+        self._reset_pending_oauth()
+
+    def _validate_oauth_client(self, info: dict) -> bool:
+        ctype = None
+        if 'installed' in info:
+            ctype = 'installed'
+        elif 'web' in info:
+            ctype = 'web'
+        if not ctype:
+            self._notify_invalid_oauth_config('OAuth クライアント設定を認識できません。')
+            return False
+        config = info.get(ctype, {})
+        redirects = config.get('redirect_uris') or []
+        if not isinstance(redirects, list):
+            redirects = []
+        if self.in_colab:
+            if 'urn:ietf:wg:oauth:2.0:oob' not in redirects:
+                self._notify_invalid_oauth_config('Colab で使用するには redirect_uris に urn:ietf:wg:oauth:2.0:oob を追加してください。')
+                return False
+            return True
+        if not any(uri.startswith('http://127.0.0.1') or uri.startswith('http://localhost') for uri in redirects):
+            self._notify_invalid_oauth_config('ローカル環境では redirect_uris に http://127.0.0.1 などのループバック URI を登録してください。')
+            return False
+        return True
+
+    def _notify_invalid_service_account(self, email: Optional[str] = None):
+        clear_output(wait=True)
+        if email:
+            message = f"指定の {email} のサービスアカウントは存在しない、または無効です。"
+        else:
+            message = "指定したサービスアカウントは存在しない、または無効です。"
+        logger.error(message)
+        print(message)
+
+        self._reset_pending_oauth()
+
+    def _reset_pending_oauth(self):
+        self._pending_flow = None
+        self._pending_cache_identifier = None
+        self._pending_json_marker = None
+
+    def _handle_oauth_credentials(self, info: dict, cache_identifier: str, json_marker: str, menu: Optional["Megaton.AuthMenu"] = None):
+        cache = auth_module.load_credentials(cache_identifier, self.required_scopes)
+        if cache:
+            self.creds = cache
+            self.json = json_marker
+            if not self.headless:
+                self.select.ga()
+            else:
+                logger.debug('Headless mode enabled; skipping GA menu display.')
+            self._reset_pending_oauth()
+            return True
+
+        flow, auth_url = auth_module.get_oauth_redirect_from_info(info, self.required_scopes)
+        self._pending_flow = flow
+        self._pending_cache_identifier = cache_identifier
+        self._pending_json_marker = json_marker
+
+        if self.headless:
+            logger.debug('Headless mode: OAuth prompt suppressed. Please authorize via provided URL manually.')
+            return False
+
+        if menu is None:
+            placeholder = {'OAuth': {}, 'Service Account': {}}
+            self.auth_menu = self.AuthMenu(self, json_files=placeholder)
+            menu = self.auth_menu
+            menu.show()
+        else:
+            self.auth_menu = menu
+
+        menu.flow = flow
+        menu.show_oauth_prompt(auth_url)
+        return False
+
+    def _handle_headless_oauth(self, info: dict, cache_identifier: str, json_marker: str) -> bool:
+        logger.debug('Headless mode: attempting to reuse cached OAuth credentials only.')
+        cache = auth_module.load_credentials(cache_identifier, self.required_scopes)
+        if cache:
+            self.creds = cache
+            self.json = json_marker
+            self._reset_pending_oauth()
+            return True
+        self._notify_invalid_oauth_config('headless=True では既存の認証キャッシュが必要です。cache_key を指定するか先にブラウザ環境で認証してください。')
+        return False
+
+    def _handle_oauth_local_server(self, info: dict, cache_identifier: str, json_marker: str) -> bool:
+        cache = auth_module.load_credentials(cache_identifier, self.required_scopes)
+        if cache:
+            self.creds = cache
+            self.json = json_marker
+            if not self.headless:
+                self.select.ga()
+            else:
+                logger.debug('Headless mode: using cached credentials without UI.')
+            return True
+
+        try:
+            flow = auth_module.InstalledAppFlow.from_client_config(info, scopes=self.required_scopes)
+            prompt = 'ブラウザが開かない場合は、表示された URL を手動で開いて認証を完了してください。\nPlease visit this URL to authorize this application: {url}'
+            credentials = flow.run_local_server(
+                port=0,
+                authorization_prompt_message=prompt,
+                success_message='認証が完了しました。ブラウザを閉じてください。'
+            )
+        except Exception as exc:
+            logger.error('OAuth ローカルサーバーフローに失敗しました: %s', exc)
+            return False
+
+        self.creds = credentials
+        self.json = json_marker
+        if cache_identifier:
+            auth_module.save_credentials(cache_identifier, self.creds)
+        if not self.headless:
+            self.select.ga()
+        else:
+            logger.debug('Headless mode: OAuth completed without UI.')
+        self._reset_pending_oauth()
+        return True
 
     @property
     def in_colab(self):
@@ -59,36 +199,147 @@ class Megaton:
     @property
     def enabled(self):
         """有効化されたサービス"""
-        enabled = []
-        if '3' in self.ga.keys():
-            enabled.append('ga3')
-        if '4' in self.ga.keys():
-            enabled.append('ga4')
-        if self.gs:
-            enabled.append('gs')
-        return enabled
+        services = [
+            ('ga3', self.ga.get('3')),
+            ('ga4', self.ga.get('4')),
+            ('gs', getattr(self, 'gs', None)),
+            ('sc', getattr(self, 'sc', None)),
+        ]
+        return [name for name, active in services if active]
 
-    def auth(self, path: str):
+    def auth(self, credential: Optional[str] = None, cache_key: Optional[str] = None):
         """認証
-        ・JSONファイルへのパスが指定された場合は認証情報を生成
-        ・ディレクトリへのパスが指定された場合は選択メニューを表示
+        ・ディレクトリ→選択メニュー
+        ・ファイル→そのまま認証
+        ・JSON文字列→メモリから認証（SA or OAuth）
         """
-        if os.path.isdir(path):
-            # if directory, show menu
-            json_files = auth.get_json_files_from_dir(path)
+        info = self._parse_json_input(credential) if credential else None
+        if info:
+            ctype = auth_module.get_credential_type_from_info(info)
+            if ctype == "service_account":
+                self.creds = auth_module.load_service_account_credentials_from_info(info, self.required_scopes)
+                if not self.creds:
+                    self._notify_invalid_service_account(info.get('client_email'))
+                    return
+                self.json = "<inline:service_account>"
+                if not self.headless:
+                    self.select.ga()
+                else:
+                    logger.debug('Headless mode: service account credentials loaded without UI.')
+                    self._build_ga_clients()
+                self._reset_pending_oauth()
+                return
+
+            if ctype in ("installed", "web"):
+                if not self._validate_oauth_client(info):
+                    return
+                if not cache_key:
+                    client_id = info.get(ctype, {}).get("client_id", "")
+                    scope_sig = hashlib.sha256(" ".join(sorted(self.required_scopes)).encode()).hexdigest()[:10]
+                    cache_key = f"inline_oauth_{client_id}_{scope_sig}"
+                json_marker = f"<inline:oauth:{cache_key}>"
+                if self.headless:
+                    if self._handle_headless_oauth(info, cache_key, json_marker):
+                        return
+                    return
+                if self.in_colab:
+                    if self._handle_oauth_credentials(info, cache_key, json_marker):
+                        return
+                    return
+                if self._handle_oauth_local_server(info, cache_key, json_marker):
+                    return
+                return
+
+        if credential and os.path.isdir(credential):
+            if self.headless and self.in_colab:
+                logger.debug('headless mode on Colab: mounting Google Drive for credential selection.')
+                mount_google_drive()
+            if self.headless and not self.in_colab:
+                logger.error('headless=True ではディレクトリ選択メニューを表示できません。個別の JSON ファイルを指定してください。')
+                return
+            json_files = auth_module.get_json_files_from_dir(credential)
             self.auth_menu = self.AuthMenu(self, json_files)
             self.auth_menu.show()
+            return
 
-        elif os.path.isfile(path):
-            # if file, auth with it
-            logger.debug(f"auth with a file {path}")
-            self.creds = auth.load_service_account_credentials_from_file(path, constants.DEFAULT_SCOPES)
-            self.json = path
-            self.select.ga()
+        if credential and os.path.isfile(credential):
+            logger.debug(f"auth with a file {credential}")
+            creds_type = auth_module.get_credential_type_from_file(credential)
+            if creds_type in ['installed', 'web']:
+                try:
+                    with open(credential) as fp:
+                        info = json.load(fp)
+                except Exception as exc:
+                    logger.error('OAuth クライアント設定の読み込みに失敗しました: %s', exc)
+                    return
+                if not self._validate_oauth_client(info):
+                    return
+                if self.headless:
+                    if self._handle_headless_oauth(info, credential, credential):
+                        return
+                    return
+                if self.in_colab:
+                    if self._handle_oauth_credentials(info, credential, credential):
+                        return
+                    return
+                if self._handle_oauth_local_server(info, credential, credential):
+                    return
+                return
+            if creds_type == 'service_account':
+                self.creds = auth_module.load_service_account_credentials_from_file(credential, constants.DEFAULT_SCOPES)
+                if not self.creds:
+                    email = self._extract_email_from_file(credential)
+                    self._notify_invalid_service_account(email)
+                    return
+                self.json = credential
+                if not self.headless:
+                    self.select.ga()
+                else:
+                    logger.debug('Headless mode: service account credentials loaded without UI.')
+                    self._build_ga_clients()
+                self._reset_pending_oauth()
+                return
+
+        if credential:
+            logger.warning('指定した認証情報を解釈できません: %s', credential)
+
+    def _parse_json_input(self, value):
+        """Return dict if value looks like JSON (or base64 JSON); else None."""
+        if isinstance(value, dict):
+            return value
+        if not isinstance(value, str):
+            return None
+        s = value.strip()
+        # raw json?
+        if s.startswith("{") and s.endswith("}"):
+            try:
+                return json.loads(s)
+            except Exception:
+                return None
+        # base64 json?
+        try:
+            decoded = base64.b64decode(s).decode("utf-8", errors="ignore")
+            ds = decoded.strip()
+            if ds.startswith("{") and ds.endswith("}"):
+                return json.loads(ds)
+        except Exception:
+            pass
+        return None
+
+    def _extract_email_from_file(self, path: str) -> Optional[str]:
+        try:
+            with open(path) as fp:
+                data = json.load(fp)
+            return data.get('client_email')
+        except Exception:
+            return None
 
     def _build_ga_clients(self):
         """GA APIの準備"""
         self.ga = {}
+        if not self.creds:
+            logger.warning('認証が完了していないため、GA クライアントを初期化できません。')
+            return
         # GA4
         try:
             client = ga4.MegatonGA4(self.creds)
@@ -134,12 +385,38 @@ class Megaton:
         new_filename = self.save_df(df, filename, quiet=True)
         files.download_file(new_filename)
 
+    def launch_sc(self, site_url: Optional[str] = None):
+        if not self.creds:
+            logger.warning('Search Console を利用するには先に認証を完了してください。')
+            return None
+        try:
+            self.sc = searchconsole.MegatonSC(self.creds, site_url=site_url)
+        except errors.BadCredentialFormat:
+            logger.error('Search Console の資格情報形式が正しくありません。')
+            return None
+        except errors.BadCredentialScope:
+            logger.error('Search Console に必要なスコープが不足しています。')
+            return None
+        except Exception as exc:
+            logger.error('Search Console client の初期化に失敗しました: %s', exc)
+            return None
+        logger.debug('Search Console client initialized%s', f" for {site_url}" if site_url else "")
+        return self.sc
+
     def launch_bigquery(self, gcp_project: str):
+        if not self.creds:
+            logger.warning('認証が完了していないため、BigQuery を初期化できません。')
+            return None
         self.bq = bq.MegatonBQ(self, self.creds, gcp_project)
         return self.bq
 
     def launch_gs(self, url: str):
         """APIでGoogle Sheetsにアクセスする準備"""
+        if not self.creds:
+            logger.warning('認証が完了していないため、Google Sheets API を初期化できません。')
+            return None
+        if self.in_colab:
+            mount_google_drive()
         try:
             self.gs = gsheet.MegatonGS(self.creds, url)
         except errors.BadCredentialFormat:
@@ -183,44 +460,67 @@ class Megaton:
                 clear_output()
                 if change.new:
                     self.parent.select.reset()
-                    creds_type = auth.get_credential_type_from_file(change.new)
+                    creds_type = auth_module.get_credential_type_from_file(change.new)
                     # OAuth
                     if creds_type in ['installed', 'web']:
-                        # load from cache
-                        cache = auth.load_credentials(change.new, self.parent.required_scopes)
-                        if cache:
-                            self.parent.creds = cache
-                            self.parent.select.ga()
-                        else:
-                            # run flow
-                            self.flow, auth_url = auth.get_oauth_redirect(change.new, self.parent.required_scopes)
-                            self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcode' \
-                                                      f'を以下に貼り付けてエンターを押してください</a> '
-                            self.code_selector.layout.display = "block"
-                        self.parent.json = change.new
+                        try:
+                            with open(change.new) as fp:
+                                info = json.load(fp)
+                        except Exception as exc:
+                            logger.error('OAuth クライアント設定の読み込みに失敗しました: %s', exc)
+                            return
+                        if not self.parent._validate_oauth_client(info):
+                            return
+                        if self.parent.in_colab:
+                            if self.parent._handle_oauth_credentials(info, change.new, change.new, menu=self):
+                                return
+                            self.parent.json = change.new
+                            return
+                        if self.parent._handle_oauth_local_server(info, change.new, change.new):
+                            self.parent.json = change.new
+                            return
+                        return
 
                     # Service Account
                     if creds_type in ['service_account']:
-                        self.parent.creds = auth.load_service_account_credentials_from_file(change.new,
+                        self.parent.creds = auth_module.load_service_account_credentials_from_file(change.new,
                                                                                             self.parent.required_scopes)
+                        if not self.parent.creds:
+                            email = self.parent._extract_email_from_file(change.new)
+                            self.parent._notify_invalid_service_account(email)
+                            return
                         self.parent.json = change.new
                         self.parent.select.ga()
+                        self.parent._reset_pending_oauth()
+
+        def show_oauth_prompt(self, auth_url: str):
+            with self.log_text:
+                clear_output()
+            self.message_text.value = f'<a href="{auth_url}" target="_blank">ここをクリックし、認証後に表示されるcodeを以下に貼り付けてエンターを押してください</a> '
+            self.code_selector.layout.display = "block"
+            self.code_selector.value = ''
+
 
         # when code is entered
         def _code_entered(self, change):
             with self.log_text:
                 if change.new:
                     try:
+                        flow = self.parent._pending_flow or getattr(self, 'flow', None)
+                        if not flow:
+                            logger.error('OAuth フローが初期化されていません。')
+                            return
                         # get token from auth code
-                        self.parent.creds = auth.get_token(self.flow, change.new)
-                        # save cache
-                        auth.save_credentials(self.parent.json, self.parent.creds)
-                        # reset menu
+                        self.parent.creds = auth_module.get_token(flow, change.new)
+                        cache_identifier = self.parent._pending_cache_identifier or self.parent.json
+                        if cache_identifier:
+                            auth_module.save_credentials(cache_identifier, self.parent.creds)
                         self.code_selector.value = ''
                         self.code_selector.layout.display = "none"
-                        self.parent.json = change.new
-                        self.parent.select.ga()
+                        self.parent.json = self.parent._pending_json_marker or cache_identifier
                         self.reset()
+                        self.parent.select.ga()
+                        self.parent._reset_pending_oauth()
                     except InvalidGrantError:
                         logging.error("正しいフォーマットのauthorization codeを貼り付けてください")
 
@@ -280,6 +580,8 @@ class Megaton:
             options = accounts
             # メニューの選択肢を更新
             self.account_menu.options = options
+            if accounts:
+                self.account_menu.value = accounts[0][1]
 
         def _account_menu_selected(self, change):
             account_id = change.new
@@ -288,8 +590,11 @@ class Megaton:
             if account_id:
                 # 選択されたGAアカウントに紐付くGAプロパティを得る
                 properties = [d for d in self.parent.ga[self.ver].accounts if d['id'] == account_id][0]['properties']
+                option_values = [(d['name'], d['id']) for d in properties]
                 # メニューの選択肢を更新
-                self.property_menu.options = [(d['name'], d['id']) for d in properties]
+                self.property_menu.options = option_values
+                if option_values:
+                    self.property_menu.value = option_values[0][1]
             else:
                 self.reset()
 
@@ -301,8 +606,11 @@ class Megaton:
                 if property_id:
                     # 選択されたGAプロパティに紐付くGAビューを得る
                     views = [d for d in self.parent.ga[self.ver].property.views if d['property_id'] == property_id]
+                    option_values = [(d['name'], d['id']) for d in views]
                     # メニューの選択肢を更新
-                    self.view_menu.options = [(d['name'], d['id']) for d in views]
+                    self.view_menu.options = option_values
+                    if option_values:
+                        self.view_menu.value = option_values[0][1]
                 else:
                     self.view_menu.options = []
 
@@ -418,6 +726,10 @@ class Megaton:
         def ga(self):
             """GAアカウントを選択するパネルを表示
             """
+            if not self.parent.creds:
+                self.reset()
+                logger.warning('認証が完了していません。先に認証を行ってください。')
+                return
             # 選択された認証情報でGAクライアントを生成
             self.parent._build_ga_clients()
             # メニューをリセット
@@ -461,6 +773,9 @@ class Megaton:
 
         def sheet(self, url):
             """Google Sheets APIの準備"""
+            if not self.parent.creds:
+                logger.warning('認証が完了していないため、Google Sheets を開けません。')
+                return None
             self.parent.gs = None
             try:
                 self.parent.gs = gsheet.MegatonGS(self.parent.creds, url)
