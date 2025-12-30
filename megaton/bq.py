@@ -76,6 +76,9 @@ class MegatonBQ:
             self.id = None
             self.tables = None
             self.parent.table.select()
+            if hasattr(self.parent.parent, "state"):
+                self.parent.parent.state.bq_dataset_id = None
+                self.parent.parent.state.bq_table_id = None
 
         def select(self, dataset_id: str) -> None:
             """select dataset"""
@@ -97,6 +100,8 @@ class MegatonBQ:
                 self.instance = dataset
                 self.ref = dataset.reference
                 self.id = id
+                if hasattr(self.parent.parent, "state"):
+                    self.parent.parent.state.bq_dataset_id = id
             except NotFound as e:
                 if 'Not found: Dataset' in str(e):
                     print(f"Dataset {dataset_id} is not found in the project {self.parent.id}")
@@ -133,6 +138,8 @@ class MegatonBQ:
                 self.ref = None
                 self.instance = None
                 self.id = None
+                if hasattr(self.parent.parent, "state"):
+                    self.parent.parent.state.bq_table_id = None
 
         def update(self, table_id: str = ''):
             """Get an api reference for the table"""
@@ -143,6 +150,8 @@ class MegatonBQ:
                     self.ref = table_ref
                     self.instance = self.parent.client.get_table(self.ref)
                     self.id = id
+                    if hasattr(self.parent.parent, "state"):
+                        self.parent.parent.state.bq_table_id = id
                     # self._get_info()
                 except Exception as e:
                     raise e
