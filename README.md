@@ -69,6 +69,7 @@ app = Megaton(None, headless=True)  # env を参照
   - 設定が無いサービスは **Skip**（止まらない）
   - Sheets は必ず `_smoke_YYYYMMDD_HHMM` の **新規シート**に書き込み（上書きなし）
   - OAuth smoke は `SMOKE_OAUTH_JSON`（JSON文字列 or パス）で指定
+  - `.env` に `SMOKE_OAUTH_JSON=...` を追加して使う
 
 ## 上級者向けドキュメント
 - `docs/advanced.md`
