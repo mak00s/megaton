@@ -9,9 +9,10 @@ from typing import Optional
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import bq, constants, errors, files, ga3, ga4, gsheet, searchconsole, utils, widgets, mount_google_drive
+from . import bq, constants, errors, files, ga3, ga4, searchconsole, utils, widgets, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
 from .services.bq_service import BQService
+from .services.sheets_service import SheetsService
 from .state import MegatonState
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
@@ -39,6 +40,7 @@ class Megaton:
         self.state = MegatonState()
         self.state.headless = headless
         self.bq_service = BQService(self)
+        self.sheets_service = SheetsService(self)
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
@@ -380,33 +382,7 @@ class Megaton:
 
     def launch_gs(self, url: str):
         """APIでGoogle Sheetsにアクセスする準備"""
-        if not self.creds:
-            logger.warning('認証が完了していないため、Google Sheets API を初期化できません。')
-            return None
-        if self.in_colab:
-            mount_google_drive()
-        try:
-            self.gs = gsheet.MegatonGS(self.creds, url)
-        except errors.BadCredentialFormat:
-            print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
-        except errors.BadCredentialScope:
-            print("認証情報のスコープ不足のため、Google Sheets APIを利用できません。")
-        except errors.BadUrlFormat:
-            print("URLのフォーマットが正しくありません")
-        except errors.ApiDisabled:
-            print("Google SheetsのAPIが有効化されていません。")
-        except errors.UrlNotFound:
-            print("URLが見つかりません。")
-        except errors.BadPermission:
-            print("該当スプレッドシートを読み込む権限がありません。")
-        except Exception as e:
-            raise e
-        else:
-            if self.gs.title:
-                print(f"Googleスプレッドシート「{self.gs.title}」を開きました。")
-                self.state.gs_url = url
-                self.state.gs_title = self.gs.title
-                return True
+        return self.sheets_service.launch_gs(url)
 
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
@@ -645,9 +621,7 @@ class Megaton:
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                if self.parent.parent.select.sheet(sheet_name):
-                    if self.parent.parent.gs.sheet.save_data(df, include_index=False):
-                        print(f"データを「{sheet_name}」シートに追記しました。")
+                self.parent.parent.sheets_service.append_sheet(sheet_name, df)
 
     class Save:
         """DaraFrameをCSVやGoogle Sheetsとして保存
@@ -685,9 +659,7 @@ class Megaton:
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                if self.parent.parent.select.sheet(sheet_name):
-                    if self.parent.parent.gs.sheet.overwrite_data(df, include_index=False):
-                        print(f"データを「{sheet_name}」シートへ反映しました。")
+                self.parent.parent.sheets_service.save_sheet(sheet_name, df)
 
     class Select:
         """選択するUIの構築と処理
@@ -740,14 +712,7 @@ class Megaton:
 
         def sheet(self, sheet_name: str):
             """開いたGoogle Sheetsのシートを選択"""
-            try:
-                name = self.parent.gs.sheet.select(sheet_name)
-                if name:
-                    print(f"「{sheet_name}」シートを選択しました。")
-                    self.parent.state.gs_sheet_name = sheet_name
-                    return True
-            except errors.SheetNotFound:
-                print(f"{sheet_name} シートが存在しません。")
+            return self.parent.sheets_service.select_sheet(sheet_name)
 
     class Open:
         def __init__(self, parent):
@@ -755,32 +720,7 @@ class Megaton:
 
         def sheet(self, url):
             """Google Sheets APIの準備"""
-            if not self.parent.creds:
-                logger.warning('認証が完了していないため、Google Sheets を開けません。')
-                return None
-            self.parent.gs = None
-            try:
-                self.parent.gs = gsheet.MegatonGS(self.parent.creds, url)
-            except errors.BadCredentialFormat:
-                print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
-            except errors.BadCredentialScope:
-                print("認証情報のスコープ不足のため、Google Sheets APIを利用できません。")
-            except errors.BadUrlFormat:
-                print("URLのフォーマットが正しくありません")
-            except errors.ApiDisabled:
-                print("Google SheetsのAPIが有効化されていません。")
-            except errors.UrlNotFound:
-                print("URLが見つかりません。")
-            except errors.BadPermission:
-                print("該当スプレッドシートを読み込む権限がありません。")
-            except Exception as e:
-                raise e
-            else:
-                if self.parent.gs.title:
-                    print(f"Googleスプレッドシート「{self.parent.gs.title}」を開きました。")
-                    self.parent.state.gs_url = url
-                    self.parent.state.gs_title = self.parent.gs.title
-                    return True
+            return self.parent.sheets_service.open_sheet(url)
 
     class Load:
         """DaraFrameをCSVやGoogle Sheetsから読み込む
