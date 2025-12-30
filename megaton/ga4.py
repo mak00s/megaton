@@ -662,28 +662,25 @@ class MegatonGA4(object):
                 else:
                     # Descending
                     desc = True
-                if self._format_name(field):
-                    # DIMENSION
+                api_name, field_type = self._format_name(field)
+                if field_type == 'dimensions':
                     result.append(
                         OrderBy(
                             desc=desc,
                             dimension=OrderBy.DimensionOrderBy(
-                                dimension_name=field
+                                dimension_name=api_name
                             )
                         )
                     )
-                elif self._format_name(field):
-                    # METRIC
+                elif field_type == 'metrics':
                     result.append(
                         OrderBy(
                             desc=desc,
                             metric=OrderBy.MetricOrderBy(
-                                metric_name=field
+                                metric_name=api_name
                             )
                         )
                     )
-                else:
-                    LOGGER.warning(f"ignoring unknown field '{field}'.")
             return result
 
         def _format_request(self, **kwargs):

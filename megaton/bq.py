@@ -273,11 +273,15 @@ class MegatonBQ:
                 self,
                 date1: str,
                 date2: str,
-                event_parameters: list = [],
-                user_properties: list = [],
+                event_parameters: list = None,
+                user_properties: list = None,
                 to: str = 'dataframe'
         ) -> None:
             """Flattened event tables exported from GA4"""
+            if event_parameters is None:
+                event_parameters = []
+            if user_properties is None:
+                user_properties = []
 
             sql = self.get_query_to_flatten_events(
                 date1,
@@ -317,11 +321,15 @@ class MegatonBQ:
                 self,
                 date1: str,
                 date2: str,
-                event_parameters: list = [],
-                user_properties: list = [],
+                event_parameters: list = None,
+                user_properties: list = None,
                 to: str = 'select'
         ):
             """Return a query to flatten GA4 event tables exported"""
+            if event_parameters is None:
+                event_parameters = []
+            if user_properties is None:
+                user_properties = []
 
             dataset = self.parent.dataset.id
             table_id = self.flat_table_id
@@ -414,10 +422,14 @@ SELECT FORMAT("%d rows (%d bytes) of data for %s were successfully inserted.", @
 
         def schedule_query_to_flatten_events(
                 self,
-                event_parameters: list = [],
-                user_properties: list = []
+                event_parameters: list = None,
+                user_properties: list = None
         ):
             """Save a scheduled query to flatten event tables exported from GA4"""
+            if event_parameters is None:
+                event_parameters = []
+            if user_properties is None:
+                user_properties = []
             sql = self.get_query_to_flatten_events('', '',
                                                    event_parameters,
                                                    user_properties,
