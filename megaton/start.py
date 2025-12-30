@@ -11,6 +11,7 @@ from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
 from . import bq, constants, errors, files, ga3, ga4, searchconsole, utils, widgets, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
+from .services.bq_service import BQService
 from .services.sheets_service import SheetsService
 from .state import MegatonState
 
@@ -38,6 +39,7 @@ class Megaton:
         self.bq = None  # BigQuery
         self.state = MegatonState()
         self.state.headless = headless
+        self.bq_service = BQService(self)
         self.sheets_service = SheetsService(self)
         self.open = self.Open(self)
         self.save = self.Save(self)
@@ -376,12 +378,7 @@ class Megaton:
         return self.sc
 
     def launch_bigquery(self, gcp_project: str):
-        if not self.creds:
-            logger.warning('認証が完了していないため、BigQuery を初期化できません。')
-            return None
-        self.bq = bq.MegatonBQ(self, self.creds, gcp_project)
-        self.state.bq_project_id = gcp_project
-        return self.bq
+        return self.bq_service.launch_bigquery(gcp_project)
 
     def launch_gs(self, url: str):
         """APIでGoogle Sheetsにアクセスする準備"""
