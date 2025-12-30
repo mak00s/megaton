@@ -78,7 +78,7 @@ def test_widgets_raise_without_ipywidgets(monkeypatch):
     _clear_modules("ipywidgets")
     _block_ipywidgets(monkeypatch)
 
-    widgets = importlib.import_module("megaton.widgets")
+    widgets = importlib.import_module("megaton.ui.widgets")
     with pytest.raises(widgets.WidgetsUnavailableError) as excinfo:
         widgets.dropdown_menu("Label", "Default")
 
