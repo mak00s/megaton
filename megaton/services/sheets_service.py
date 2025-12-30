@@ -190,11 +190,10 @@ class SheetsService:
                 df_combined.sort_values(by=sort_cols, inplace=True)
 
         if columns:
-            missing_cols = [col for col in columns if col not in df_combined.columns]
-            if missing_cols:
-                print(f"指定された列が見つかりません: {missing_cols}")
-            else:
-                df_combined = df_combined[columns]
+            for col in columns:
+                if col not in df_combined.columns:
+                    df_combined[col] = None
+            df_combined = df_combined[columns]
 
         try:
             self.app.gs.sheet.overwrite_data(df_combined, include_index=False)
