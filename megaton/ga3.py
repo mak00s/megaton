@@ -269,9 +269,17 @@ class MegatonUA(ga4.MegatonGA4):
             if id:
                 if id != self.id:
                     self.id = id
+                    state = getattr(self.parent, "_state", None)
+                    if state is not None:
+                        state.ga_version = getattr(self.parent, "_ga_version", None)
+                        state.ga_view_id = id
                     self._update()
             else:
                 self.clear()
+                state = getattr(self.parent, "_state", None)
+                if state is not None:
+                    state.ga_version = getattr(self.parent, "_ga_version", None)
+                    state.ga_view_id = None
 
         def _update(self):
             self.get_info()
