@@ -12,12 +12,13 @@ class SheetsService:
     def __init__(self, app):
         self.app = app
 
-    def launch_gs(self, url: str):
-        """APIでGoogle Sheetsにアクセスする準備"""
+    def _open_sheet(self, url: str, *, reset_gs: bool, mount_drive: bool, no_creds_message: str):
         if not self.app.creds:
-            logger.warning('認証が完了していないため、Google Sheets API を初期化できません。')
+            logger.warning(no_creds_message)
             return None
-        if self.app.in_colab:
+        if reset_gs:
+            self.app.gs = None
+        if mount_drive and self.app.in_colab:
             mount_google_drive()
         try:
             self.app.gs = gsheet.MegatonGS(self.app.creds, url)
@@ -42,34 +43,23 @@ class SheetsService:
                 self.app.state.gs_title = self.app.gs.title
                 return True
 
+    def launch_gs(self, url: str):
+        """APIでGoogle Sheetsにアクセスする準備"""
+        return self._open_sheet(
+            url,
+            reset_gs=False,
+            mount_drive=True,
+            no_creds_message='認証が完了していないため、Google Sheets API を初期化できません。',
+        )
+
     def open_sheet(self, url: str):
         """Google Sheets APIの準備"""
-        if not self.app.creds:
-            logger.warning('認証が完了していないため、Google Sheets を開けません。')
-            return None
-        self.app.gs = None
-        try:
-            self.app.gs = gsheet.MegatonGS(self.app.creds, url)
-        except errors.BadCredentialFormat:
-            print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
-        except errors.BadCredentialScope:
-            print("認証情報のスコープ不足のため、Google Sheets APIを利用できません。")
-        except errors.BadUrlFormat:
-            print("URLのフォーマットが正しくありません")
-        except errors.ApiDisabled:
-            print("Google SheetsのAPIが有効化されていません。")
-        except errors.UrlNotFound:
-            print("URLが見つかりません。")
-        except errors.BadPermission:
-            print("該当スプレッドシートを読み込む権限がありません。")
-        except Exception as exc:
-            raise exc
-        else:
-            if self.app.gs.title:
-                print(f"Googleスプレッドシート「{self.app.gs.title}」を開きました。")
-                self.app.state.gs_url = url
-                self.app.state.gs_title = self.app.gs.title
-                return True
+        return self._open_sheet(
+            url,
+            reset_gs=True,
+            mount_drive=False,
+            no_creds_message='認証が完了していないため、Google Sheets を開けません。',
+        )
 
     def select_sheet(self, sheet_name: str) -> Optional[bool]:
         """開いたGoogle Sheetsのシートを選択"""
