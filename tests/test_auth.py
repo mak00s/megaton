@@ -1,3 +1,4 @@
+import importlib
 import json
 import os
 import sys
@@ -28,32 +29,39 @@ def ensure_module(name: str):
     return module
 
 
-credentials_mod = ensure_module('google.oauth2.credentials')
+def get_module(name: str):
+    try:
+        return importlib.import_module(name)
+    except Exception:
+        return ensure_module(name)
+
+
+credentials_mod = get_module('google.oauth2.credentials')
 if not hasattr(credentials_mod, 'Credentials'):
     class _StubCredentials:
         pass
 
     credentials_mod.Credentials = _StubCredentials
 
-service_account_mod = ensure_module('google.oauth2.service_account')
+service_account_mod = get_module('google.oauth2.service_account')
 if not hasattr(service_account_mod, 'Credentials'):
     class _StubServiceAccount:
         pass
 
     service_account_mod.Credentials = _StubServiceAccount
 
-flow_mod = ensure_module('google_auth_oauthlib.flow')
+flow_mod = get_module('google_auth_oauthlib.flow')
 if not hasattr(flow_mod, 'InstalledAppFlow'):
     class _StubFlow:
         pass
 
     flow_mod.InstalledAppFlow = _StubFlow
 
-transport_mod = ensure_module('google.auth.transport.requests')
+transport_mod = get_module('google.auth.transport.requests')
 if not hasattr(transport_mod, 'Request'):
     transport_mod.Request = lambda: object()
 
-exceptions_mod = ensure_module('google.auth.exceptions')
+exceptions_mod = get_module('google.auth.exceptions')
 if not hasattr(exceptions_mod, 'RefreshError'):
     class _StubRefreshError(Exception):
         pass
@@ -153,10 +161,9 @@ def test_get_cache_path_uses_home_config_dir(tmp_path, monkeypatch):
     assert cache.endswith(".config/cache_client-secret.json")
     assert os.path.isdir(os.path.join(tmp_path, ".config"))
 
-
 def test_save_credentials_writes_json(tmp_path, monkeypatch):
     cache_file = tmp_path / "cache.json"
-    monkeypatch.setattr(auth, "get_cache_path", lambda _: str(cache_file))
+    monkeypatch.setattr(auth.google_auth, "get_cache_path", lambda _: str(cache_file))
 
     class DummyCred:
         def __init__(self):
@@ -173,14 +180,14 @@ def test_save_credentials_writes_json(tmp_path, monkeypatch):
 
 def test_load_credentials_returns_none_when_cache_missing(tmp_path, monkeypatch):
     cache_file = tmp_path / "missing.json"
-    monkeypatch.setattr(auth, "get_cache_path", lambda _: str(cache_file))
+    monkeypatch.setattr(auth.google_auth, "get_cache_path", lambda _: str(cache_file))
     assert auth.load_credentials("client.json", scopes=["scope"]) is None
 
 
 def test_load_credentials_reads_from_cache(monkeypatch, tmp_path):
     cache_file = tmp_path / "cache.json"
     cache_file.write_text("{}")
-    monkeypatch.setattr(auth, "get_cache_path", lambda _: str(cache_file))
+    monkeypatch.setattr(auth.google_auth, "get_cache_path", lambda _: str(cache_file))
 
     class DummyCredentials:
         last_call = None
@@ -190,7 +197,7 @@ def test_load_credentials_reads_from_cache(monkeypatch, tmp_path):
             cls.last_call = (filename, tuple(scopes))
             return cls()
 
-    monkeypatch.setattr(auth, "Credentials", DummyCredentials)
+    monkeypatch.setattr(auth.google_auth, "Credentials", DummyCredentials)
     creds = auth.load_credentials("client.json", scopes=["a", "b"])
     assert isinstance(creds, DummyCredentials)
     assert DummyCredentials.last_call == (str(cache_file), ("a", "b"))
