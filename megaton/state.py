@@ -15,3 +15,4 @@ class MegatonState:
     bq_project_id: Optional[str] = None
     bq_dataset_id: Optional[str] = None
     bq_table_id: Optional[str] = None
+    headless: Optional[bool] = None

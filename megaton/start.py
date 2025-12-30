@@ -36,6 +36,7 @@ class Megaton:
         self.sc = None  # Google Search Console client
         self.bq = None  # BigQuery
         self.state = MegatonState()
+        self.state.headless = headless
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
