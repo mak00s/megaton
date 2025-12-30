@@ -86,7 +86,7 @@ def prep_df(df, delete_columns: list = None, type_columns: dict = None, rename_c
         if rename_columns:
             # rename
             df.columns = df.columns.to_series().replace(rename_columns, regex=True)
-        return df
+    return df
 
 
 def get_date_range(start_date: str, end_date: str, format_: str = '%Y-%m-%d'):

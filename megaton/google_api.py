@@ -49,13 +49,14 @@ class GoogleApi(object):
             code = e.resp.get('code')
             # reason = ''
             message = ''
+            data = None
             try:
                 data = json.loads(e.content.decode('utf-8'))
                 code = data['error']["code"]
                 message = data['error']['message']
                 # reason = data['error']['errors'][0]['reason']
             except:  # noqa
-                pass
+                data = e.content
             if code == 403 and "rate limit exceeded" in message.lower():
                 self.log.debug("rate limit reached, sleeping for %s seconds", 2 ** retry_count)
                 time.sleep(2 ** retry_count)
