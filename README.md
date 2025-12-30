@@ -34,7 +34,7 @@ pip install -e .
 
 ### Colab / 使うだけ
 ```bash
-pip install -U "git+https://github.com/mak00s/megaton@feature/colab-test"
+pip install -U "git+https://github.com/mak00s/megaton@main"
 ```
 > Colab では依存パッケージ不足時に必要に応じて自動インストールされます（`MEGATON_AUTO_INSTALL` で上書き可）。
 
@@ -60,7 +60,7 @@ from megaton.start import Megaton
 app = Megaton(None, headless=True)  # env を参照
 ```
 - `headless=True`：ウィジェットなし（スモーク／バッチ向け）
-- UI が必要なら `headless=False`
+- UI が必要なら `headless=False`（ipywidgets が未導入だとエラーになります）
 
 ## 手動スモーク（外部通信あり）
 - `notebooks/test-megaton.ipynb`  
@@ -68,6 +68,7 @@ app = Megaton(None, headless=True)  # env を参照
   - GA4 / Sheets / BigQuery を **短時間**で確認
   - 設定が無いサービスは **Skip**（止まらない）
   - Sheets は必ず `_smoke_YYYYMMDD_HHMM` の **新規シート**に書き込み（上書きなし）
+  - OAuth smoke は `SMOKE_OAUTH_JSON`（JSON文字列 or パス）で指定
 
 ## 上級者向けドキュメント
 - `docs/advanced.md`
