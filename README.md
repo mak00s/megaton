@@ -36,6 +36,7 @@ app = Megaton(None, headless=True)  # env を参照
 ### ローカル
 ```bash
 pip install -e .
+pip install python-dotenv
 ```
 
 ```python
@@ -80,6 +81,22 @@ df = app.report.run(
     m=["eventCount"],
 )
 df.head()
+```
+
+### dimensions / metrics 一覧
+```python
+app.show.ga.dimensions
+app.show.ga.metrics
+```
+
+### filter / sort（最小例）
+```python
+df = app.report.run(
+    d=["date", "eventName"],
+    m=["eventCount"],
+    filter_d="eventName==page_view",
+    sort="-eventCount",
+)
 ```
 
 ### Google Sheets
