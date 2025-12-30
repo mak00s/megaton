@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+          if [[ -f requirements.txt ]]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install -e .
+      - name: Run pytest (fast, no external calls)
+        run: |
+          set -euo pipefail
+          tests=(
+            tests/test_phase0_regressions.py
+            tests/test_auto_install.py
+            tests/test_auth.py
+            tests/test_auth_provider.py
+            tests/test_megaton_auth_bridge.py
+            tests/test_ui_lazy_import.py
+            tests/test_utils.py
+          )
+          for test_path in "${tests[@]}"; do
+            if [[ -f "${test_path}" ]]; then
+              python -m pytest "${test_path}"
+            else
+              echo "Skipping missing ${test_path}"
+            fi
+          done
