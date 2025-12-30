@@ -11,6 +11,7 @@ from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
 from . import auth as auth_module, bq, constants, errors, files, ga3, ga4, gsheet, searchconsole, utils, widgets, mount_google_drive
+from .state import MegatonState
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
@@ -34,6 +35,8 @@ class Megaton:
         self.gs = None  # Google Sheets client
         self.sc = None  # Google Search Console client
         self.bq = None  # BigQuery
+        self.state = MegatonState()
+        self.state.headless = headless
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
@@ -343,6 +346,8 @@ class Megaton:
         # GA4
         try:
             client = ga4.MegatonGA4(self.creds)
+            client._state = self.state
+            client._ga_version = '4'
             if client.accounts:
                 self.ga['4'] = client
             else:
@@ -353,6 +358,8 @@ class Megaton:
         if self.use_ga3:
             try:
                 client = ga3.MegatonUA(self.creds)
+                client._state = self.state
+                client._ga_version = '3'
                 if client.accounts:
                     self.ga['3'] = client
                 else:
@@ -408,6 +415,7 @@ class Megaton:
             logger.warning('認証が完了していないため、BigQuery を初期化できません。')
             return None
         self.bq = bq.MegatonBQ(self, self.creds, gcp_project)
+        self.state.bq_project_id = gcp_project
         return self.bq
 
     def launch_gs(self, url: str):
@@ -436,6 +444,8 @@ class Megaton:
         else:
             if self.gs.title:
                 print(f"Googleスプレッドシート「{self.gs.title}」を開きました。")
+                self.state.gs_url = url
+                self.state.gs_title = self.gs.title
                 return True
 
     class AuthMenu:
@@ -586,6 +596,11 @@ class Megaton:
         def _account_menu_selected(self, change):
             account_id = change.new
             self.parent.ga[self.ver].account.select(account_id)
+            self.parent.state.ga_version = self.ver
+            self.parent.state.ga_account_id = account_id or None
+            if not account_id:
+                self.parent.state.ga_property_id = None
+                self.parent.state.ga_view_id = None
             # 選択肢が変更されたら
             if account_id:
                 # 選択されたGAアカウントに紐付くGAプロパティを得る
@@ -601,6 +616,10 @@ class Megaton:
         def _property_menu_selected(self, change):
             property_id = change.new
             self.parent.ga[self.ver].property.select(property_id)
+            self.parent.state.ga_version = self.ver
+            self.parent.state.ga_property_id = property_id or None
+            if not property_id:
+                self.parent.state.ga_view_id = None
             # 選択肢が変更されたら
             if self.ver == '3':
                 if property_id:
@@ -617,6 +636,8 @@ class Megaton:
         def _view_menu_selected(self, change):
             view_id = change.new
             self.parent.ga[self.ver].view.select(view_id)
+            self.parent.state.ga_version = self.ver
+            self.parent.state.ga_view_id = view_id or None
 
         def list(self):
             if self.ver == '3':
@@ -763,6 +784,7 @@ class Megaton:
                 name = self.parent.gs.sheet.select(sheet_name)
                 if name:
                     print(f"「{sheet_name}」シートを選択しました。")
+                    self.parent.state.gs_sheet_name = sheet_name
                     return True
             except errors.SheetNotFound:
                 print(f"{sheet_name} シートが存在しません。")
@@ -796,6 +818,8 @@ class Megaton:
             else:
                 if self.parent.gs.title:
                     print(f"Googleスプレッドシート「{self.parent.gs.title}」を開きました。")
+                    self.parent.state.gs_url = url
+                    self.parent.state.gs_title = self.parent.gs.title
                     return True
 
     class Load:

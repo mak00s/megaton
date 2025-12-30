@@ -196,9 +196,19 @@ class MegatonGA4(object):
             if id:
                 if id != self.id:
                     self.id = id
+                    state = getattr(self.parent, "_state", None)
+                    if state is not None:
+                        state.ga_version = getattr(self.parent, "_ga_version", None)
+                        state.ga_account_id = id
                     self._update()
             else:
                 self._clear()
+                state = getattr(self.parent, "_state", None)
+                if state is not None:
+                    state.ga_version = getattr(self.parent, "_ga_version", None)
+                    state.ga_account_id = None
+                    state.ga_property_id = None
+                    state.ga_view_id = None
 
         def show(self, index_col: str = 'id'):
             res = self.properties
@@ -243,9 +253,18 @@ class MegatonGA4(object):
             if id:
                 if id != self.id:
                     self.id = id
+                    state = getattr(self.parent, "_state", None)
+                    if state is not None:
+                        state.ga_version = getattr(self.parent, "_ga_version", None)
+                        state.ga_property_id = id
                     self._update()
             else:
                 self.clear()
+                state = getattr(self.parent, "_state", None)
+                if state is not None:
+                    state.ga_version = getattr(self.parent, "_ga_version", None)
+                    state.ga_property_id = None
+                    state.ga_view_id = None
 
         def _get_metadata(self):
             """Returns available dimensions and metrics for the property."""
