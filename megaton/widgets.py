@@ -35,6 +35,7 @@ def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] =
     """
     widgets = require_widgets()
     Dropdown = widgets.Dropdown
+    option_list = option_list or []
     description_width, menu_width = (None, None)
     if width:
         description_width, menu_width = width
