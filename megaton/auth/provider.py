@@ -19,14 +19,9 @@ class CredentialSource:
 
 
 def get_credential_type_from_info(info: Optional[dict]) -> str:
-    if isinstance(info, dict):
-        if info.get("type") == "service_account":
-            return "service_account"
-        if "installed" in info:
-            return "installed"
-        if "web" in info:
-            return "web"
-    return "unknown"
+    from . import google_auth
+
+    return google_auth.get_credential_type_from_info(info)
 
 
 def parse_json_input(value: Any) -> Optional[dict]:
