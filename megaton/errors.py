@@ -82,3 +82,14 @@ class SheetNotFound(Error):
 
     def __init__(self, message=None):
         self.message = message or "The sheet requested is not found."
+
+
+class InvalidServiceAccount(Error):
+    """Raised when a service account credential is invalid or missing."""
+
+    def __init__(self, message=None):
+        self.message = message or "指定したサービスアカウントは存在しない、または無効です。"
+        super().__init__(self.message)
+
+    def __str__(self):
+        return self.message

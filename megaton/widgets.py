@@ -10,7 +10,9 @@ from ipywidgets import Dropdown, HTML, Output, Layout, Tab, Text, VBox
 def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] = [], width: Tuple[str, str] = None):
     """Create a drop-down menu
     """
-    description_width, menu_width = width
+    description_width, menu_width = (None, None)
+    if width:
+        description_width, menu_width = width
 
     # set label
     options = [(default, '')] if default else []
@@ -19,8 +21,8 @@ def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] =
     if option_list:
         options.extend(option_list)
 
-    style = {'description_width': description_width} if description_width else Non
-    layout = {'width': menu_width}
+    style = {'description_width': description_width} if description_width else {}
+    layout = {'width': menu_width} if menu_width else {}
 
     return Dropdown(description=f"{label}: ", options=options, style=style, layout=layout)
 
@@ -85,7 +87,7 @@ def tab(ga: list):
 
 
 def tab_set(tabs: list, titles: list):
-    return Tab(
-        children=tabs,
-        _titles={i: v for i, v in enumerate(titles)}
-    )
+    tab_widget = Tab(children=tabs)
+    for i, title in enumerate(titles):
+        tab_widget.set_title(i, title)
+    return tab_widget

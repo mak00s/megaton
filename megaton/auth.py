@@ -65,10 +65,29 @@ def get_credential_type_from_file(json_path: str):
         Returns:
             client_type [str]: The client type, either ``'service_account'`` or ``'web'`` or ``'installed'``
         """
-    with open(json_path, "r") as json_path:
-        client_config = json.load(json_path)
+    try:
+        with open(json_path, "r") as fp:
+            client_config = json.load(fp)
+    except (OSError, json.JSONDecodeError):
+        LOGGER.debug("Skipping non JSON credential file: %s", json_path)
+        return None
+
+    if not isinstance(client_config, dict):
+        LOGGER.debug('Credential file %s does not contain a JSON object; skipping.', json_path)
+        return None
 
     return get_credential_type(client_config)
+
+
+def get_credential_type_from_info(info: dict) -> str:
+    if isinstance(info, dict):
+        if info.get("type") == "service_account":
+            return "service_account"
+        if "installed" in info:
+            return "installed"
+        if "web" in info:
+            return "web"
+    return "unknown"
 
 
 def get_json_files_from_dir(json_dir: str):
@@ -113,6 +132,26 @@ def load_credentials(file_path: str, scopes: list):
         return Credentials.from_authorized_user_file(cache_path, scopes=scopes)
 
 
+def load_service_account_credentials_from_info(info: dict, scopes: list):
+    if not isinstance(info, dict) or info.get("type") != "service_account":
+        raise ValueError("service_account info required")
+    credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
+    if not credentials.valid:
+        request = google.auth.transport.requests.Request()
+        try:
+            credentials.refresh(request)
+        except google.auth.exceptions.RefreshError as exc:
+            email = info.get("client_email") or getattr(credentials, "service_account_email", None)
+            if email:
+                message = f"指定の {email} のサービスアカウントは存在しない、または無効です。"
+            else:
+                message = "指定したサービスアカウントは存在しない、または無効です。"
+            LOGGER.error(message)
+            LOGGER.debug(f"Service account refresh error detail: {exc}")
+            return None
+    return credentials
+
+
 def delete_credentials(cache_file: str = "creden-cache.json"):
     """Delete Credentials cache file
     """
@@ -129,6 +168,18 @@ def get_oauth_redirect(client_secret_file: str, scopes: list):
         redirect_uri="urn:ietf:wg:oauth:2.0:oob"
     )
     auth_url, _ = flow.authorization_url(prompt="consent")
+    return flow, auth_url
+
+
+def get_oauth_redirect_from_info(info: dict, scopes: list):
+    # mirrors get_oauth_redirect(file, scopes) but uses in-memory client config
+    flow = InstalledAppFlow.from_client_config(info, scopes=scopes)
+    flow.redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+    auth_url, _ = flow.authorization_url(
+        prompt='consent',
+        access_type='offline',
+        include_granted_scopes='true'
+    )
     return flow, auth_url
 
 
@@ -150,7 +201,12 @@ def load_service_account_credentials_from_file(path: str, scopes: list):
         try:
             credentials.refresh(request)
         except google.auth.exceptions.RefreshError as exc:
-            # Credentials could be expired or revoked.
-            LOGGER.error("Error refreshing credentials: {}".format(str(exc)))
+            email = getattr(credentials, "service_account_email", None)
+            if email:
+                message = f"指定の {email} のサービスアカウントは存在しない、または無効です。"
+            else:
+                message = "指定したサービスアカウントは存在しない、または無効です。"
+            LOGGER.error(message)
+            LOGGER.debug("Service account refresh error detail: %s", exc)
             return None
     return credentials
