@@ -30,7 +30,7 @@ def require_widgets():
     return _ipywidgets
 
 
-def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] = [], width: Tuple[str, str] = None):
+def dropdown_menu(label: str, default: str, option_list: List[Tuple[str, str]] = None, width: Tuple[str, str] = None):
     """Create a drop-down menu
     """
     widgets = require_widgets()
