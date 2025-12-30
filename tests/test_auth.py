@@ -156,7 +156,7 @@ def test_get_credential_type_from_info_handles_variants():
 
 
 def test_get_cache_path_uses_home_config_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(auth.os.path, "expanduser", lambda _: str(tmp_path))
+    monkeypatch.setattr(auth.google_auth.os.path, "expanduser", lambda _: str(tmp_path))
     cache = auth.get_cache_path("client-secret.json")
     assert cache.endswith(".config/cache_client-secret.json")
     assert os.path.isdir(os.path.join(tmp_path, ".config"))
@@ -228,8 +228,8 @@ def test_load_service_account_credentials_from_info_refreshes(monkeypatch):
             cls.last = cred
             return cred
 
-    monkeypatch.setattr(auth.service_account, 'Credentials', DummyFactory)
-    monkeypatch.setattr(auth.google.auth.transport.requests, 'Request', lambda: object())
+    monkeypatch.setattr(auth.google_auth.service_account, 'Credentials', DummyFactory)
+    monkeypatch.setattr(auth.google_auth.google.auth.transport.requests, 'Request', lambda: object())
     result = auth.load_service_account_credentials_from_info({'type': 'service_account', 'client_email': 'sa@example.com'}, ['scope-a'])
     assert result is DummyFactory.last
     assert result.valid
@@ -242,15 +242,15 @@ def test_load_service_account_credentials_from_info_refresh_failure(monkeypatch,
             self.service_account_email = info.get('client_email')
 
         def refresh(self, request):
-            raise auth.google.auth.exceptions.RefreshError('boom')
+            raise auth.google_auth.google.auth.exceptions.RefreshError('boom')
 
     class DummyFactory:
         @classmethod
         def from_service_account_info(cls, info, scopes=None):
             return DummyCred(info)
 
-    monkeypatch.setattr(auth.service_account, 'Credentials', DummyFactory)
-    monkeypatch.setattr(auth.google.auth.transport.requests, 'Request', lambda: object())
+    monkeypatch.setattr(auth.google_auth.service_account, 'Credentials', DummyFactory)
+    monkeypatch.setattr(auth.google_auth.google.auth.transport.requests, 'Request', lambda: object())
     with caplog.at_level(logging.ERROR):
         result = auth.load_service_account_credentials_from_info({'type': 'service_account', 'client_email': 'sa@example.com'}, ['scope'])
     assert result is None
@@ -268,15 +268,15 @@ def test_load_service_account_credentials_from_file_refresh_failure(monkeypatch,
             self.service_account_email = 'sa@example.com'
 
         def refresh(self, request):
-            raise auth.google.auth.exceptions.RefreshError('boom')
+            raise auth.google_auth.google.auth.exceptions.RefreshError('boom')
 
     class DummyFactory:
         @classmethod
         def from_service_account_file(cls, path, scopes=None):
             return DummyCred()
 
-    monkeypatch.setattr(auth.service_account, 'Credentials', DummyFactory)
-    monkeypatch.setattr(auth.google.auth.transport.requests, 'Request', lambda: object())
+    monkeypatch.setattr(auth.google_auth.service_account, 'Credentials', DummyFactory)
+    monkeypatch.setattr(auth.google_auth.google.auth.transport.requests, 'Request', lambda: object())
 
     with caplog.at_level(logging.ERROR):
         result = auth.load_service_account_credentials_from_file(str(sa_path), ['scope'])
