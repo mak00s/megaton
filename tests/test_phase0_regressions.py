@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 from googleapiclient import errors
 
-from megaton import bq, ga4, google_api, utils, widgets
+from megaton import bq, ga4, google_api, utils
+from megaton.ui import widgets
 
 
 class DummyResp:

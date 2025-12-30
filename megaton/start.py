@@ -9,11 +9,12 @@ from typing import Optional
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import bq, constants, errors, files, ga3, ga4, searchconsole, utils, widgets, mount_google_drive
+from . import bq, constants, errors, files, ga3, ga4, searchconsole, utils, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
 from .services.bq_service import BQService
 from .services.sheets_service import SheetsService
 from .state import MegatonState
+from .ui import widgets
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
