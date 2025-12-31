@@ -5,11 +5,12 @@ import hashlib
 import logging
 import pandas as pd
 import sys
+from types import SimpleNamespace
 from typing import Optional
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import bq, constants, errors, files, ga3, ga4, searchconsole, utils, mount_google_drive
+from . import bq, constants, errors, files, ga3, ga4, recipes, searchconsole, utils, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
 from .services.bq_service import BQService
 from .services.gsc_service import GSCService
@@ -41,6 +42,7 @@ class Megaton:
         self.bq = None  # BigQuery
         self.state = MegatonState()
         self.state.headless = headless
+        self.recipes = SimpleNamespace(load_config=lambda sheet_url: recipes.load_config(self, sheet_url))
         self.bq_service = BQService(self)
         self.gsc_service = GSCService(self)
         self.sheets_service = SheetsService(self)

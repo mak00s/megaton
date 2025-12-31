@@ -34,6 +34,7 @@ jobs:
             tests/test_auth_provider.py
             tests/test_megaton_auth_bridge.py
             tests/test_gsc_service.py
+            tests/test_config_loader.py
             tests/test_ui_lazy_import.py
             tests/test_sheets_service.py
             tests/test_dates.py
