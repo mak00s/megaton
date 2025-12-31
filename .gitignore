@@ -79,6 +79,11 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+notebooks/shibuya.ipynb
+notebooks/corp.ipynb
+notebooks/dei.ipynb
+notebooks/shibuya_dashboard.ipynb
+notebooks/slqm.ipynb
 
 # IPython
 profile_default/
