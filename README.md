@@ -131,6 +131,11 @@ pytest tests/test_utils.py
 - Sheets は `_smoke_YYYYMMDD_HHMM` の新規シートに書き込み
 - OAuth smoke は `.env` に `SMOKE_OAUTH_JSON=...` を追加して使う
 
+### test-megaton.ipynb の実行手順（Smoke Test）
+- 外部サービス接続を含む**手動スモーク用**（CIとは別の最終確認）
+- Cell 0 の `RUN_*` フラグで必要なテストだけ実行可能
+- Sheets 書き込みは `_smoke_YYYYMMDD_HHMM` の新規シートのみ
+
 CI は GitHub Actions で PR / main push の pytest（fast suite）を実行します。
 
 ---
