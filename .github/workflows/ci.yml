@@ -36,6 +36,7 @@ jobs:
             tests/test_gsc_service.py
             tests/test_ui_lazy_import.py
             tests/test_sheets_service.py
+            tests/test_dates.py
             tests/test_utils.py
           )
           for test_path in "${tests[@]}"; do
