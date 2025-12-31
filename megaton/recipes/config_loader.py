@@ -34,23 +34,25 @@ def load_config(mg, sheet_url: str) -> Config:
     if not mg.open.sheet(sheet_url):
         raise RuntimeError(f"Failed to open config sheet: {sheet_url}")
 
-    def read_sheet(name: str) -> pd.DataFrame:
+    def read_sheet(name: str, *, required: bool = True) -> pd.DataFrame:
         try:
             mg.gs.sheet.select(name)
         except errors.SheetNotFound as exc:
-            raise ValueError(f"Required sheet not found: {name}") from exc
+            if required:
+                raise ValueError(f"Required sheet not found: {name}") from exc
+            return pd.DataFrame()
         data = mg.gs.sheet.data or []
         return pd.DataFrame(data)
 
-    config_df = read_sheet("config")
+    config_df = read_sheet("config", required=True)
     if config_df.empty:
         raise ValueError("config sheet is empty")
     if "clinic" not in config_df.columns:
         raise ValueError("config sheet missing columns: ['clinic']")
 
-    source_map_df = read_sheet("source_map")
-    page_map_df = read_sheet("page_map")
-    query_map_df = read_sheet("query_map")
+    source_map_df = read_sheet("source_map", required=True)
+    page_map_df = read_sheet("page_map", required=False)
+    query_map_df = read_sheet("query_map", required=False)
 
     source_map = _to_map(source_map_df, "pattern", "normalized", "source_map")
     page_map = _to_map(page_map_df, "pattern", "category", "page_map")

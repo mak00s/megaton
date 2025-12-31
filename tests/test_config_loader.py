@@ -90,3 +90,16 @@ def test_load_config_raises_on_missing_columns():
 
     with pytest.raises(ValueError, match="source_map sheet missing columns"):
         config_loader.load_config(mg, "https://example.com/sheet")
+
+
+def test_load_config_allows_optional_maps_missing():
+    data_map = {
+        "config": [{"clinic": "A", "domain": "example.com"}],
+        "source_map": [{"pattern": "^google", "normalized": "google"}],
+    }
+    mg = FakeMG(data_map)
+
+    cfg = config_loader.load_config(mg, "https://example.com/sheet")
+
+    assert cfg.page_map == {}
+    assert cfg.query_map == {}
