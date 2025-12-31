@@ -12,6 +12,7 @@ from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 from . import bq, constants, errors, files, ga3, ga4, searchconsole, utils, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
 from .services.bq_service import BQService
+from .services.gsc_service import GSCService
 from .services.sheets_service import SheetsService
 from .state import MegatonState
 from .ui import widgets
@@ -41,6 +42,7 @@ class Megaton:
         self.state = MegatonState()
         self.state.headless = headless
         self.bq_service = BQService(self)
+        self.gsc_service = GSCService(self)
         self.sheets_service = SheetsService(self)
         self.open = self.Open(self)
         self.save = self.Save(self)
