@@ -7,10 +7,11 @@ import pandas as pd
 import sys
 from types import SimpleNamespace
 from typing import Optional
+from datetime import datetime
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import bq, constants, errors, files, ga3, ga4, recipes, searchconsole, utils, mount_google_drive
+from . import bq, constants, dates, errors, files, ga3, ga4, recipes, searchconsole, utils, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
 from .services.bq_service import BQService
 from .services.gsc_service import GSCService
@@ -844,6 +845,32 @@ class Megaton:
             """
             self.start_date = date1
             self.end_date = date2
+
+        def set_month_window(
+            self,
+            months_ago: int = 1,
+            window_months: int = 13,
+            *,
+            tz: str = "Asia/Tokyo",
+            now: datetime | None = None,
+        ) -> tuple[str, str, str]:
+            """Set dates from a month window and return (date_from, date_to, ym)."""
+            date_from, date_to, ym = dates.get_month_window(
+                months_ago,
+                window_months,
+                tz=tz,
+                now=now,
+            )
+            self.set_dates(date_from, date_to)
+            self.last_month_window = {
+                "date_from": date_from,
+                "date_to": date_to,
+                "ym": ym,
+                "months_ago": months_ago,
+                "window_months": window_months,
+                "tz": tz,
+            }
+            return date_from, date_to, ym
 
         def run(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
             """レポートを実行

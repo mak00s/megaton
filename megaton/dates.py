@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import re
 
-import pytz
 from dateutil.relativedelta import relativedelta
+from zoneinfo import ZoneInfo
 
 
 def parse_end_date(raw_date_str: str) -> datetime:
@@ -33,19 +33,61 @@ def parse_end_date(raw_date_str: str) -> datetime:
 
 
 def get_report_range(target_months_ago: int, tz: str = "Asia/Tokyo") -> tuple[str, str]:
-    """Return (date_from, date_to) based on the 13-month window logic."""
-    now = datetime.now(pytz.timezone(tz))
+    """Compatibility wrapper for the legacy 13-month window.
 
-    if target_months_ago == 0:
-        base = now.replace(day=1)
-        date_from = (base - relativedelta(months=12)).date().isoformat()
-        date_to = (now - timedelta(days=1)).date().isoformat()
-    else:
-        base = now.replace(day=1) - relativedelta(months=target_months_ago)
-        date_from = (base - relativedelta(months=12)).date().isoformat()
-        date_to = (base + relativedelta(months=1) - timedelta(days=1)).date().isoformat()
-
+    Prefer get_month_window() for configurable window sizes and timezones.
+    """
+    date_from, date_to, _ = get_month_window(
+        months_ago=target_months_ago,
+        window_months=13,
+        tz=tz,
+    )
     return date_from, date_to
+
+
+def get_month_window(
+    months_ago: int = 1,
+    window_months: int = 13,
+    *,
+    tz: str = "Asia/Tokyo",
+    now: datetime | None = None,
+) -> tuple[str, str, str]:
+    """Return (date_from, date_to, ym) for a month window.
+
+    Args:
+        months_ago: Target month offset (0 = current month).
+        window_months: Window size in months.
+        tz: Timezone name.
+        now: Fixed datetime for testing (timezone-aware or naive).
+            If timezone-aware, it will be normalized to ``tz`` via ``astimezone``.
+    """
+    if months_ago < 0:
+        raise ValueError("months_ago must be >= 0")
+    if window_months < 1:
+        raise ValueError("window_months must be >= 1")
+
+    tzinfo = ZoneInfo(tz)
+    if now is None:
+        now_dt = datetime.now(tzinfo)
+    else:
+        now_dt = now.replace(tzinfo=tzinfo) if now.tzinfo is None else now.astimezone(tzinfo)
+
+    base_month_start = now_dt.replace(day=1).date()
+    target_month_start = base_month_start - relativedelta(months=months_ago)
+    target_month_end = target_month_start + relativedelta(months=1) - timedelta(days=1)
+
+    if months_ago == 0:
+        date_to = now_dt.date() - timedelta(days=1)
+    else:
+        date_to = target_month_end
+
+    if window_months == 1:
+        date_from = target_month_start
+    else:
+        date_from = target_month_start - relativedelta(months=window_months - 1)
+
+    ym = target_month_start.strftime("%Y-%m")
+    return date_from.isoformat(), date_to.isoformat(), ym
 
 
 def get_past_date(
@@ -59,7 +101,7 @@ def get_past_date(
     Raises:
         ValueError: When both ``n_days`` and ``n_months`` are provided.
     """
-    now = datetime.now(pytz.timezone(tz))
+    now = datetime.now(ZoneInfo(tz))
 
     if n_days is None and n_months is None:
         result_date = now
