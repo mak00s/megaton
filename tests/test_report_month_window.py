@@ -6,7 +6,7 @@ from megaton import dates
 from megaton.start import Megaton
 
 
-def test_report_set_month_window_calls_set_dates():
+def test_report_set_months_calls_set_dates():
     report = Megaton.Report(SimpleNamespace(ga_ver=None))
     called = {}
 
@@ -18,7 +18,8 @@ def test_report_set_month_window_calls_set_dates():
     now = datetime(2025, 3, 15, 10, 0, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
     expected = dates.get_month_window(1, 1, tz="Asia/Tokyo", now=now)
 
-    result = report.set_month_window(1, 1, tz="Asia/Tokyo", now=now)
+    result = report.set.months(1, 1, tz="Asia/Tokyo", now=now)
 
     assert result == expected
     assert called["args"] == expected[:2]
+    assert report.last_month_window["ym"] == expected[2]

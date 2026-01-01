@@ -19,11 +19,11 @@ class SheetsService:
             logger.warning(no_creds_message)
             return None
         if reset_gs:
-            self.app.gs = None
+            self.app._gs_client = None
         if mount_drive and self.app.in_colab:
             mount_google_drive()
         try:
-            self.app.gs = gsheet.MegatonGS(self.app.creds, url)
+            self.app._gs_client = gsheet.MegatonGS(self.app.creds, url)
         except errors.BadCredentialFormat:
             print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
         except errors.BadCredentialScope:
@@ -39,10 +39,10 @@ class SheetsService:
         except Exception as exc:
             raise exc
         else:
-            if self.app.gs.title:
-                print(f"Googleスプレッドシート「{self.app.gs.title}」を開きました。")
+            if self.app._gs_client.title:
+                print(f"Googleスプレッドシート「{self.app._gs_client.title}」を開きました。")
                 self.app.state.gs_url = url
-                self.app.state.gs_title = self.app.gs.title
+                self.app.state.gs_title = self.app._gs_client.title
                 return True
 
     def launch_gs(self, url: str):
@@ -66,7 +66,7 @@ class SheetsService:
     def select_sheet(self, sheet_name: str) -> Optional[bool]:
         """開いたGoogle Sheetsのシートを選択"""
         try:
-            name = self.app.gs.sheet.select(sheet_name)
+            name = self.app._gs_client.sheet.select(sheet_name)
             if name:
                 print(f"「{sheet_name}」シートを選択しました。")
                 self.app.state.gs_sheet_name = sheet_name
@@ -76,29 +76,29 @@ class SheetsService:
 
     def save_sheet(self, sheet_name: str, df):
         if self.select_sheet(sheet_name):
-            if self.app.gs.sheet.overwrite_data(df, include_index=False):
+            if self.app._gs_client.sheet.overwrite_data(df, include_index=False):
                 print(f"データを「{sheet_name}」シートへ反映しました。")
 
     def append_sheet(self, sheet_name: str, df):
         if self.select_sheet(sheet_name):
-            if self.app.gs.sheet.save_data(df, include_index=False):
+            if self.app._gs_client.sheet.save_data(df, include_index=False):
                 print(f"データを「{sheet_name}」シートに追記しました。")
 
     def open_or_create_sheet(self, sheet_url: str, sheet_name: str) -> Optional[bool]:
-        if not self.app.gs or (self.app.gs.url and self.app.gs.url != sheet_url):
+        if not self.app._gs_client or (self.app._gs_client.url and self.app._gs_client.url != sheet_url):
             if not self.open_sheet(sheet_url):
                 return None
 
-        if sheet_name in self.app.gs.sheets:
+        if sheet_name in self.app._gs_client.sheets:
             try:
-                self.app.gs.sheet.select(sheet_name)
+                self.app._gs_client.sheet.select(sheet_name)
                 self.app.state.gs_sheet_name = sheet_name
                 return True
             except errors.SheetNotFound:
                 pass
 
         try:
-            self.app.gs.sheet.create(sheet_name)
+            self.app._gs_client.sheet.create(sheet_name)
             self.app.state.gs_sheet_name = sheet_name
             print(f"'{sheet_name}' シートを作成しました。")
             return True
@@ -110,7 +110,7 @@ class SheetsService:
         if not self.open_sheet(sheet_url):
             return pd.DataFrame()
         try:
-            self.app.gs.sheet.select(sheet_name)
+            self.app._gs_client.sheet.select(sheet_name)
             self.app.state.gs_sheet_name = sheet_name
         except errors.SheetNotFound:
             print(f"{sheet_name} シートが存在しません。")
@@ -119,7 +119,7 @@ class SheetsService:
             print(f"⚠️ Failed to read sheet '{sheet_name}': {exc}")
             return pd.DataFrame()
 
-        data = self.app.gs.sheet.data or []
+        data = self.app._gs_client.sheet.data or []
         return pd.DataFrame(data)
 
     def upsert_df(
@@ -142,14 +142,14 @@ class SheetsService:
             if not self.open_sheet(sheet_url):
                 return None
             try:
-                self.app.gs.sheet.select(sheet_name)
+                self.app._gs_client.sheet.select(sheet_name)
                 self.app.state.gs_sheet_name = sheet_name
             except errors.SheetNotFound:
                 print(f"{sheet_name} シートが存在しません。")
                 return None
 
         try:
-            df_existing = pd.DataFrame(self.app.gs.sheet.data)
+            df_existing = pd.DataFrame(self.app._gs_client.sheet.data)
         except Exception as exc:
             print(f"'{sheet_name}' シートの読み込みに失敗しました: {exc}")
             df_existing = pd.DataFrame()
@@ -157,7 +157,7 @@ class SheetsService:
         df_new = df_new.copy()
         if df_existing.empty:
             try:
-                self.app.gs.sheet.overwrite_data(df_new, include_index=False)
+                self.app._gs_client.sheet.overwrite_data(df_new, include_index=False)
                 print(f"'{sheet_name}' シートへ {len(df_new)} 行を書き込みました。")
                 return df_new
             except Exception as exc:
@@ -196,7 +196,7 @@ class SheetsService:
             df_combined = df_combined[columns]
 
         try:
-            self.app.gs.sheet.overwrite_data(df_combined, include_index=False)
+            self.app._gs_client.sheet.overwrite_data(df_combined, include_index=False)
             print(f"'{sheet_name}' シートを更新しました（新規 {len(df_new)} 行、削除 {mask.sum()} 行）。")
             return df_combined
         except Exception as exc:
@@ -209,7 +209,7 @@ class SheetsService:
         if not self.open_sheet(sheet_url):
             return None
         try:
-            self.app.gs.sheet.select(sheet_name)
+            self.app._gs_client.sheet.select(sheet_name)
             self.app.state.gs_sheet_name = sheet_name
         except errors.SheetNotFound:
             print(f"{sheet_name} シートが存在しません。")
@@ -220,9 +220,32 @@ class SheetsService:
 
         try:
             for cell, value in updates.items():
-                self.app.gs.sheet._driver.update_acell(cell, value)
+                self.app._gs_client.sheet._driver.update_acell(cell, value)
             print(f"'{sheet_name}' シートのセルを更新しました: {', '.join(updates.keys())}")
             return True
         except Exception as exc:
             print(f"'{sheet_name}' シートのセル更新に失敗しました: {exc}")
+            return None
+
+    def update_range(self, sheet_url: str, sheet_name: str, a1_range: str, values) -> Optional[bool]:
+        if values is None:
+            return None
+        if not self.open_sheet(sheet_url):
+            return None
+        try:
+            self.app._gs_client.sheet.select(sheet_name)
+            self.app.state.gs_sheet_name = sheet_name
+        except errors.SheetNotFound:
+            print(f"{sheet_name} シートが存在しません。")
+            return None
+        except Exception as exc:
+            print(f"'{sheet_name}' シートの読み込みに失敗しました: {exc}")
+            return None
+
+        try:
+            self.app._gs_client.sheet._driver.update(a1_range, values)
+            print(f"'{sheet_name}' シートの範囲を更新しました: {a1_range}")
+            return True
+        except Exception as exc:
+            print(f"'{sheet_name}' シートの範囲更新に失敗しました: {exc}")
             return None
