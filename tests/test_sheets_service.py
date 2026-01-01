@@ -65,7 +65,7 @@ class _FakeGS:
 
 def _make_app(gs):
     return SimpleNamespace(
-        gs=gs,
+        _gs_client=gs,
         creds=True,
         in_colab=False,
         state=SimpleNamespace(gs_url=None, gs_title=None, gs_sheet_name=None),

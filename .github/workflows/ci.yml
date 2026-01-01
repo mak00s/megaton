@@ -46,6 +46,7 @@ jobs:
             tests/test_transform_table_normalize_thresholds_df.py
             tests/test_report_month_window.py
             tests/test_report_dates_to_sheet.py
+            tests/test_sc_wrapper.py
             tests/test_utils.py
           )
           for test_path in "${tests[@]}"; do

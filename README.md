@@ -121,14 +121,33 @@ df = app.report.run(
 
 ### 月次ウィンドウ（日付ヘルパ）
 ```python
-date_from, date_to, ym = app.report.set_month_window(months_ago=1, window_months=13)
+# 期間を「Nヶ月前の月」を基準にセット（window_months=13 は前年同月比用の定番）
+date_from, date_to, ym = app.report.set.months(months_ago=1, window_months=13)
+
+# app.report に状態として保持される（再実行に強い）
+app.report.start_date, app.report.end_date
+app.report.last_month_window["ym"]  # == ym
 ```
 
 ### Google Sheets
 ```python
+# 1) 先に出力先（スプレッドシート）を選ぶ
 app.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
-app.report.to.sheet("Sheet1")      # 上書き
-app.append.to.sheet("Sheet1", df) # 追記
+
+# 2) report.data をそのまま保存（上書き）
+app.save.to.sheet("Sheet1")
+
+# 3) 追記
+app.append.to.sheet("Sheet1", df)
+
+# 4) upsert（dedup + overwrite）
+app.upsert.to.sheet("Sheet1", df, keys=["date", "landing_page"])
+
+# 5) 期間セルの書き込み（start/end を state から参照）
+app.report.dates.to.sheet(sheet="CV", start_cell="L1", end_cell="N1")
+
+# 参考: 期間文字列（未設定なら空文字）
+str(app.report.dates)  # e.g. "20240101-20240131"
 ```
 
 ### BigQuery（最小）
