@@ -94,6 +94,8 @@ app.upsert.to.sheet(
 ```python
 # シート選択
 app.sheets.select("CV")
+app.sheets.create("tmp_sheet")
+app.sheets.delete("tmp_sheet")
 
 # セル操作
 app.sheet.cell.set("L1", app.report.start_date)
@@ -200,7 +202,8 @@ df
 
 ### Sheets (current worksheet)
 - `app.sheets.select(name)`
-- `app.sheet.create(name)`
+- `app.sheets.create(name)`
+- `app.sheets.delete(name)`
 - `app.sheet.clear()`
 - `app.sheet.data`
 - `app.sheet.df()`

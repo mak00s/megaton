@@ -10,6 +10,7 @@ class _FakeSheet:
     def __init__(self):
         self._name = None
         self._data = {"config": [{"a": 1}]}
+        self.deleted = []
 
     def select(self, name):
         self._name = name
@@ -17,6 +18,13 @@ class _FakeSheet:
 
     def create(self, name):
         self._name = name
+
+    def delete(self, name):
+        self.deleted.append(name)
+        if name in self._data:
+            del self._data[name]
+        if self._name == name:
+            self._name = None
 
     def clear(self):
         self._data[self._name] = []
@@ -145,3 +153,20 @@ def test_sheet_requires_spreadsheet_and_selection():
     app.state.gs_url = app.gs.url
     with pytest.raises(ValueError, match="worksheet selected"):
         app.sheet.save(pd.DataFrame())
+
+
+def test_sheets_delete_clears_state_and_calls_delete():
+    app = _make_app_with_gs()
+    app.state.gs_sheet_name = "CV"
+
+    app.sheets.delete("CV")
+
+    assert app.state.gs_sheet_name is None
+    assert "CV" in app.gs.sheet.deleted
+
+
+def test_sheets_delete_missing_sheet_raises():
+    app = _make_app_with_gs()
+
+    with pytest.raises(ValueError, match="Sheet not found"):
+        app.sheets.delete("missing")
