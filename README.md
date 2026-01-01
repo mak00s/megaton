@@ -13,6 +13,7 @@ Megaton は Google アナリティクス（GA4／GA3）、Google Sheets、BigQue
 - Notebook 向けに **最短の認証・取得・保存**をまとめたツール群
 - UI（ipywidgets）と headless の両方に対応
 - 外部サービスの状態や権限は環境に依存します（ここでは保証しません）
+  - Notebookで直感的に書けるよう、短い記述と状態保持（state）を前提としたシグネチャ設計
 
 ---
 
