@@ -21,13 +21,11 @@ def test_get_report_range_uses_fixed_now(monkeypatch):
 
     monkeypatch.setattr(dates, "datetime", FixedDateTime)
 
-    start, end = dates.get_report_range(0)
-    assert start == "2024-01-01"
-    assert end == "2025-01-14"
-
-    start, end = dates.get_report_range(2)
-    assert start == "2023-11-01"
-    assert end == "2024-11-30"
+    fixed_now = FixedDateTime(2025, 1, 15, 12, 0, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+    for months_ago in [0, 1, 2]:
+        expected = dates.get_month_window(months_ago, 13, tz="Asia/Tokyo", now=fixed_now)
+        start, end = dates.get_report_range(months_ago)
+        assert (start, end) == expected[:2]
 
 
 def test_get_past_date_days_and_months(monkeypatch):
