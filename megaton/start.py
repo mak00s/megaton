@@ -720,13 +720,19 @@ class Megaton:
         """Notebook-facing Search Console helpers"""
         def __init__(self, parent):
             self.parent = parent
-            self.sites = None
+            self._sites = None
             self.site = None
             self.start_date = None
             self.end_date = None
-            self.last_month_window = None
-            self.fetch = self.Fetch(self)
+            self.window = None
+            self.refresh = self.Refresh(self)
             self.set = self.Set(self)
+
+        @property
+        def sites(self):
+            if self._sites is None:
+                self._sites = self.parent._gsc_service.list_sites() or []
+            return self._sites
 
         def use(self, site_url: str):
             self.site = site_url
@@ -738,12 +744,7 @@ class Megaton:
                     pass
             return site_url
 
-        def _resolve_dates(self, start_date: Optional[str], end_date: Optional[str]):
-            if start_date or end_date:
-                if not start_date or not end_date:
-                    raise ValueError("start_date and end_date must be set together.")
-                return start_date, end_date
-
+        def _resolve_dates(self):
             if self.start_date and self.end_date:
                 return self.start_date, self.end_date
 
@@ -752,33 +753,41 @@ class Megaton:
                 return report.start_date, report.end_date
 
             raise ValueError(
-                "Search Console dates are not set. Use mg.sc.set.dates(...) or mg.report.set.dates(...)."
+                "Search Console dates are not set. Use mg.sc.set.* or mg.report.set.* first."
             )
 
-        def query(self, dimensions: list, limit: int = 5000, **kwargs):
+        def query(
+            self,
+            dimensions: list,
+            metrics: list[str] | None = None,
+            limit: int = 5000,
+            **kwargs,
+        ):
             if not self.site:
                 raise ValueError("Search Console site is not set. Call mg.sc.use(site_url) first.")
 
-            start_date = kwargs.pop("start_date", None)
-            end_date = kwargs.pop("end_date", None)
-            start_date, end_date = self._resolve_dates(start_date, end_date)
+            if metrics is None:
+                metrics = ["clicks", "impressions", "ctr", "position"]
+
+            start_date, end_date = self._resolve_dates()
 
             return self.parent._gsc_service.query(
                 site_url=self.site,
                 start_date=start_date,
                 end_date=end_date,
                 dimensions=dimensions,
+                metrics=metrics,
                 row_limit=limit,
                 **kwargs,
             )
 
-        class Fetch:
+        class Refresh:
             def __init__(self, parent):
                 self.parent = parent
 
             def sites(self):
                 sites = self.parent.parent._gsc_service.list_sites()
-                self.parent.sites = sites
+                self.parent._sites = sites or []
                 return sites
 
         class Set:
@@ -806,7 +815,7 @@ class Megaton:
                 )
                 self.parent.start_date = date_from
                 self.parent.end_date = date_to
-                self.parent.last_month_window = {
+                self.parent.window = {
                     "date_from": date_from,
                     "date_to": date_to,
                     "ym": ym,
@@ -1085,6 +1094,7 @@ class Megaton:
             self.to = self.To(self)
             self.dates = self.Dates(self)
             self.set = self.Set(self)
+            self.window = None
 
         @property
         def start_date(self):
@@ -1250,7 +1260,7 @@ class Megaton:
                     now=now,
                 )
                 self.parent.set_dates(date_from, date_to)
-                self.parent.last_month_window = {
+                self.parent.window = {
                     "date_from": date_from,
                     "date_to": date_to,
                     "ym": ym,

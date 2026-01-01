@@ -84,6 +84,7 @@ class GSCService:
         start_date: str,
         end_date: str,
         dimensions: list,
+        metrics: Optional[list] = None,
         country: Optional[str] = None,
         row_limit: int = 25000,
         start_row: int = 0,
@@ -95,6 +96,9 @@ class GSCService:
         verbose: bool = False,
     ) -> pd.DataFrame:
         client = self._get_client()
+
+        if metrics is None:
+            metrics = ["clicks", "impressions", "ctr", "position"]
 
         all_rows = []
         current_start = start_row
@@ -206,7 +210,18 @@ class GSCService:
         if aggregate:
             df = self._aggregate(df, dimensions)
 
-        return df
+        if "ctr" in metrics:
+            if "ctr" not in df.columns:
+                denom = df.get("impressions", pd.Series(index=df.index, dtype="float"))
+                denom = denom.replace(0, pd.NA)
+                df["ctr"] = (df.get("clicks", 0) / denom).fillna(0)
+
+        for metric in metrics:
+            if metric not in df.columns:
+                df[metric] = 0
+
+        ordered = [col for col in dimensions if col in df.columns] + metrics
+        return df[ordered]
 
     def fetch_sites(
         self,
