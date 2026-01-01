@@ -87,8 +87,8 @@ def weighted_avg(df, group_cols, value_col, weight_col, out_col=None):
 def normalize_thresholds_df(
     df: "pd.DataFrame | None",
     *,
-    min_default: int | float = 10,
-    max_default: int | float = 50,
+    min_default: int = 10,
+    max_default: int = 50,
     clinic_col: str = "clinic",
     min_col: str = "min_impressions",
     max_col: str = "max_position",
@@ -105,8 +105,8 @@ def normalize_thresholds_df(
     if max_col not in result.columns:
         result[max_col] = np.nan
 
-    result[min_col] = pd.to_numeric(result[min_col], errors="coerce").fillna(min_default)
-    result[max_col] = pd.to_numeric(result[max_col], errors="coerce").fillna(max_default)
+    result[min_col] = pd.to_numeric(result[min_col], errors="coerce").fillna(min_default).astype("Int64")
+    result[max_col] = pd.to_numeric(result[max_col], errors="coerce").fillna(max_default).astype("Int64")
 
     preferred = [clinic_col, min_col, max_col]
     remaining = [col for col in result.columns if col not in preferred]
