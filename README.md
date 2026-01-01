@@ -197,7 +197,7 @@ sites = mg.search.sites
 mg.search.use(sites[0])
 
 # データ取得
-df_sc = mg.search.query(
+df_sc = mg.search.run(
     dimensions=["page", "query"],
     metrics=["clicks", "impressions", "ctr", "position"],
     limit=5000,
@@ -205,6 +205,7 @@ df_sc = mg.search.query(
 ```
 
 `mg.sc` は `mg.search` の短い別名です。
+結果は `mg.search.data` に入ります。
 
 ---
 
@@ -279,7 +280,8 @@ df
 - `mg.search.use(site_url)`
 - `mg.search.set.dates(date_from, date_to)`
 - `mg.search.set.months(ago, window_months, tz?, now?)`
-- `mg.search.query(dimensions, metrics?, limit?, **kwargs)`
+- `mg.search.run(dimensions, metrics?, limit?, **kwargs)`
+- `mg.search.data`
 
 ### Show
 - `mg.show.ga.dimensions`

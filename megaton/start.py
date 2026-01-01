@@ -726,6 +726,7 @@ class Megaton:
             self.start_date = None
             self.end_date = None
             self.window = None
+            self.data = None
             self.get = self.Get(self)
             self.set = self.Set(self)
 
@@ -757,7 +758,7 @@ class Megaton:
                 "Search Console dates are not set. Use mg.search.set.* or mg.report.set.* first."
             )
 
-        def query(
+        def run(
             self,
             dimensions: list,
             metrics: list[str] | None = None,
@@ -772,7 +773,7 @@ class Megaton:
 
             start_date, end_date = self._resolve_dates()
 
-            return self.parent._gsc_service.query(
+            result = self.parent._gsc_service.query(
                 site_url=self.site,
                 start_date=start_date,
                 end_date=end_date,
@@ -781,6 +782,8 @@ class Megaton:
                 row_limit=limit,
                 **kwargs,
             )
+            self.data = result
+            return result
 
         class Get:
             def __init__(self, parent):

@@ -41,7 +41,7 @@ def test_search_get_sites_forces_fetch(monkeypatch):
     assert calls["count"] == 1
 
 
-def test_search_query_uses_report_dates_and_metrics(monkeypatch):
+def test_search_run_uses_report_dates_and_metrics(monkeypatch):
     app = Megaton(None, headless=True)
     app.ga = {
         "4": SimpleNamespace(report=SimpleNamespace(start_date="2024-01-01", end_date="2024-01-31"))
@@ -56,7 +56,7 @@ def test_search_query_uses_report_dates_and_metrics(monkeypatch):
 
     monkeypatch.setattr(app._gsc_service, "query", fake_query)
 
-    result = app.search.query(dimensions=["page"], metrics=["clicks", "ctr"], limit=123)
+    result = app.search.run(dimensions=["page"], metrics=["clicks", "ctr"], limit=123)
 
     assert result == "ok"
     assert called["kwargs"]["site_url"] == "https://example.com"
@@ -64,6 +64,7 @@ def test_search_query_uses_report_dates_and_metrics(monkeypatch):
     assert called["kwargs"]["end_date"] == "2024-01-31"
     assert called["kwargs"]["row_limit"] == 123
     assert called["kwargs"]["metrics"] == ["clicks", "ctr"]
+    assert app.search.data == "ok"
 
 
 def test_search_set_months_overrides_report_dates():
@@ -84,10 +85,10 @@ def test_search_set_months_overrides_report_dates():
     assert app.search.window["ym"] == expected[2]
 
 
-def test_search_query_requires_site():
+def test_search_run_requires_site():
     app = Megaton(None, headless=True)
     with pytest.raises(ValueError, match="site is not set"):
-        app.search.query(dimensions=["page"])
+        app.search.run(dimensions=["page"])
 
 
 def test_sc_aliases_search():
