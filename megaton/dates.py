@@ -34,18 +34,15 @@ def parse_end_date(raw_date_str: str) -> datetime:
 
 
 def get_report_range(target_months_ago: int, tz: str = "Asia/Tokyo") -> tuple[str, str]:
-    """Return (date_from, date_to) based on the 13-month window logic."""
-    now = datetime.now(pytz.timezone(tz))
+    """Compatibility wrapper for the legacy 13-month window.
 
-    if target_months_ago == 0:
-        base = now.replace(day=1)
-        date_from = (base - relativedelta(months=12)).date().isoformat()
-        date_to = (now - timedelta(days=1)).date().isoformat()
-    else:
-        base = now.replace(day=1) - relativedelta(months=target_months_ago)
-        date_from = (base - relativedelta(months=12)).date().isoformat()
-        date_to = (base + relativedelta(months=1) - timedelta(days=1)).date().isoformat()
-
+    Prefer get_month_window() for configurable window sizes and timezones.
+    """
+    date_from, date_to, _ = get_month_window(
+        months_ago=target_months_ago,
+        window_months=13,
+        tz=tz,
+    )
     return date_from, date_to
 
 
@@ -73,7 +70,7 @@ def get_month_window(
     if now is None:
         now_dt = datetime.now(tzinfo)
     else:
-        now_dt = now.replace(tzinfo=tzinfo) if now.tzinfo is None else now.astimezone(tzinfo)
+        now_dt = now.replace(tzinfo=tzinfo) if now.tzinfo is None else now
 
     base_month_start = now_dt.replace(day=1).date()
     target_month_start = base_month_start - relativedelta(months=months_ago)
