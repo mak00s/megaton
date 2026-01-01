@@ -8,6 +8,7 @@ from typing import Optional
 import pandas as pd
 
 from .. import errors
+from ..transform import table as table_tf
 
 
 @dataclass
@@ -58,9 +59,10 @@ def load_config(mg, sheet_url: str) -> Config:
     page_map = _to_map(page_map_df, "pattern", "category", "page_map")
     query_map = _to_map(query_map_df, "pattern", "mapped_to", "query_map")
 
-    thresholds_df = None
-    if {"clinic", "min_impressions", "max_position"}.issubset(config_df.columns):
-        thresholds_df = config_df[["clinic", "min_impressions", "max_position"]].copy()
+    threshold_cols = ["clinic", "min_impressions", "max_position"]
+    present = [col for col in threshold_cols if col in config_df.columns]
+    thresholds_df = config_df[present].copy() if present else None
+    thresholds_df = table_tf.normalize_thresholds_df(thresholds_df)
 
     sites = config_df.to_dict(orient="records")
     group_domains = set()
