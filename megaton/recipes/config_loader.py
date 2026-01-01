@@ -50,7 +50,7 @@ def load_config(mg, sheet_url: str) -> Config:
     if "clinic" not in config_df.columns:
         raise ValueError("config sheet missing columns: ['clinic']")
 
-    source_map_df = read_sheet("source_map", required=True)
+    source_map_df = read_sheet("source_map", required=False)
     page_map_df = read_sheet("page_map", required=False)
     query_map_df = read_sheet("query_map", required=False)
 
