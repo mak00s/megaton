@@ -40,7 +40,7 @@ def test_report_dates_str_is_empty_when_unset():
     assert str(app.report.dates) == ""
 
 
-def test_gs_upsert_to_sheet_calls_service(monkeypatch):
+def test_upsert_to_sheet_calls_service(monkeypatch):
     app = Megaton(None, headless=True)
     app.state.gs_url = "https://example.com/sheet"
     df = pd.DataFrame([{"a": 1}])
@@ -59,7 +59,7 @@ def test_gs_upsert_to_sheet_calls_service(monkeypatch):
 
     monkeypatch.setattr(app._sheets, "upsert_df", fake_upsert_df)
 
-    result = app.gs.upsert.to.sheet("Report", df, keys=["a"], columns=["a"], sort_by=["a"])
+    result = app.upsert.to.sheet("Report", df, keys=["a"], columns=["a"], sort_by=["a"])
 
     assert result == "ok"
     assert called["sheet_url"] == "https://example.com/sheet"
@@ -71,9 +71,9 @@ def test_gs_upsert_to_sheet_calls_service(monkeypatch):
     assert called["create_if_missing"] is True
 
 
-def test_gs_upsert_to_sheet_rejects_invalid_df():
+def test_upsert_to_sheet_rejects_invalid_df():
     app = Megaton(None, headless=True)
     app.state.gs_url = "https://example.com/sheet"
 
     with pytest.raises(TypeError, match="pandas DataFrame"):
-        app.gs.upsert.to.sheet("Report", "not-a-df", keys=["a"])
+        app.upsert.to.sheet("Report", "not-a-df", keys=["a"])

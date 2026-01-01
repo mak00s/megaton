@@ -133,6 +133,18 @@ ym
 # 出力先を選択（state）
 app.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
 
+# 現在のシートを選択して操作
+app.sheet.select("CV")
+app.sheet.cell.set("L1", "2024-01-01")
+app.sheet.range.set("L1:N1", [["2024-01-01", "2024-01-31"]])
+
+app.sheet.save(df)  # 上書き
+app.sheet.append(df)  # 追記
+app.sheet.upsert(df, keys=["date", "eventName"])
+```
+
+#### 既存の短い保存メソッド
+```python
 # 上書き
 app.save.to.sheet("_ga", df)
 
@@ -147,6 +159,13 @@ app.upsert.to.sheet(
 )
 ```
 
+#### 互換（legacy）
+```python
+# 旧ノートブック向け: Google Sheets クライアントは引き続き app.gs で利用可能
+app.gs.sheet.select("config")
+app.gs.sheet.data
+```
+
 ### 期間セルの書き込み（state 利用）
 ```python
 # report.start_date / end_date をセルに書き込む
@@ -159,10 +178,13 @@ app.report.dates.to.sheet(
 
 ### Search Console（最小例）
 ```python
+# GA と同じ「現在の分析期間」をそのまま利用
+sites = app.sc.sites()
+
 df_sc = app.sc.query(
-    site_url="https://example.com",
-    start_date=app.report.start_date,
-    end_date=app.report.end_date,
+    site=sites[0],
+    start=app.report.start_date,
+    end=app.report.end_date,
     dimensions=["page", "query"],
     row_limit=5000,
 )

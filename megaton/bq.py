@@ -231,8 +231,8 @@ class MegatonBQ:
 
         def template_schema(self) -> list:
             self.parent.parent.launch_gs(constants.GOOGLE_SHEET_GA4_TEMPLATE_URL)
-            if self.parent.parent._gs_client.sheet.select('推奨BQ'):
-                return [d for d in self.parent.parent._gs_client.sheet.data if d['Valid']]
+            if self.parent.parent.gs.sheet.select('推奨BQ'):
+                return [d for d in self.parent.parent.gs.sheet.data if d['Valid']]
 
         def get_flat_schema(self, ep: list, up: list) -> list:
             gs_data = self.template_schema()
