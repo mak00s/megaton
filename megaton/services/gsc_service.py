@@ -24,7 +24,7 @@ class GSCService:
         if self.app is None:
             raise RuntimeError("Search Console client is not initialized.")
 
-        sc = getattr(self.app, "sc", None)
+        sc = getattr(self.app, "_sc_client", None)
         if sc is not None:
             client = getattr(sc, "client", None) or getattr(sc, "_client", None)
             if client is not None:
@@ -36,7 +36,7 @@ class GSCService:
             raise RuntimeError("Search Console credentials are not available.")
 
         sc = searchconsole.MegatonSC(creds)
-        self.app.sc = sc
+        self.app._sc_client = sc
         self._client = sc.client
         return self._client
 

@@ -118,6 +118,18 @@ class MegatonGS(object):
                 title=name, rows=100, cols=20)
             self.select(name)
 
+        def delete(self, name: str):
+            if not self.parent._client:
+                LOGGER.error("Open URL first.")
+                return
+            try:
+                ws = self.parent._driver.worksheet(name)
+            except gspread.exceptions.WorksheetNotFound:
+                raise errors.SheetNotFound
+            self.parent._driver.del_worksheet(ws)
+            if self._driver and self._driver.title == name:
+                self._driver = None
+
         def select(self, name: str):
             if not self.parent._client:
                 LOGGER.error("Open URL first.")
