@@ -749,6 +749,15 @@ class Megaton:
             self.parent.state.gs_sheet_name = name
             return name
 
+        def delete(self, name: str):
+            self._ensure_spreadsheet()
+            if name not in self.parent.gs.sheets:
+                raise ValueError(f"Sheet not found: {name}")
+            self.parent.gs.sheet.delete(name)
+            if self.parent.state.gs_sheet_name == name:
+                self.parent.state.gs_sheet_name = None
+            return True
+
     class Sheet:
         """Notebook-facing current worksheet helpers"""
         def __init__(self, parent):
@@ -771,7 +780,7 @@ class Megaton:
         def _ensure_sheet_selected(self):
             name = self._current_sheet_name()
             if not name:
-                raise ValueError("No worksheet selected. Call mg.sheet.select(name) first.")
+                raise ValueError("No worksheet selected. Call mg.sheets.select(name) first.")
             return name
 
         def clear(self):
