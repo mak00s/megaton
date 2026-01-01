@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from megaton.start import Megaton
 
@@ -34,6 +35,11 @@ def test_report_dates_to_sheet_updates_cells(monkeypatch):
     assert called["updates"] == {"B2": "2024-01-01", "B3": "2024-01-31"}
 
 
+def test_report_dates_str_is_empty_when_unset():
+    app = _make_app_with_ga()
+    assert str(app.report.dates) == ""
+
+
 def test_upsert_to_sheet_calls_service(monkeypatch):
     app = Megaton(None, headless=True)
     app.state.gs_url = "https://example.com/sheet"
@@ -63,3 +69,11 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
     assert called["columns"] == ["a"]
     assert called["sort_by"] == ["a"]
     assert called["create_if_missing"] is True
+
+
+def test_upsert_to_sheet_rejects_invalid_df():
+    app = Megaton(None, headless=True)
+    app.state.gs_url = "https://example.com/sheet"
+
+    with pytest.raises(TypeError, match="pandas DataFrame"):
+        app.upsert.to.sheet("Report", "not-a-df", keys=["a"])
