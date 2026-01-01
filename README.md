@@ -191,18 +191,20 @@ str(mg.report.dates)  # e.g. "20240101-20240131"
 
 ```python
 # 権限を持つプロパティ一覧（初回アクセスで自動取得）
-sites = mg.sc.sites
+sites = mg.search.sites
 
 # データを取得する対象のプロパティを選択
-mg.sc.use(sites[0])
+mg.search.use(sites[0])
 
 # データ取得
-df_sc = mg.sc.query(
+df_sc = mg.search.query(
     dimensions=["page", "query"],
     metrics=["clicks", "impressions", "ctr", "position"],
     limit=5000,
 )
 ```
+
+`mg.sc` は `mg.search` の短い別名です。
 
 ---
 
@@ -234,6 +236,8 @@ df
 
 ## Supported Notebook-facing API (Cheat Sheet)
 
+`?` は省略可能（任意）の意味です。`df?` を省略した場合は `mg.report.data` が使われます。
+
 ### Core / Flow
 - `mg = start.Megaton(creds)`
 - `mg.open.sheet(url)`
@@ -245,6 +249,8 @@ df
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)`
 - `mg.report.start_date`
 - `mg.report.end_date`
+- `mg.report.data`
+- `mg.report.prep(conf, df?)`
 - `mg.report.window["ym"]`
 - `mg.report.dates`
 - `mg.report.dates.to.sheet(sheet, start_cell, end_cell)`
@@ -268,12 +274,24 @@ df
 - `mg.sheet.upsert(df?, keys, columns?, sort_by?)`
 
 ### Search Console
-- `mg.sc.sites`
-- `mg.sc.refresh.sites()`
-- `mg.sc.use(site_url)`
-- `mg.sc.set.dates(date_from, date_to)`
-- `mg.sc.set.months(ago, window_months, tz?, now?)`
-- `mg.sc.query(dimensions, metrics?, limit?, **kwargs)`
+- `mg.search.sites`
+- `mg.search.get.sites()`
+- `mg.search.use(site_url)`
+- `mg.search.set.dates(date_from, date_to)`
+- `mg.search.set.months(ago, window_months, tz?, now?)`
+- `mg.search.query(dimensions, metrics?, limit?, **kwargs)`
+
+### Show
+- `mg.show.ga.dimensions`
+- `mg.show.ga.metrics`
+- `mg.show.ga.properties`
+- `mg.show.table(df, rows=10, include_index=False)`
+
+### Load / Download
+- `mg.load.csv(path)`
+- `mg.load.cell(row, col, what?)`
+- `mg.save_df(df, filename, mode='w', include_dates=True)`
+- `mg.download(df, filename?)`
 
 ### BigQuery
 - `mg.launch_bigquery(project)`

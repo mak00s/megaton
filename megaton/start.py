@@ -47,7 +47,8 @@ class Megaton:
         self.bq_service = BQService(self)
         self._gsc_service = GSCService(self)
         self._sheets = SheetsService(self)
-        self.sc = self.SC(self)
+        self.search = self.Search(self)
+        self.sc = self.search
         self.sheets = self.Sheets(self)
         self.sheet = self.Sheet(self)
         self.open = self.Open(self)
@@ -716,7 +717,7 @@ class Megaton:
                     create_if_missing=True,
                 )
 
-    class SC:
+    class Search:
         """Notebook-facing Search Console helpers"""
         def __init__(self, parent):
             self.parent = parent
@@ -725,7 +726,7 @@ class Megaton:
             self.start_date = None
             self.end_date = None
             self.window = None
-            self.refresh = self.Refresh(self)
+            self.get = self.Get(self)
             self.set = self.Set(self)
 
         @property
@@ -753,7 +754,7 @@ class Megaton:
                 return report.start_date, report.end_date
 
             raise ValueError(
-                "Search Console dates are not set. Use mg.sc.set.* or mg.report.set.* first."
+                "Search Console dates are not set. Use mg.search.set.* or mg.report.set.* first."
             )
 
         def query(
@@ -764,7 +765,7 @@ class Megaton:
             **kwargs,
         ):
             if not self.site:
-                raise ValueError("Search Console site is not set. Call mg.sc.use(site_url) first.")
+                raise ValueError("Search Console site is not set. Call mg.search.use(site_url) first.")
 
             if metrics is None:
                 metrics = ["clicks", "impressions", "ctr", "position"]
@@ -781,7 +782,7 @@ class Megaton:
                 **kwargs,
             )
 
-        class Refresh:
+        class Get:
             def __init__(self, parent):
                 self.parent = parent
 
