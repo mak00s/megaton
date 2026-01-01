@@ -95,12 +95,12 @@ def test_load_config_raises_on_missing_columns():
 def test_load_config_allows_optional_maps_missing():
     data_map = {
         "config": [{"clinic": "A", "domain": "example.com"}],
-        "source_map": [{"pattern": "^google", "normalized": "google"}],
     }
     mg = FakeMG(data_map)
 
     cfg = config_loader.load_config(mg, "https://example.com/sheet")
 
+    assert cfg.source_map == {}
     assert cfg.page_map == {}
     assert cfg.query_map == {}
     assert cfg.thresholds_df is not None
