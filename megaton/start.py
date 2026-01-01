@@ -50,6 +50,7 @@ class Megaton:
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
+        self.upsert = self.Upsert(self)
         self.load = self.Load(self)
         self.select = self.Select(self)
         self.show = self.Show(self)
@@ -667,6 +668,43 @@ class Megaton:
 
                 self.parent.parent.sheets_service.save_sheet(sheet_name, df)
 
+    class Upsert:
+        """DataFrameをGoogle Sheetsへupsert（dedup + overwrite）"""
+        def __init__(self, parent):
+            self.parent = parent
+            self.to = self.To(self)
+
+        class To:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def sheet(self, sheet_name: str, df: pd.DataFrame = None, *, keys, columns=None, sort_by=None):
+                """DataFrameをGoogle Sheetsへupsertする
+
+                Args:
+                    sheet_name: sheet name
+                    df: DataFrame. If omitted, mg.report.data will be used.
+                    keys: columns used for dedup
+                    columns: optional output column order
+                    sort_by: optional sort columns
+                """
+                if not isinstance(df, pd.DataFrame):
+                    df = self.parent.parent.report.data
+
+                sheet_url = self.parent.parent.state.gs_url
+                if not sheet_url:
+                    raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+
+                return self.parent.parent.sheets_service.upsert_df(
+                    sheet_url,
+                    sheet_name,
+                    df,
+                    keys=keys,
+                    columns=columns,
+                    sort_by=sort_by,
+                    create_if_missing=True,
+                )
+
     class Select:
         """選択するUIの構築と処理
         """
@@ -799,6 +837,7 @@ class Megaton:
             self.parent = parent
             self.data = None
             self.to = self.To(self)
+            self.dates = self.Dates(self)
 
         @property
         def start_date(self):
@@ -829,12 +868,6 @@ class Megaton:
             """
             if self.parent.ga_ver:
                 self.parent.ga[self.parent.ga_ver].report.end_date = date
-
-        @property
-        def dates(self):
-            """セットされているレポート対象期間を文字列に変換"""
-            if self.parent.ga_ver:
-                return f"{self.start_date.replace('-', '')}-{self.end_date.replace('-', '')}"
 
         def set_dates(self, date1, date2):
             """開始日と終了日を同時に指定
@@ -973,6 +1006,62 @@ class Megaton:
             self.data = df
             # return df
             return self.show()
+
+        class Dates:
+            def __init__(self, parent):
+                self.parent = parent
+                self.to = self.To(self)
+
+            @property
+            def value(self):
+                """セットされているレポート対象期間を文字列に変換"""
+                if self.parent.parent.ga_ver:
+                    start = self.parent.start_date
+                    end = self.parent.end_date
+                    if start and end:
+                        return f"{start.replace('-', '')}-{end.replace('-', '')}"
+                return None
+
+            def __str__(self):
+                return str(self.value)
+
+            def __repr__(self):
+                return str(self.value)
+
+            def __format__(self, spec):
+                return format(str(self), spec)
+
+            def __bool__(self):
+                return bool(self.value)
+
+            def __eq__(self, other):
+                return self.value == other
+
+            def __getattr__(self, name):
+                value = self.value
+                if value is None:
+                    raise AttributeError(name)
+                return getattr(value, name)
+
+            class To:
+                def __init__(self, parent):
+                    self.parent = parent
+
+                def sheet(self, sheet: str, start_cell: str, end_cell: str):
+                    report = self.parent.parent
+                    app = report.parent
+                    if not report.start_date or not report.end_date:
+                        raise ValueError("report.start_date and report.end_date must be set before writing.")
+
+                    sheet_url = app.state.gs_url
+                    if not sheet_url:
+                        raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+
+                    updates = {
+                        start_cell: report.start_date,
+                        end_cell: report.end_date,
+                    }
+                    return app.sheets_service.update_cells(sheet_url, sheet, updates)
 
         class To:
             def __init__(self, parent):
