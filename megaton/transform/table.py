@@ -82,3 +82,32 @@ def weighted_avg(df, group_cols, value_col, weight_col, out_col=None):
     denom = agg["weight_sum"].replace(0, np.nan)
     agg[result_col] = agg["weighted_sum"] / denom
     return agg[list(group_cols) + [result_col]]
+
+
+def normalize_thresholds_df(
+    df: "pd.DataFrame | None",
+    *,
+    min_default: int | float = 10,
+    max_default: int | float = 50,
+    clinic_col: str = "clinic",
+    min_col: str = "min_impressions",
+    max_col: str = "max_position",
+) -> "pd.DataFrame | None":
+    if df is None:
+        return None
+
+    result = df.copy()
+
+    if clinic_col not in result.columns:
+        result[clinic_col] = None
+    if min_col not in result.columns:
+        result[min_col] = np.nan
+    if max_col not in result.columns:
+        result[max_col] = np.nan
+
+    result[min_col] = pd.to_numeric(result[min_col], errors="coerce").fillna(min_default)
+    result[max_col] = pd.to_numeric(result[max_col], errors="coerce").fillna(max_default)
+
+    preferred = [clinic_col, min_col, max_col]
+    remaining = [col for col in result.columns if col not in preferred]
+    return result.loc[:, preferred + remaining]
