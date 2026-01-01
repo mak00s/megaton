@@ -119,6 +119,11 @@ df = app.report.run(
 )
 ```
 
+### 月次ウィンドウ（日付ヘルパ）
+```python
+date_from, date_to, ym = app.report.set_month_window(months_ago=1, window_months=13)
+```
+
 ### Google Sheets
 ```python
 app.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
