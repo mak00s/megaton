@@ -1,316 +1,105 @@
 # megaton
 
-Megaton は Google アナリティクス（GA4）、Google Search Console、Google Sheets、BigQuery を
-**Notebook（Jupyter / Colab）から直感的に扱うためのツール**です。
+Megaton は Google Analytics 4、Google Search Console、Google Sheets、BigQuery を **Jupyter/Colab ノートブックから簡潔に操作するためのツール** です。Notebook 上で分析・配布（GA → SC → Sheets 等）を高速に実施でき、汎用 SDK の代替ではなく Notebook 向けの UX に特化しています。
 
-> 目的：Notebook 上での分析・配布（GA → SC → Sheets など）を速く回すこと  
-> 非目的：汎用 SDK／本番バッチ基盤の置き換え
+## 目次
 
----
+1. [インストール](#インストール)
+2. [クイックスタート](#クイックスタート)
+3. [GA4 の使い方](#ga4-の使い方)
+4. [Google Sheets の使い方](#google-sheets-の使い方)
+5. [Search Console の使い方](#search-console-の使い方)
+6. [BigQuery の使い方](#bigquery-の使い方)
+7. [チートシート](#チートシート)
+8. [レガシー互換性](#レガシー互換性)
+9. [ライセンス](#ライセンス)
 
-## Megaton とは
+## インストール
 
-- Notebook（Jupyter / Google Colaboratory）向けに **短く書ける API** を提供
-- UI（ipywidgets）と headless の両方に対応
-- Notebook 実行中の **状態（state）を覚える設計**
+pip で GitHub リポジトリから直接インストールできます。
 
-Megaton は「人間に優しい、記憶力のあるロボット」を目指して設計されています。
-
----
-
-## Signature design (Notebook-first)
-
-Megaton の API は、一般的な SDK とは異なる **Notebook 最適化**のシグネチャを採用しています。
-
-- **1セルで完結する短さ**
-- **作業順に沿った API**（開く → 期間 → 取得 → 保存）
-- **状態（state）を前提**にした操作
-
----
-
-## Quick Start
-
-前提：`from megaton import start` 済み。
-
-### 1) サービスアカウントJSONのパスを渡す
-```python
-mg = start.Megaton("/path/to/service_account.json")
+```bash
+pip install git+https://github.com/mak00s/megaton.git
 ```
 
-### 2) JSON文字列を直接渡す
-```python
-mg = start.Megaton('{"type":"service_account","project_id":"...","client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}')
-```
+Google サービスにアクセスするために **サービスアカウント JSON** または OAuth 認証情報が必要です。最も簡単な方法はサービスアカウント JSON を用意し、初期化時に渡すことです（詳細は [クイックスタート](#クイックスタート) を参照）。
 
-### 3) 環境変数から（推奨）
-`mg = start.Megaton()` のように引数を省略すると、`MEGATON_CREDS_JSON` が定義されていればその値を **パス**として扱います（ファイル or ディレクトリ）。
+## クイックスタート
 
-- ファイルを渡した場合：そのJSONを使用
-- ディレクトリを渡した場合：含まれる JSON から選択するメニューが表示されます（headless では利用不可）
+1. `megaton` をインポートし、サービスアカウント JSON のパスまたは JSON 文字列を渡します。
 
----
+   ```python
+   from megaton import start
+   mg = start.Megaton("/path/to/service_account.json")
+   ```
 
-## Usage
+   環境変数 `MEGATON_CREDS_JSON` にパスを設定するか、JSON 文字列をそのまま渡すこともできます。
 
-### 期間をセット（月次・YoY 対応）
+2. レポート期間を設定し、GA4 データを取得して Sheets に保存する例：
 
-#### A) 開始日・終了日を直接指定（YYYY-MM-DD）
-```python
-mg.report.set.dates("2024-01-01", "2024-01-31")
-```
+   ```python
+   # 期間設定
+   mg.report.set.dates("2024-01-01", "2024-01-31")
 
-何も指定しない場合は、直近7日間（前日まで）の期間が自動で使われます。
-設定した期間は状態として保持されます。
+   # GA4 レポート実行
+   df = mg.report.run(
+       d=["date", "eventName"],
+       m=["eventCount"],
+   )
 
-```python
-mg.report.start_date
-mg.report.end_date
-```
+   # スプレッドシートを開いて保存
+   mg.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
+   mg.save.to.sheet("_ga_data", df)
+   ```
 
-#### B) 「Nヶ月前の月」を基準に期間をセット（前年同月比など）
-```python
-mg.report.set.months(ago=1, window_months=13)
-ym = mg.report.window["ym"]
-```
+## GA4 の使い方
 
-- `set.months()` のデフォルトは「1ヶ月前の月を基準に 13ヶ月窓」です
-- タイムゾーンは JST（`Asia/Tokyo`）として扱われます
+Megaton の GA4 インタフェースでは、期間の設定からレポート実行、データの前処理までを数行で行えます。
 
----
+- **期間の指定:** `mg.report.set.dates(start_date, end_date)` で日付範囲を設定します。省略すると直近7日間（前日まで）が自動で選択されます。
+- **月次ウィンドウ:** `mg.report.set.months(ago=1, window_months=13)` を使うと、前年同月比など月単位のウィンドウをまとめて設定できます。
+- **レポート実行:** `mg.report.run(d=[...], m=[...], limit=N)` で GA4 データを取得し、結果は `mg.report.data` に格納されます。
+- **前処理:** `mg.report.prep(conf)` を使えば列名の変更や型変換など簡易的なデータ整形が可能です。
 
-### GA4（最小例）
+## Google Sheets の使い方
 
-```python
-mg.report.run(
-    d=["date", "eventName"],
-    m=["eventCount"],
-)
-```
+Megaton には Sheets 連携が組み込まれており、データの保存、追記、アップサートが容易です。
 
-取得データはそのまま表示されます。
-結果の簡易的な加工もできます。
+- **シートを開く:** `mg.open.sheet(spreadsheet_url)` でスプレッドシートを開きます。ワークシートを選択する場合は、`mg.sheets.select(name)` で明示的にシート名を指定します（URL だけでは自動的に選択されません）。
+- **上書き保存:** `mg.save.to.sheet(name, df)` で DataFrame をシートに保存します。
+- **追記:** `mg.append.to.sheet(name, df)` で既存データの末尾に追記します。
+- **アップサート:** `mg.upsert.to.sheet(name, df, keys=[...])` でキー列をもとに更新・追加します。
+- **現在のシート:** `mg.sheet` で現在のシートにアクセスし、`mg.sheet.save(df)` や `mg.sheet.cell.set()` 等の便利メソッドを使用できます。
 
-```python
-# 簡易な前処理（rename/replace/type など）
-conf = {
-    "eventName": {"name": "event_name"},
-}
-mg.report.prep(conf)
-```
+## Search Console の使い方
 
-結果は `mg.report.data` に入るので、必要なら `df = mg.report.data` などと取り出して活用できます。
+最新バージョンでは `mg.search` が Search Console への正式インタフェースになりました（`mg.sc` は短いエイリアスです）。
 
----
+- **サイト一覧:** `mg.search.sites` でアクセス可能なプロパティ一覧を取得します。`mg.search.get.sites()` を呼ぶとリストを再取得します。
+- **プロパティ選択:** `mg.search.use(site_url)` で対象サイトを選択します。
+- **期間設定:** `mg.search.set.dates(...)` または `mg.search.set.months(...)` で期間を設定します。
+- **データ取得:** `mg.search.run(dimensions=[...], metrics=[...], limit=5000)` でパフォーマンスデータを取得し、結果は `mg.search.data` に格納されます。
+- **Sheets への保存:** GA4 と同様に `mg.save.to.sheet()` や `mg.append.to.sheet()` を用いて結果を Sheets に保存できます。
 
-### Google Sheets（保存：名前指定）
+## BigQuery の使い方
 
-```python
-mg.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
-
-# 上書き
-mg.save.to.sheet("_ga", df)
-
-# 追記
-mg.append.to.sheet("_ga_log", df)
-
-# upsert（dedup + overwrite）
-mg.upsert.to.sheet(
-    "_ga_monthly",
-    df,
-    keys=["date", "eventName"],
-)
-```
-
----
-
-### 現在のシート（mg.sheet）
-
-`mg.sheet` は **現在選択中のワークシート**に対する操作です。
-
-```python
-# シート選択・作成・削除（collection-level）
-mg.sheets.select("CV")
-mg.sheets.create("tmp_sheet")
-mg.sheets.delete("tmp_sheet")
-
-# セル操作（current sheet）
-mg.sheet.cell.set("L1", mg.report.start_date)
-mg.sheet.cell.set("N1", mg.report.end_date)
-
-# 範囲操作
-mg.sheet.range.set("L1:N1", [[mg.report.start_date, mg.report.end_date]])
-
-# DataFrame 操作（現在シートに対して）
-mg.sheet.save(df)
-mg.sheet.append(df)
-mg.sheet.upsert(df, keys=["ym", "page", "query"])
-```
-
----
-
-### 読み取り
-
-シート全体のデータは `mg.sheet.data` / `mg.sheet.df()` で参照できます。
-
-```python
-mg.sheets.select("CV")
-
-rows = mg.sheet.data       # list[dict]
-df_sheet = mg.sheet.df()   # DataFrame
-```
-
-セルや範囲のピンポイント読み取りもできます。
-
-```python
-# セル単位
-mg.gs.sheet.select("CV")
-cell_value = mg.gs.sheet._driver.acell("L1").value
-
-# 範囲
-values = mg.gs.sheet._driver.get("L1:N1")  # 2次元配列
-```
-
----
-
-### レポート期間をセルに書き込む例
-
-```python
-mg.report.dates.to.sheet(
-    sheet="CV",
-    start_cell="L1",
-    end_cell="N1",
-)
-
-# 期間文字列（未設定なら空文字）
-str(mg.report.dates)  # e.g. "20240101-20240131"
-```
-
----
-
-### Search Console（取得）
-
-```python
-# 権限を持つプロパティ一覧（初回アクセスで自動取得）
-sites = mg.search.sites
-
-# データを取得する対象のプロパティを選択
-mg.search.use(sites[0])
-
-# データ取得
-df_sc = mg.search.run(
-    dimensions=["page", "query"],
-    metrics=["clicks", "impressions", "ctr", "position"],
-    limit=5000,
-)
-```
-
-`mg.sc` は `mg.search` の短い別名です。
-結果は `mg.search.data` に入ります。
-
----
-
-### Search Console → Google Sheets（ym 付き保存）
-
-```python
-df_sc["ym"] = mg.report.window["ym"]
-
-mg.save.to.sheet("_sc", df_sc)
-
-mg.upsert.to.sheet(
-    "_sc_monthly",
-    df_sc,
-    keys=["ym", "page", "query"],
-)
-```
-
----
-
-### BigQuery（最小）
+BigQuery の SQL を実行するには次のようにします。
 
 ```python
 bq = mg.launch_bigquery("my-gcp-project")
-df = bq.run("SELECT 1 AS test", to_dataframe=True)
-df
+df_bq = bq.run("SELECT 1 AS test", to_dataframe=True)
 ```
 
----
+取得した結果は `pandas.DataFrame` で返されるため、そのまま分析や可視化に利用できます。
 
-## Supported Notebook-facing API (Cheat Sheet)
+## チートシート
 
-`?` は省略可能（任意）の意味です。`df?` を省略した場合は `mg.report.data` が使われます。
+利用可能なメソッドの詳しい一覧は別ファイル [CHEATSHEET.md](CHEATSHEET.md) を参照してください。
 
-### Core / Flow
-- `mg = start.Megaton(creds)`
-- `mg.open.sheet(url)`
-- `mg.launch_bigquery(project)`
+## レガシー互換性
 
-### Report (GA)
-- `mg.report.set.months(ago, window_months, tz?, now?)`
-- `mg.report.set.dates(date_from, date_to)`
-- `mg.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)`
-- `mg.report.start_date`
-- `mg.report.end_date`
-- `mg.report.data`
-- `mg.report.prep(conf, df?)`
-- `mg.report.window["ym"]`
-- `mg.report.dates`
-- `mg.report.dates.to.sheet(sheet, start_cell, end_cell)`
+以前のノートブックとの互換性のために `mg.gs` という古い Sheets クライアントが残されています。新規ノートブックでは `mg.sheets` / `mg.sheet` と `mg.save/append/upsert.to.sheet()` の利用を推奨します。
 
-### Sheets (by name)
-- `mg.save.to.sheet(name, df?)`
-- `mg.append.to.sheet(name, df?)`
-- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?)`
-
-### Sheets (collection / current)
-- `mg.sheets.select(name)`
-- `mg.sheets.create(name)`
-- `mg.sheets.delete(name)`
-- `mg.sheet.clear()`
-- `mg.sheet.data`
-- `mg.sheet.df()`
-- `mg.sheet.cell.set(cell, value)`
-- `mg.sheet.range.set(a1_range, values)`
-- `mg.sheet.save(df?)`
-- `mg.sheet.append(df?)`
-- `mg.sheet.upsert(df?, keys, columns?, sort_by?)`
-
-### Search Console
-- `mg.search.sites`
-- `mg.search.get.sites()`
-- `mg.search.use(site_url)`
-- `mg.search.set.dates(date_from, date_to)`
-- `mg.search.set.months(ago, window_months, tz?, now?)`
-- `mg.search.run(dimensions, metrics?, limit?, **kwargs)`
-- `mg.search.data`
-
-### Show
-- `mg.show.ga.dimensions`
-- `mg.show.ga.metrics`
-- `mg.show.ga.properties`
-- `mg.show.table(df, rows=10, include_index=False)`
-
-### Load / Download
-- `mg.load.csv(path)`
-- `mg.load.cell(row, col, what?)`
-- `mg.save_df(df, filename, mode='w', include_dates=True)`
-- `mg.download(df, filename?)`
-
-### BigQuery
-- `mg.launch_bigquery(project)`
-- `bq.run(sql, to_dataframe=True)`
-
----
-
-## Legacy compatibility
-
-- `mg.gs` は **過去 Notebook 互換の Google Sheets クライアント**です  
-  （例：`mg.gs.sheet.select(...)`, `mg.gs.sheet.data`）
-- 新規 Notebook では以下を推奨します：
-  - シート操作：`mg.sheets.*` / `mg.sheet.*`
-  - 保存：`mg.save / append / upsert.to.sheet()`
-
----
-
-## License
+## ライセンス
 
 MIT License
