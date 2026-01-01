@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 import re
 
-import pytz
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
@@ -70,7 +69,7 @@ def get_month_window(
     if now is None:
         now_dt = datetime.now(tzinfo)
     else:
-        now_dt = now.replace(tzinfo=tzinfo) if now.tzinfo is None else now
+        now_dt = now.replace(tzinfo=tzinfo) if now.tzinfo is None else now.astimezone(tzinfo)
 
     base_month_start = now_dt.replace(day=1).date()
     target_month_start = base_month_start - relativedelta(months=months_ago)
@@ -101,7 +100,7 @@ def get_past_date(
     Raises:
         ValueError: When both ``n_days`` and ``n_months`` are provided.
     """
-    now = datetime.now(pytz.timezone(tz))
+    now = datetime.now(ZoneInfo(tz))
 
     if n_days is None and n_months is None:
         result_date = now
