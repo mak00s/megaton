@@ -37,12 +37,12 @@ def load_config(mg, sheet_url: str) -> Config:
 
     def read_sheet(name: str, *, required: bool = True) -> pd.DataFrame:
         try:
-            mg._gs_client.sheet.select(name)
+            mg.gs.sheet.select(name)
         except errors.SheetNotFound as exc:
             if required:
                 raise ValueError(f"Required sheet not found: {name}") from exc
             return pd.DataFrame()
-        data = mg._gs_client.sheet.data or []
+        data = mg.gs.sheet.data or []
         return pd.DataFrame(data)
 
     config_df = read_sheet("config", required=True)

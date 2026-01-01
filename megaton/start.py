@@ -38,7 +38,7 @@ class Megaton:
         self.use_ga3 = use_ga3
         self.headless = headless
         self.ga = {}  # GA clients
-        self._gs_client = None  # Google Sheets client
+        self.gs = None  # Google Sheets client
         self._sc_client = None  # Google Search Console client
         self.bq = None  # BigQuery
         self.state = MegatonState()
@@ -47,8 +47,8 @@ class Megaton:
         self.bq_service = BQService(self)
         self._gsc_service = GSCService(self)
         self._sheets = SheetsService(self)
-        self.gs = self.GS(self)
         self.sc = self.SC(self)
+        self.sheet = self.Sheet(self)
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
@@ -211,7 +211,7 @@ class Megaton:
         services = [
             ('ga3', self.ga.get('3')),
             ('ga4', self.ga.get('4')),
-            ('gs', getattr(self, '_gs_client', None)),
+            ('gs', getattr(self, 'gs', None)),
             ('sc', getattr(self, '_sc_client', None)),
         ]
         return [name for name, active in services if active]
@@ -715,123 +715,6 @@ class Megaton:
                     create_if_missing=True,
                 )
 
-    class GS:
-        """Notebook-facing Google Sheets helpers"""
-        def __init__(self, parent):
-            self.parent = parent
-            self.save = self.Save(self)
-            self.append = self.Append(self)
-            self.upsert = self.Upsert(self)
-            self.cells = self.Cells(self)
-            self.cell = self.Cell(self)
-            self.range = self.Range(self)
-
-        class Save:
-            def __init__(self, parent):
-                self.parent = parent
-                self.to = self.To(self)
-
-            class To:
-                def __init__(self, parent):
-                    self.parent = parent
-
-                def sheet(self, sheet_name: str, df: pd.DataFrame = None):
-                    app = self.parent.parent.parent
-                    if df is None:
-                        df = app.report.data
-                    if not isinstance(df, pd.DataFrame):
-                        raise TypeError(
-                            "df must be a pandas DataFrame (or omit df to use mg.report.data)."
-                        )
-                    return app._sheets.save_sheet(sheet_name, df)
-
-        class Append:
-            def __init__(self, parent):
-                self.parent = parent
-                self.to = self.To(self)
-
-            class To:
-                def __init__(self, parent):
-                    self.parent = parent
-
-                def sheet(self, sheet_name: str, df: pd.DataFrame = None):
-                    app = self.parent.parent.parent
-                    if df is None:
-                        df = app.report.data
-                    if not isinstance(df, pd.DataFrame):
-                        raise TypeError(
-                            "df must be a pandas DataFrame (or omit df to use mg.report.data)."
-                        )
-                    return app._sheets.append_sheet(sheet_name, df)
-
-        class Upsert:
-            def __init__(self, parent):
-                self.parent = parent
-                self.to = self.To(self)
-
-            class To:
-                def __init__(self, parent):
-                    self.parent = parent
-
-                def sheet(self, sheet_name: str, df: pd.DataFrame = None, *, keys, columns=None, sort_by=None):
-                    app = self.parent.parent.parent
-                    if df is None:
-                        df = app.report.data
-                    if not isinstance(df, pd.DataFrame):
-                        raise TypeError(
-                            "df must be a pandas DataFrame (or omit df to use mg.report.data)."
-                        )
-
-                    sheet_url = app.state.gs_url
-                    if not sheet_url:
-                        raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
-
-                    return app._sheets.upsert_df(
-                        sheet_url,
-                        sheet_name,
-                        df,
-                        keys=keys,
-                        columns=columns,
-                        sort_by=sort_by,
-                        create_if_missing=True,
-                    )
-
-        class Cells:
-            def __init__(self, parent):
-                self.parent = parent
-
-            def set(self, sheet: str, cell: str, value):
-                app = self.parent.parent
-                sheet_url = app.state.gs_url
-                if not sheet_url:
-                    raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
-                return app._sheets.update_cells(sheet_url, sheet, {cell: value})
-
-        class Cell:
-            def __init__(self, parent):
-                self.parent = parent
-
-            def set(self, a1: str, value):
-                if "!" not in a1:
-                    raise ValueError("Use A1 notation with sheet name, e.g. 'Sheet1!A1'.")
-                sheet, cell = a1.split("!", 1)
-                app = self.parent.parent
-                sheet_url = app.state.gs_url
-                if not sheet_url:
-                    raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
-                return app._sheets.update_cells(sheet_url, sheet, {cell: value})
-
-        class Range:
-            def __init__(self, parent):
-                self.parent = parent
-
-            def set(self, sheet: str, a1_range: str, values):
-                app = self.parent.parent
-                sheet_url = app.state.gs_url
-                if not sheet_url:
-                    raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
-                return app._sheets.update_range(sheet_url, sheet, a1_range, values)
-
     class SC:
         """Notebook-facing Search Console helpers"""
         def __init__(self, parent):
@@ -842,6 +725,123 @@ class Megaton:
 
         def query(self, *args, **kwargs):
             return self.parent._gsc_service.query(*args, **kwargs)
+
+    class Sheet:
+        """Notebook-facing current worksheet helpers"""
+        def __init__(self, parent):
+            self.parent = parent
+            self.cell = self.Cell(self)
+            self.range = self.Range(self)
+
+        def _ensure_spreadsheet(self):
+            if not self.parent.gs or not self.parent.state.gs_url:
+                raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+
+        def _current_sheet_name(self):
+            name = self.parent.state.gs_sheet_name
+            if not name and self.parent.gs:
+                name = self.parent.gs.sheet.name
+                if name:
+                    self.parent.state.gs_sheet_name = name
+            return name
+
+        def _ensure_sheet_selected(self):
+            name = self._current_sheet_name()
+            if not name:
+                raise ValueError("No worksheet selected. Call mg.sheet.select(name) first.")
+            return name
+
+        def select(self, name: str):
+            self._ensure_spreadsheet()
+            selected = self.parent.gs.sheet.select(name)
+            if selected:
+                self.parent.state.gs_sheet_name = name
+            return selected
+
+        def create(self, name: str):
+            self._ensure_spreadsheet()
+            self.parent.gs.sheet.create(name)
+            self.parent.state.gs_sheet_name = name
+            return name
+
+        def clear(self):
+            self._ensure_spreadsheet()
+            self._ensure_sheet_selected()
+            return self.parent.gs.sheet.clear()
+
+        @property
+        def data(self):
+            self._ensure_spreadsheet()
+            self._ensure_sheet_selected()
+            return self.parent.gs.sheet.data
+
+        def df(self):
+            return pd.DataFrame(self.data or [])
+
+        def _coerce_df(self, df):
+            if df is None:
+                df = self.parent.report.data
+            if not isinstance(df, pd.DataFrame):
+                raise TypeError(
+                    "df must be a pandas DataFrame (or omit df to use mg.report.data)."
+                )
+            return df
+
+        def save(self, df: pd.DataFrame = None):
+            df = self._coerce_df(df)
+            self._ensure_spreadsheet()
+            sheet_name = self._ensure_sheet_selected()
+            return self.parent._sheets.save_sheet(sheet_name, df)
+
+        def append(self, df: pd.DataFrame = None):
+            df = self._coerce_df(df)
+            self._ensure_spreadsheet()
+            sheet_name = self._ensure_sheet_selected()
+            return self.parent._sheets.append_sheet(sheet_name, df)
+
+        def upsert(self, df: pd.DataFrame = None, *, keys, columns=None, sort_by=None):
+            df = self._coerce_df(df)
+            self._ensure_spreadsheet()
+            sheet_url = self.parent.state.gs_url
+            sheet_name = self._ensure_sheet_selected()
+            return self.parent._sheets.upsert_df(
+                sheet_url,
+                sheet_name,
+                df,
+                keys=keys,
+                columns=columns,
+                sort_by=sort_by,
+                create_if_missing=True,
+            )
+
+        class Cell:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def set(self, cell: str, value):
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                sheet_name = app.sheet._ensure_sheet_selected()
+                return app._sheets.update_cells(
+                    app.state.gs_url,
+                    sheet_name,
+                    {cell: value},
+                )
+
+        class Range:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def set(self, a1_range: str, values):
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                sheet_name = app.sheet._ensure_sheet_selected()
+                return app._sheets.update_range(
+                    app.state.gs_url,
+                    sheet_name,
+                    a1_range,
+                    values,
+                )
 
     class Select:
         """選択するUIの構築と処理
@@ -916,8 +916,8 @@ class Megaton:
             return df
 
         def cell(self, row, col, what: str = None):
-            self.parent._gs_client.sheet.cell.select(row, col)
-            value = self.parent._gs_client.sheet.cell.data
+            self.parent.gs.sheet.cell.select(row, col)
+            value = self.parent.gs.sheet.cell.data
             if what:
                 print(f"{what}は{value}")
             return value
@@ -1225,5 +1225,5 @@ class Megaton:
                 """レポートをGoogle Sheetsへ反映する
                 """
                 if self.parent.parent.select.sheet(sheet_name):
-                    if self.parent.parent._gs_client.sheet.overwrite_data(self.parent.data, include_index=False):
+                    if self.parent.parent.gs.sheet.overwrite_data(self.parent.data, include_index=False):
                         print(f"レポートのデータを上書き保存しました。")

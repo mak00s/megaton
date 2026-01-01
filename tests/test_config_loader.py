@@ -33,14 +33,14 @@ class FakeOpen:
         self.parent = parent
 
     def sheet(self, url):
-        self.parent._gs_client = FakeGS(self.parent._data_map)
+        self.parent.gs = FakeGS(self.parent._data_map)
         return True
 
 
 class FakeMG:
     def __init__(self, data_map):
         self._data_map = data_map
-        self._gs_client = None
+        self.gs = None
         self.open = FakeOpen(self)
 
 
