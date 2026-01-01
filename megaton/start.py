@@ -617,8 +617,12 @@ class Megaton:
                     include_dates: when True, start_date and end_date is added to the filename
                     quiet: when True, message won't be displayed
                 """
-                if not isinstance(df, pd.DataFrame):
+                if df is None:
                     df = self.parent.parent.report.data
+                if not isinstance(df, pd.DataFrame):
+                    raise TypeError(
+                        "df must be a pandas DataFrame (or omit df to use mg.report.data)."
+                    )
 
                 self.parent.parent.save_df(df, filename, mode='a', include_dates=include_dates, quiet=quiet)
 
@@ -688,8 +692,12 @@ class Megaton:
                     columns: optional output column order
                     sort_by: optional sort columns
                 """
-                if not isinstance(df, pd.DataFrame):
+                if df is None:
                     df = self.parent.parent.report.data
+                if not isinstance(df, pd.DataFrame):
+                    raise TypeError(
+                        "df must be a pandas DataFrame (or omit df to use mg.report.data)."
+                    )
 
                 sheet_url = self.parent.parent.state.gs_url
                 if not sheet_url:
@@ -1023,10 +1031,10 @@ class Megaton:
                 return None
 
             def __str__(self):
-                return str(self.value)
+                return self.value or ""
 
             def __repr__(self):
-                return str(self.value)
+                return self.value or ""
 
             def __format__(self, spec):
                 return format(str(self), spec)
