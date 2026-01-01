@@ -93,7 +93,7 @@ app.upsert.to.sheet(
 
 ```python
 # シート選択
-app.sheet.select("CV")
+app.sheets.select("CV")
 
 # セル操作
 app.sheet.cell.set("L1", app.report.start_date)
@@ -199,7 +199,7 @@ df
 - `app.upsert.to.sheet(name, df?, keys, columns?, sort_by?)`
 
 ### Sheets (current worksheet)
-- `app.sheet.select(name)`
+- `app.sheets.select(name)`
 - `app.sheet.create(name)`
 - `app.sheet.clear()`
 - `app.sheet.data`

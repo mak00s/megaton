@@ -65,9 +65,9 @@ def test_legacy_gs_client_still_available():
     assert app.gs.sheet.select("config") == "config"
 
 
-def test_sheet_select_sets_state():
+def test_sheets_select_sets_state():
     app = _make_app_with_gs()
-    app.sheet.select("CV")
+    app.sheets.select("CV")
     assert app.state.gs_sheet_name == "CV"
 
 
@@ -139,7 +139,7 @@ def test_sheet_requires_spreadsheet_and_selection():
     app = Megaton(None, headless=True)
 
     with pytest.raises(ValueError, match="active spreadsheet"):
-        app.sheet.select("CV")
+        app.sheets.select("CV")
 
     app.gs = _FakeGS()
     app.state.gs_url = app.gs.url

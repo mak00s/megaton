@@ -48,6 +48,7 @@ class Megaton:
         self._gsc_service = GSCService(self)
         self._sheets = SheetsService(self)
         self.sc = self.SC(self)
+        self.sheets = self.Sheets(self)
         self.sheet = self.Sheet(self)
         self.open = self.Open(self)
         self.save = self.Save(self)
@@ -726,6 +727,28 @@ class Megaton:
         def query(self, *args, **kwargs):
             return self.parent._gsc_service.query(*args, **kwargs)
 
+    class Sheets:
+        """Spreadsheet-level helpers (selection/creation)"""
+        def __init__(self, parent):
+            self.parent = parent
+
+        def _ensure_spreadsheet(self):
+            if not self.parent.gs or not self.parent.state.gs_url:
+                raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+
+        def select(self, name: str):
+            self._ensure_spreadsheet()
+            selected = self.parent.gs.sheet.select(name)
+            if selected:
+                self.parent.state.gs_sheet_name = name
+            return selected
+
+        def create(self, name: str):
+            self._ensure_spreadsheet()
+            self.parent.gs.sheet.create(name)
+            self.parent.state.gs_sheet_name = name
+            return name
+
     class Sheet:
         """Notebook-facing current worksheet helpers"""
         def __init__(self, parent):
@@ -749,19 +772,6 @@ class Megaton:
             name = self._current_sheet_name()
             if not name:
                 raise ValueError("No worksheet selected. Call mg.sheet.select(name) first.")
-            return name
-
-        def select(self, name: str):
-            self._ensure_spreadsheet()
-            selected = self.parent.gs.sheet.select(name)
-            if selected:
-                self.parent.state.gs_sheet_name = name
-            return selected
-
-        def create(self, name: str):
-            self._ensure_spreadsheet()
-            self.parent.gs.sheet.create(name)
-            self.parent.state.gs_sheet_name = name
             return name
 
         def clear(self):
