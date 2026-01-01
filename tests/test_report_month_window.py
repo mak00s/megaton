@@ -18,7 +18,7 @@ def test_report_set_months_calls_set_dates():
     now = datetime(2025, 3, 15, 10, 0, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
     expected = dates.get_month_window(1, 1, tz="Asia/Tokyo", now=now)
 
-    result = report.set.months(1, 1, tz="Asia/Tokyo", now=now)
+    result = report.set.months(ago=1, window_months=1, tz="Asia/Tokyo", now=now)
 
     assert result == expected
     assert called["args"] == expected[:2]

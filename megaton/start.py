@@ -720,12 +720,101 @@ class Megaton:
         """Notebook-facing Search Console helpers"""
         def __init__(self, parent):
             self.parent = parent
+            self.sites = None
+            self.site = None
+            self.start_date = None
+            self.end_date = None
+            self.last_month_window = None
+            self.fetch = self.Fetch(self)
+            self.set = self.Set(self)
 
-        def sites(self, *args, **kwargs):
-            return self.parent._gsc_service.fetch_sites(*args, **kwargs)
+        def use(self, site_url: str):
+            self.site = site_url
+            sc = getattr(self.parent, "_sc_client", None)
+            if sc is not None:
+                try:
+                    sc.set_site(site_url)
+                except Exception:
+                    pass
+            return site_url
 
-        def query(self, *args, **kwargs):
-            return self.parent._gsc_service.query(*args, **kwargs)
+        def _resolve_dates(self, start_date: Optional[str], end_date: Optional[str]):
+            if start_date or end_date:
+                if not start_date or not end_date:
+                    raise ValueError("start_date and end_date must be set together.")
+                return start_date, end_date
+
+            if self.start_date and self.end_date:
+                return self.start_date, self.end_date
+
+            report = getattr(self.parent, "report", None)
+            if report and report.start_date and report.end_date:
+                return report.start_date, report.end_date
+
+            raise ValueError(
+                "Search Console dates are not set. Use mg.sc.set.dates(...) or mg.report.set.dates(...)."
+            )
+
+        def query(self, dimensions: list, limit: int = 5000, **kwargs):
+            if not self.site:
+                raise ValueError("Search Console site is not set. Call mg.sc.use(site_url) first.")
+
+            start_date = kwargs.pop("start_date", None)
+            end_date = kwargs.pop("end_date", None)
+            start_date, end_date = self._resolve_dates(start_date, end_date)
+
+            return self.parent._gsc_service.query(
+                site_url=self.site,
+                start_date=start_date,
+                end_date=end_date,
+                dimensions=dimensions,
+                row_limit=limit,
+                **kwargs,
+            )
+
+        class Fetch:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def sites(self):
+                sites = self.parent.parent._gsc_service.list_sites()
+                self.parent.sites = sites
+                return sites
+
+        class Set:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def dates(self, date_from: str, date_to: str):
+                self.parent.start_date = date_from
+                self.parent.end_date = date_to
+                return date_from, date_to
+
+            def months(
+                self,
+                ago: int = 1,
+                window_months: int = 1,
+                *,
+                tz: str = "Asia/Tokyo",
+                now: datetime | None = None,
+            ) -> tuple[str, str, str]:
+                date_from, date_to, ym = dates.get_month_window(
+                    months_ago=ago,
+                    window_months=window_months,
+                    tz=tz,
+                    now=now,
+                )
+                self.parent.start_date = date_from
+                self.parent.end_date = date_to
+                self.parent.last_month_window = {
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "ym": ym,
+                    "ago": ago,
+                    "window_months": window_months,
+                    "tz": tz,
+                }
+                return date_from, date_to, ym
 
     class Sheets:
         """Spreadsheet-level helpers (selection/creation)"""
@@ -1148,15 +1237,15 @@ class Megaton:
 
             def months(
                 self,
-                months_ago: int = 1,
+                ago: int = 1,
                 window_months: int = 13,
                 *,
                 tz: str = "Asia/Tokyo",
                 now: datetime | None = None,
             ) -> tuple[str, str, str]:
                 date_from, date_to, ym = dates.get_month_window(
-                    months_ago,
-                    window_months,
+                    months_ago=ago,
+                    window_months=window_months,
                     tz=tz,
                     now=now,
                 )
@@ -1165,7 +1254,7 @@ class Megaton:
                     "date_from": date_from,
                     "date_to": date_to,
                     "ym": ym,
-                    "months_ago": months_ago,
+                    "ago": ago,
                     "window_months": window_months,
                     "tz": tz,
                 }
