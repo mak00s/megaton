@@ -14,6 +14,8 @@ def test_normalize_thresholds_df_adds_missing_columns():
     assert result["min_impressions"].tolist() == [10, 10]
     assert result["max_position"].tolist() == [50, 50]
     assert result["clinic"].tolist() == [None, None]
+    assert str(result["min_impressions"].dtype) in ("Int64", "int64")
+    assert str(result["max_position"].dtype) in ("Int64", "int64")
     assert "extra" in result.columns
 
 
@@ -28,6 +30,18 @@ def test_normalize_thresholds_df_coerces_and_fills_defaults():
     result = table.normalize_thresholds_df(df)
     assert result["min_impressions"].tolist() == [10, 20, 10, 10, 10]
     assert result["max_position"].tolist() == [5, 50, 50, 50, 50]
+    assert str(result["min_impressions"].dtype) in ("Int64", "int64")
+    assert str(result["max_position"].dtype) in ("Int64", "int64")
+
+
+def test_normalize_thresholds_df_partial_columns_defaults():
+    df = pd.DataFrame({"min_impressions": ["5", None]})
+    result = table.normalize_thresholds_df(df)
+    assert list(result.columns)[:3] == ["clinic", "min_impressions", "max_position"]
+    assert result["min_impressions"].tolist() == [5, 10]
+    assert result["max_position"].tolist() == [50, 50]
+    assert str(result["min_impressions"].dtype) in ("Int64", "int64")
+    assert str(result["max_position"].dtype) in ("Int64", "int64")
 
 
 def test_normalize_thresholds_df_keeps_extra_columns():

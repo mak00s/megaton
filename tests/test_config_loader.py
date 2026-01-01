@@ -103,3 +103,23 @@ def test_load_config_allows_optional_maps_missing():
 
     assert cfg.page_map == {}
     assert cfg.query_map == {}
+    assert cfg.thresholds_df is not None
+    assert cfg.thresholds_df["min_impressions"].tolist() == [10]
+    assert cfg.thresholds_df["max_position"].tolist() == [50]
+    assert str(cfg.thresholds_df["min_impressions"].dtype) in ("Int64", "int64")
+    assert str(cfg.thresholds_df["max_position"].dtype) in ("Int64", "int64")
+
+
+def test_load_config_partial_threshold_columns():
+    data_map = {
+        "config": [{"clinic": "A", "min_impressions": "5"}],
+    }
+    mg = FakeMG(data_map)
+
+    cfg = config_loader.load_config(mg, "https://example.com/sheet")
+
+    assert cfg.thresholds_df is not None
+    assert cfg.thresholds_df["min_impressions"].tolist() == [5]
+    assert cfg.thresholds_df["max_position"].tolist() == [50]
+    assert str(cfg.thresholds_df["min_impressions"].dtype) in ("Int64", "int64")
+    assert str(cfg.thresholds_df["max_position"].dtype) in ("Int64", "int64")
