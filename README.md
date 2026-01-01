@@ -1,101 +1,61 @@
 # megaton
 
-Megaton は Google アナリティクス（GA4／GA3）、Google Sheets、BigQuery を Notebook（Jupyter / Colab）上から扱うためのツール群です。認証やアカウント選択の UI を用意しつつ、Notebook から各サービスを横断できます。
+Megaton は Google アナリティクス（GA4）、Google Search Console、Google Sheets、BigQuery を
+**Notebook（Jupyter / Colab）上から直感的に扱うためのツール**です。
 
-> 目的：Notebook での分析・配布作業（GA→Sheets、BQ→可視化など）を素早く回すこと  
-> 非目的：汎用SDK／本番バッチ基盤の置き換え
-
-※ GA3（UA）はサンセット済みのため **非推奨**。
+> 目的：Notebook での分析・配布作業（GA → SC → Sheets など）を速く回すこと  
+> 非目的：汎用 SDK／本番バッチ基盤の置き換え
 
 ---
 
 ## What is megaton
-- Notebook 向けに **最短の認証・取得・保存**をまとめたツール群
+
+- Notebook 向けに **短く書ける API** を提供
 - UI（ipywidgets）と headless の両方に対応
-- 外部サービスの状態や権限は環境に依存します（ここでは保証しません）
-  - Notebookで直感的に書けるよう、短い記述と状態保持（state）を前提としたシグネチャ設計
+- Notebook 実行中の **状態（state）を覚える設計**
 
-### Signature design (Notebook-first)
+Megaton は「人間に優しい、記憶力のある相棒」を目指して設計されています。
 
-Megaton の API は、一般的な SDK とは異なる “Notebook 最適化” のシグネチャを採用しています。
-これは設計上の妥協ではなく、**Notebook での作業体験を最優先した意図的なトレードオフ**です。
+---
 
-- **1セルで完結**する短さ  
-  認証・選択・取得・保存を最小の記述で行えるよう、引数は極力減らしています。
+## Signature design (Notebook-first)
 
-- **ユーザーの作業順に沿った API**  
-  認証 → アカウント選択 → 期間指定 → 取得 → 保存、という Notebook 上の自然な流れを前提にしています。
+Megaton の API は、一般的な SDK とは異なる **Notebook 最適化**のシグネチャを採用しています。
 
-- **Notebook 内での state 保持**  
-  Megaton は現在の選択状態（アカウント / プロパティ / 期間など）を
-  **Notebook の実行コンテキスト内でのみ**保持します。
-  永続状態や並列実行を前提とした設計ではありません。
-
-このため、Megaton は汎用 SDK や本番バッチ基盤の代替を目的としていません。
-代わりに、Notebook 上での探索・分析・配布を **速く、直感的に**行うことを重視しています。
+- **1セルで完結する短さ**
+- **作業順に沿った API**（開く → 期間 → 取得 → 保存）
+- **状態（state）を前提**にした操作
 
 ---
 
 ## Quick Start
 
-### Colab
-```bash
-pip install -U "git+https://github.com/mak00s/megaton@main"
-```
-
 ```python
-from dotenv import load_dotenv
-load_dotenv()
-
-from megaton.start import Megaton
-app = Megaton(None, headless=True)  # env を参照
-```
-
-> Colab では依存パッケージ不足時に必要に応じて自動インストールされます（`MEGATON_AUTO_INSTALL` で上書き可）。
-
-### ローカル
-```bash
-pip install -e .
-pip install python-dotenv
-```
-
-```python
-from dotenv import load_dotenv
-load_dotenv()
-
 from megaton.start import Megaton
 app = Megaton(None, headless=True)
 ```
 
 ---
 
-## Install & Auth
+## Usage（All-in Examples）
 
-### .env（最短）
-`.env` に `MEGATON_CREDS_JSON` を **1行 JSON 文字列**で設定します（`.env` は gitignore）。
+### 期間をセット（月次・YoY 対応）
 
-```bash
-cp .env.example .env
+```python
+# Nヶ月前の月を基準に、13ヶ月ウィンドウ（前年同月比）
+app.report.set.months(months_ago=1, window_months=13)
+
+# 状態として保持される
+app.report.start_date
+app.report.end_date
+ym = app.report.last_month_window["ym"]
 ```
-
-```env
-MEGATON_CREDS_JSON={"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"..."}
-```
-
-### headless / UI
-- `headless=True`：ウィジェットなし（スモーク／バッチ向け）
-- `headless=False`：UI 利用（ipywidgets が未導入だとエラーになります）
-
-### OAuth 概要（必要な場合）
-OAuth は UI フローを使います。必要な場合は `docs/advanced.md` を参照してください。
 
 ---
 
-## Usage
-
 ### GA4（最小例）
+
 ```python
-app.report.set_dates("2024-01-01", "2024-01-01")
 df = app.report.run(
     d=["date", "eventName"],
     m=["eventCount"],
@@ -103,72 +63,176 @@ df = app.report.run(
 df.head()
 ```
 
-### dimensions / metrics 一覧
-```python
-app.show.ga.dimensions
-app.show.ga.metrics
-```
+---
 
-### filter / sort（最小例）
+### Google Sheets（保存：名前指定）
+
 ```python
-df = app.report.run(
-    d=["date", "eventName"],
-    m=["eventCount"],
-    filter_d="eventName==page_view",
-    sort="-eventCount",
+# スプレッドシートを開く
+app.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
+
+# 上書き
+app.save.to.sheet("_ga", df)
+
+# 追記
+app.append.to.sheet("_ga_log", df)
+
+# upsert（dedup + overwrite）
+app.upsert.to.sheet(
+    "_ga_monthly",
+    df,
+    keys=["date", "eventName"],
 )
 ```
 
-### 月次ウィンドウ（日付ヘルパ）
+---
+
+### 現在のシート（mg.sheet）
+
+`mg.sheet` は **現在選択中のワークシート**に対する操作です。
+
 ```python
-date_from, date_to, ym = app.report.set_month_window(months_ago=1, window_months=13)
+# シート選択
+app.sheets.select("CV")
+app.sheets.create("tmp_sheet")
+app.sheets.delete("tmp_sheet")
+
+# セル操作
+app.sheet.cell.set("L1", app.report.start_date)
+app.sheet.cell.set("N1", app.report.end_date)
+
+# 範囲操作
+app.sheet.range.set(
+    "L1:N1",
+    [[app.report.start_date, app.report.end_date]],
+)
+
+# DataFrame 操作（現在シートに対して）
+app.sheet.save(df)
+app.sheet.append(df)
+app.sheet.upsert(df, keys=["ym", "page", "query"])
 ```
 
-### Google Sheets
+---
+
+### 期間セルの書き込み（report state 利用）
+
 ```python
-app.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
-app.report.to.sheet("Sheet1")      # 上書き
-app.append.to.sheet("Sheet1", df) # 追記
+# report.start_date / end_date をセルに書き込む
+app.report.dates.to.sheet(
+    sheet="CV",
+    start_cell="L1",
+    end_cell="N1",
+)
+
+# 期間文字列（未設定なら空文字）
+str(app.report.dates)  # e.g. "20240101-20240131"
 ```
+
+---
+
+### Search Console（取得）
+
+```python
+# GA と同じ「現在の分析期間」をそのまま利用
+sites = app.sc.sites()
+
+df_sc = app.sc.query(
+    site=sites[0],
+    start=app.report.start_date,
+    end=app.report.end_date,
+    dimensions=["page", "query"],
+    row_limit=5000,
+)
+
+df_sc.head()
+```
+
+---
+
+### Search Console → Google Sheets（ym 付き保存）
+
+```python
+df_sc["ym"] = app.report.last_month_window["ym"]
+
+# 名前指定で保存
+app.save.to.sheet("_sc", df_sc)
+
+# upsert（ym + page + query）
+app.upsert.to.sheet(
+    "_sc_monthly",
+    df_sc,
+    keys=["ym", "page", "query"],
+)
+```
+
+---
 
 ### BigQuery（最小）
+
 ```python
 bq = app.launch_bigquery("my-gcp-project")
 df = bq.run("SELECT 1 AS test", to_dataframe=True)
+df
 ```
 
 ---
 
-## Testing & CI
+## Supported Notebook-facing API (Cheat Sheet)
 
-### pytest（外部通信なし）
-```bash
-pytest tests/test_phase0_regressions.py
-pytest tests/test_auto_install.py
-pytest tests/test_auth.py
-pytest tests/test_utils.py
-```
+### Core / Flow
+- `Megaton(...)`
+- `app.open.sheet(url)`
+- `app.launch_bigquery(project)`
 
-### Notebook smoke（外部通信あり）
-`notebooks/test-megaton.ipynb` は **手動のスモークテスト**です。
-- GA4 / Sheets / BigQuery を短時間で確認
-- 設定が無いサービスは Skip
-- Sheets は `_smoke_YYYYMMDD_HHMM` の新規シートに書き込み
-- OAuth smoke は `.env` に `SMOKE_OAUTH_JSON=...` を追加して使う
+### Report (GA)
+- `app.report.set.months(months_ago, window_months, tz?, now?)`
+- `app.report.set.dates(date_from, date_to)`
+- `app.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)`
+- `app.report.start_date`
+- `app.report.end_date`
+- `app.report.last_month_window["ym"]`
+- `app.report.dates`
+- `app.report.dates.to.sheet(sheet, start_cell, end_cell)`
 
-### test-megaton.ipynb の実行手順（Smoke Test）
-- 外部サービス接続を含む**手動スモーク用**（CIとは別の最終確認）
-- Cell 0 の `RUN_*` フラグで必要なテストだけ実行可能
-- Sheets 書き込みは `_smoke_YYYYMMDD_HHMM` の新規シートのみ
+### Sheets (by name)
+- `app.save.to.sheet(name, df?)`
+- `app.append.to.sheet(name, df?)`
+- `app.upsert.to.sheet(name, df?, keys, columns?, sort_by?)`
 
-CI は GitHub Actions で PR / main push の pytest（fast suite）を実行します。
+### Sheets (current worksheet)
+- `app.sheets.select(name)`
+- `app.sheets.create(name)`
+- `app.sheets.delete(name)`
+- `app.sheet.clear()`
+- `app.sheet.data`
+- `app.sheet.df()`
+- `app.sheet.cell.set(cell, value)`
+- `app.sheet.range.set(a1_range, values)`
+- `app.sheet.save(df?)`
+- `app.sheet.append(df?)`
+- `app.sheet.upsert(df?, keys, columns?, sort_by?)`
+
+### Search Console
+- `app.sc.sites()`
+- `app.sc.query(site, start, end, dimensions, row_limit?, **kwargs)`
+
+### BigQuery
+- `app.launch_bigquery(project)`
+- `bq.run(sql, to_dataframe=True)`
 
 ---
 
-## Advanced
-- 詳細な設計・認証・運用の説明は `docs/advanced.md` を参照してください。
+## Legacy compatibility
+
+- `app.gs` は **過去 Notebook 互換の Google Sheets クライアント**です  
+  （例：`app.gs.sheet.select(...)`, `app.gs.sheet.data`）
+- 新規 Notebook では以下を推奨します：
+  - シート操作：`app.sheet.*`
+  - 保存：`app.save / append / upsert.to.sheet()`
 
 ---
 
-## ライセンス
+## License
+
 MIT License

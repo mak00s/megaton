@@ -226,3 +226,26 @@ class SheetsService:
         except Exception as exc:
             print(f"'{sheet_name}' シートのセル更新に失敗しました: {exc}")
             return None
+
+    def update_range(self, sheet_url: str, sheet_name: str, a1_range: str, values) -> Optional[bool]:
+        if values is None:
+            return None
+        if not self.open_sheet(sheet_url):
+            return None
+        try:
+            self.app.gs.sheet.select(sheet_name)
+            self.app.state.gs_sheet_name = sheet_name
+        except errors.SheetNotFound:
+            print(f"{sheet_name} シートが存在しません。")
+            return None
+        except Exception as exc:
+            print(f"'{sheet_name}' シートの読み込みに失敗しました: {exc}")
+            return None
+
+        try:
+            self.app.gs.sheet._driver.update(a1_range, values)
+            print(f"'{sheet_name}' シートの範囲を更新しました: {a1_range}")
+            return True
+        except Exception as exc:
+            print(f"'{sheet_name}' シートの範囲更新に失敗しました: {exc}")
+            return None

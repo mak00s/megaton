@@ -39,14 +39,17 @@ class Megaton:
         self.headless = headless
         self.ga = {}  # GA clients
         self.gs = None  # Google Sheets client
-        self.sc = None  # Google Search Console client
+        self._sc_client = None  # Google Search Console client
         self.bq = None  # BigQuery
         self.state = MegatonState()
         self.state.headless = headless
         self.recipes = SimpleNamespace(load_config=lambda sheet_url: recipes.load_config(self, sheet_url))
         self.bq_service = BQService(self)
-        self.gsc_service = GSCService(self)
-        self.sheets_service = SheetsService(self)
+        self._gsc_service = GSCService(self)
+        self._sheets = SheetsService(self)
+        self.sc = self.SC(self)
+        self.sheets = self.Sheets(self)
+        self.sheet = self.Sheet(self)
         self.open = self.Open(self)
         self.save = self.Save(self)
         self.append = self.Append(self)
@@ -210,7 +213,7 @@ class Megaton:
             ('ga3', self.ga.get('3')),
             ('ga4', self.ga.get('4')),
             ('gs', getattr(self, 'gs', None)),
-            ('sc', getattr(self, 'sc', None)),
+            ('sc', getattr(self, '_sc_client', None)),
         ]
         return [name for name, active in services if active]
 
@@ -371,7 +374,7 @@ class Megaton:
             logger.warning('Search Console を利用するには先に認証を完了してください。')
             return None
         try:
-            self.sc = searchconsole.MegatonSC(self.creds, site_url=site_url)
+            self._sc_client = searchconsole.MegatonSC(self.creds, site_url=site_url)
         except errors.BadCredentialFormat:
             logger.error('Search Console の資格情報形式が正しくありません。')
             return None
@@ -382,14 +385,14 @@ class Megaton:
             logger.error('Search Console client の初期化に失敗しました: %s', exc)
             return None
         logger.debug('Search Console client initialized%s', f" for {site_url}" if site_url else "")
-        return self.sc
+        return self._sc_client
 
     def launch_bigquery(self, gcp_project: str):
         return self.bq_service.launch_bigquery(gcp_project)
 
     def launch_gs(self, url: str):
         """APIでGoogle Sheetsにアクセスする準備"""
-        return self.sheets_service.launch_gs(url)
+        return self._sheets.launch_gs(url)
 
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
@@ -632,7 +635,7 @@ class Megaton:
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                self.parent.parent.sheets_service.append_sheet(sheet_name, df)
+                self.parent.parent._sheets.append_sheet(sheet_name, df)
 
     class Save:
         """DaraFrameをCSVやGoogle Sheetsとして保存
@@ -670,7 +673,7 @@ class Megaton:
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                self.parent.parent.sheets_service.save_sheet(sheet_name, df)
+                self.parent.parent._sheets.save_sheet(sheet_name, df)
 
     class Upsert:
         """DataFrameをGoogle Sheetsへupsert（dedup + overwrite）"""
@@ -703,7 +706,7 @@ class Megaton:
                 if not sheet_url:
                     raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
 
-                return self.parent.parent.sheets_service.upsert_df(
+                return self.parent.parent._sheets.upsert_df(
                     sheet_url,
                     sheet_name,
                     df,
@@ -711,6 +714,152 @@ class Megaton:
                     columns=columns,
                     sort_by=sort_by,
                     create_if_missing=True,
+                )
+
+    class SC:
+        """Notebook-facing Search Console helpers"""
+        def __init__(self, parent):
+            self.parent = parent
+
+        def sites(self, *args, **kwargs):
+            return self.parent._gsc_service.fetch_sites(*args, **kwargs)
+
+        def query(self, *args, **kwargs):
+            return self.parent._gsc_service.query(*args, **kwargs)
+
+    class Sheets:
+        """Spreadsheet-level helpers (selection/creation)"""
+        def __init__(self, parent):
+            self.parent = parent
+
+        def _ensure_spreadsheet(self):
+            if not self.parent.gs or not self.parent.state.gs_url:
+                raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+
+        def select(self, name: str):
+            self._ensure_spreadsheet()
+            selected = self.parent.gs.sheet.select(name)
+            if selected:
+                self.parent.state.gs_sheet_name = name
+            return selected
+
+        def create(self, name: str):
+            self._ensure_spreadsheet()
+            self.parent.gs.sheet.create(name)
+            self.parent.state.gs_sheet_name = name
+            return name
+
+        def delete(self, name: str):
+            self._ensure_spreadsheet()
+            if name not in self.parent.gs.sheets:
+                raise ValueError(f"Sheet not found: {name}")
+            self.parent.gs.sheet.delete(name)
+            if self.parent.state.gs_sheet_name == name:
+                self.parent.state.gs_sheet_name = None
+            return True
+
+    class Sheet:
+        """Notebook-facing current worksheet helpers"""
+        def __init__(self, parent):
+            self.parent = parent
+            self.cell = self.Cell(self)
+            self.range = self.Range(self)
+
+        def _ensure_spreadsheet(self):
+            if not self.parent.gs or not self.parent.state.gs_url:
+                raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+
+        def _current_sheet_name(self):
+            name = self.parent.state.gs_sheet_name
+            if not name and self.parent.gs:
+                name = self.parent.gs.sheet.name
+                if name:
+                    self.parent.state.gs_sheet_name = name
+            return name
+
+        def _ensure_sheet_selected(self):
+            name = self._current_sheet_name()
+            if not name:
+                raise ValueError("No worksheet selected. Call mg.sheets.select(name) first.")
+            return name
+
+        def clear(self):
+            self._ensure_spreadsheet()
+            self._ensure_sheet_selected()
+            return self.parent.gs.sheet.clear()
+
+        @property
+        def data(self):
+            self._ensure_spreadsheet()
+            self._ensure_sheet_selected()
+            return self.parent.gs.sheet.data
+
+        def df(self):
+            return pd.DataFrame(self.data or [])
+
+        def _coerce_df(self, df):
+            if df is None:
+                df = self.parent.report.data
+            if not isinstance(df, pd.DataFrame):
+                raise TypeError(
+                    "df must be a pandas DataFrame (or omit df to use mg.report.data)."
+                )
+            return df
+
+        def save(self, df: pd.DataFrame = None):
+            df = self._coerce_df(df)
+            self._ensure_spreadsheet()
+            sheet_name = self._ensure_sheet_selected()
+            return self.parent._sheets.save_sheet(sheet_name, df)
+
+        def append(self, df: pd.DataFrame = None):
+            df = self._coerce_df(df)
+            self._ensure_spreadsheet()
+            sheet_name = self._ensure_sheet_selected()
+            return self.parent._sheets.append_sheet(sheet_name, df)
+
+        def upsert(self, df: pd.DataFrame = None, *, keys, columns=None, sort_by=None):
+            df = self._coerce_df(df)
+            self._ensure_spreadsheet()
+            sheet_url = self.parent.state.gs_url
+            sheet_name = self._ensure_sheet_selected()
+            return self.parent._sheets.upsert_df(
+                sheet_url,
+                sheet_name,
+                df,
+                keys=keys,
+                columns=columns,
+                sort_by=sort_by,
+                create_if_missing=True,
+            )
+
+        class Cell:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def set(self, cell: str, value):
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                sheet_name = app.sheet._ensure_sheet_selected()
+                return app._sheets.update_cells(
+                    app.state.gs_url,
+                    sheet_name,
+                    {cell: value},
+                )
+
+        class Range:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def set(self, a1_range: str, values):
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                sheet_name = app.sheet._ensure_sheet_selected()
+                return app._sheets.update_range(
+                    app.state.gs_url,
+                    sheet_name,
+                    a1_range,
+                    values,
                 )
 
     class Select:
@@ -764,7 +913,7 @@ class Megaton:
 
         def sheet(self, sheet_name: str):
             """開いたGoogle Sheetsのシートを選択"""
-            return self.parent.sheets_service.select_sheet(sheet_name)
+            return self.parent._sheets.select_sheet(sheet_name)
 
     class Open:
         def __init__(self, parent):
@@ -772,7 +921,7 @@ class Megaton:
 
         def sheet(self, url):
             """Google Sheets APIの準備"""
-            return self.parent.sheets_service.open_sheet(url)
+            return self.parent._sheets.open_sheet(url)
 
     class Load:
         """DaraFrameをCSVやGoogle Sheetsから読み込む
@@ -846,6 +995,7 @@ class Megaton:
             self.data = None
             self.to = self.To(self)
             self.dates = self.Dates(self)
+            self.set = self.Set(self)
 
         @property
         def start_date(self):
@@ -886,32 +1036,6 @@ class Megaton:
             """
             self.start_date = date1
             self.end_date = date2
-
-        def set_month_window(
-            self,
-            months_ago: int = 1,
-            window_months: int = 13,
-            *,
-            tz: str = "Asia/Tokyo",
-            now: datetime | None = None,
-        ) -> tuple[str, str, str]:
-            """Set dates from a month window and return (date_from, date_to, ym)."""
-            date_from, date_to, ym = dates.get_month_window(
-                months_ago,
-                window_months,
-                tz=tz,
-                now=now,
-            )
-            self.set_dates(date_from, date_to)
-            self.last_month_window = {
-                "date_from": date_from,
-                "date_to": date_to,
-                "ym": ym,
-                "months_ago": months_ago,
-                "window_months": window_months,
-                "tz": tz,
-            }
-            return date_from, date_to, ym
 
         def run(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
             """レポートを実行
@@ -1015,6 +1139,38 @@ class Megaton:
             # return df
             return self.show()
 
+        class Set:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def dates(self, date_from, date_to):
+                self.parent.set_dates(date_from, date_to)
+
+            def months(
+                self,
+                months_ago: int = 1,
+                window_months: int = 13,
+                *,
+                tz: str = "Asia/Tokyo",
+                now: datetime | None = None,
+            ) -> tuple[str, str, str]:
+                date_from, date_to, ym = dates.get_month_window(
+                    months_ago,
+                    window_months,
+                    tz=tz,
+                    now=now,
+                )
+                self.parent.set_dates(date_from, date_to)
+                self.parent.last_month_window = {
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "ym": ym,
+                    "months_ago": months_ago,
+                    "window_months": window_months,
+                    "tz": tz,
+                }
+                return date_from, date_to, ym
+
         class Dates:
             def __init__(self, parent):
                 self.parent = parent
@@ -1069,7 +1225,7 @@ class Megaton:
                         start_cell: report.start_date,
                         end_cell: report.end_date,
                     }
-                    return app.sheets_service.update_cells(sheet_url, sheet, updates)
+                    return app._sheets.update_cells(sheet_url, sheet, updates)
 
         class To:
             def __init__(self, parent):

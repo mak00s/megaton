@@ -25,7 +25,7 @@ def test_report_dates_to_sheet_updates_cells(monkeypatch):
         called["updates"] = updates
         return True
 
-    monkeypatch.setattr(app.sheets_service, "update_cells", fake_update_cells)
+    monkeypatch.setattr(app._sheets, "update_cells", fake_update_cells)
 
     result = app.report.dates.to.sheet("Period", "B2", "B3")
 
@@ -57,7 +57,7 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
         called["create_if_missing"] = create_if_missing
         return "ok"
 
-    monkeypatch.setattr(app.sheets_service, "upsert_df", fake_upsert_df)
+    monkeypatch.setattr(app._sheets, "upsert_df", fake_upsert_df)
 
     result = app.upsert.to.sheet("Report", df, keys=["a"], columns=["a"], sort_by=["a"])
 
