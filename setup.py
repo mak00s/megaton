@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name='megaton',
-    version='0.6.1',
+    version='0.7.0',
     author='Makoto Shimizu',
     author_email='aa.analyst.ga@gmail.com',
     description='Utilities for Google Analytics, Google Analytics 4, Google Sheets, Search Console and Google Cloud Platform.',

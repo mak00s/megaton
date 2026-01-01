@@ -95,7 +95,9 @@ OAuth は UI フローを使います。必要な場合は `docs/advanced.md` �
 
 ### GA4（最小例）
 ```python
-app.report.set_dates("2024-01-01", "2024-01-01")
+# 期間をセット（state に保持）
+app.report.set.months(months_ago=1, window_months=13)
+
 df = app.report.run(
     d=["date", "eventName"],
     m=["eventCount"],
@@ -121,39 +123,74 @@ df = app.report.run(
 
 ### 月次ウィンドウ（日付ヘルパ）
 ```python
-# 期間を「Nヶ月前の月」を基準にセット（window_months=13 は前年同月比用の定番）
-date_from, date_to, ym = app.report.set.months(months_ago=1, window_months=13)
-
-# app.report に状態として保持される（再実行に強い）
-app.report.start_date, app.report.end_date
-app.report.last_month_window["ym"]  # == ym
+app.report.set.months(months_ago=1, window_months=13)
+ym = app.report.last_month_window["ym"]
+ym
 ```
 
 ### Google Sheets
 ```python
-# 1) 先に出力先（スプレッドシート）を選ぶ
+# 出力先を選択（state）
 app.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
 
-# 2) report.data をそのまま保存（上書き）
-app.save.to.sheet("Sheet1")
+# 上書き
+app.save.to.sheet("_ga", df)
 
-# 3) 追記
-app.append.to.sheet("Sheet1", df)
+# 追記
+app.append.to.sheet("_ga_log", df)
 
-# 4) upsert（dedup + overwrite）
-app.upsert.to.sheet("Sheet1", df, keys=["date", "landing_page"])
+# upsert（キー指定）
+app.upsert.to.sheet(
+    "_ga_monthly",
+    df,
+    keys=["date", "eventName"],
+)
+```
 
-# 5) 期間セルの書き込み（start/end を state から参照）
-app.report.dates.to.sheet(sheet="CV", start_cell="L1", end_cell="N1")
+### 期間セルの書き込み（state 利用）
+```python
+# report.start_date / end_date をセルに書き込む
+app.report.dates.to.sheet(
+    sheet="CV",
+    start_cell="L1",
+    end_cell="N1",
+)
+```
 
-# 参考: 期間文字列（未設定なら空文字）
-str(app.report.dates)  # e.g. "20240101-20240131"
+### Search Console（最小例）
+```python
+df_sc = app.sc.query(
+    site_url="https://example.com",
+    start_date=app.report.start_date,
+    end_date=app.report.end_date,
+    dimensions=["page", "query"],
+    row_limit=5000,
+)
+
+df_sc.head()
+```
+
+### Search Console → Google Sheets（ym 付き保存）
+```python
+ym = app.report.last_month_window["ym"]
+df_sc["ym"] = ym
+
+# 上書き保存
+app.save.to.sheet("_sc", df_sc)
+
+# upsert（ym + page + query）
+app.upsert.to.sheet(
+    "_sc_monthly",
+    df_sc,
+    keys=["ym", "page", "query"],
+)
 ```
 
 ### BigQuery（最小）
 ```python
 bq = app.launch_bigquery("my-gcp-project")
 df = bq.run("SELECT 1 AS test", to_dataframe=True)
+df
 ```
 
 ---
