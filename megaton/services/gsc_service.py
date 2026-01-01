@@ -286,10 +286,10 @@ class GSCService:
             response = client.sites().list().execute()
         except HttpError as exc:
             logger.warning("Search Console API error while listing sites: %s", exc)
-            return []
+            raise RuntimeError("Search Console sites fetch failed.") from exc
         except Exception as exc:
             logger.error("Search Console sites list failed: %s", exc)
-            return []
+            raise RuntimeError("Search Console sites fetch failed.") from exc
 
         entries = response.get("siteEntry") if isinstance(response, dict) else None
         if not entries:

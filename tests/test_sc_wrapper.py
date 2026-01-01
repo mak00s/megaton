@@ -48,7 +48,7 @@ def test_search_sites_failure_does_not_cache(monkeypatch):
     def fail_then_succeed():
         calls["count"] += 1
         if calls["count"] == 1:
-            return []
+            raise RuntimeError("Search Console sites fetch failed.")
         return ["https://retry.example.com"]
 
     monkeypatch.setattr(app._gsc_service, "list_sites", fail_then_succeed)
@@ -61,6 +61,22 @@ def test_search_sites_failure_does_not_cache(monkeypatch):
     assert result == ["https://retry.example.com"]
     assert app.search._sites == ["https://retry.example.com"]
     assert calls["count"] == 2
+
+
+def test_search_sites_caches_empty_list(monkeypatch):
+    app = Megaton(None, headless=True)
+    calls = {"count": 0}
+
+    def return_empty():
+        calls["count"] += 1
+        return []
+
+    monkeypatch.setattr(app._gsc_service, "list_sites", return_empty)
+
+    assert app.search.sites == []
+    assert app.search._sites == []
+    assert app.search.sites == []
+    assert calls["count"] == 1
 
 
 def test_search_run_uses_report_dates_and_metrics(monkeypatch):

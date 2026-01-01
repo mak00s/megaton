@@ -734,10 +734,7 @@ class Megaton:
         def sites(self):
             if self._sites is None:
                 sites = self.parent._gsc_service.list_sites()
-                if sites:
-                    self._sites = sites
-                    return self._sites
-                raise RuntimeError("Search Console sites fetch failed.")
+                self._sites = sites
             return self._sites
 
         def use(self, site_url: str):
@@ -795,9 +792,6 @@ class Megaton:
 
             def sites(self):
                 sites = self.parent.parent._gsc_service.list_sites()
-                if not sites:
-                    self.parent._sites = None
-                    raise RuntimeError("Search Console sites fetch failed.")
                 self.parent._sites = sites
                 return sites
 
