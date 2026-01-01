@@ -41,6 +41,28 @@ def test_search_get_sites_forces_fetch(monkeypatch):
     assert calls["count"] == 1
 
 
+def test_search_sites_failure_does_not_cache(monkeypatch):
+    app = Megaton(None, headless=True)
+    calls = {"count": 0}
+
+    def fail_then_succeed():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return []
+        return ["https://retry.example.com"]
+
+    monkeypatch.setattr(app._gsc_service, "list_sites", fail_then_succeed)
+
+    with pytest.raises(RuntimeError, match="sites fetch failed"):
+        _ = app.search.sites
+    assert app.search._sites is None
+
+    result = app.search.get.sites()
+    assert result == ["https://retry.example.com"]
+    assert app.search._sites == ["https://retry.example.com"]
+    assert calls["count"] == 2
+
+
 def test_search_run_uses_report_dates_and_metrics(monkeypatch):
     app = Megaton(None, headless=True)
     app.ga = {
