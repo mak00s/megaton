@@ -47,7 +47,8 @@ class Megaton:
         self.bq_service = BQService(self)
         self._gsc_service = GSCService(self)
         self._sheets = SheetsService(self)
-        self.sc = self.SC(self)
+        self.search = self.Search(self)
+        self.sc = self.search
         self.sheets = self.Sheets(self)
         self.sheet = self.Sheet(self)
         self.open = self.Open(self)
@@ -716,16 +717,118 @@ class Megaton:
                     create_if_missing=True,
                 )
 
-    class SC:
+    class Search:
         """Notebook-facing Search Console helpers"""
         def __init__(self, parent):
             self.parent = parent
+            self._sites = None
+            self.site = None
+            self.start_date = None
+            self.end_date = None
+            self.window = None
+            self.data = None
+            self.get = self.Get(self)
+            self.set = self.Set(self)
 
-        def sites(self, *args, **kwargs):
-            return self.parent._gsc_service.fetch_sites(*args, **kwargs)
+        @property
+        def sites(self):
+            if self._sites is None:
+                sites = self.parent._gsc_service.list_sites()
+                self._sites = sites
+            return self._sites
 
-        def query(self, *args, **kwargs):
-            return self.parent._gsc_service.query(*args, **kwargs)
+        def use(self, site_url: str):
+            self.site = site_url
+            sc = getattr(self.parent, "_sc_client", None)
+            if sc is not None:
+                try:
+                    sc.set_site(site_url)
+                except Exception:
+                    pass
+            return site_url
+
+        def _resolve_dates(self):
+            if self.start_date and self.end_date:
+                return self.start_date, self.end_date
+
+            report = getattr(self.parent, "report", None)
+            if report and report.start_date and report.end_date:
+                return report.start_date, report.end_date
+
+            raise ValueError(
+                "Search Console dates are not set. Use mg.search.set.* or mg.report.set.* first."
+            )
+
+        def run(
+            self,
+            dimensions: list,
+            metrics: list[str] | None = None,
+            limit: int = 5000,
+            **kwargs,
+        ):
+            if not self.site:
+                raise ValueError("Search Console site is not set. Call mg.search.use(site_url) first.")
+
+            if metrics is None:
+                metrics = ["clicks", "impressions", "ctr", "position"]
+
+            start_date, end_date = self._resolve_dates()
+
+            result = self.parent._gsc_service.query(
+                site_url=self.site,
+                start_date=start_date,
+                end_date=end_date,
+                dimensions=dimensions,
+                metrics=metrics,
+                row_limit=limit,
+                **kwargs,
+            )
+            self.data = result
+            return result
+
+        class Get:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def sites(self):
+                sites = self.parent.parent._gsc_service.list_sites()
+                self.parent._sites = sites
+                return sites
+
+        class Set:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def dates(self, date_from: str, date_to: str):
+                self.parent.start_date = date_from
+                self.parent.end_date = date_to
+                return date_from, date_to
+
+            def months(
+                self,
+                ago: int = 1,
+                window_months: int = 1,
+                *,
+                tz: str = "Asia/Tokyo",
+                now: datetime | None = None,
+            ) -> tuple[str, str, str]:
+                date_from, date_to, ym = dates.get_month_window(
+                    months_ago=ago,
+                    window_months=window_months,
+                    tz=tz,
+                    now=now,
+                )
+                self.parent.start_date = date_from
+                self.parent.end_date = date_to
+                self.parent.window = {
+                    "date_from": date_from,
+                    "date_to": date_to,
+                    "ym": ym,
+                    "ago": ago,
+                    "window_months": window_months,
+                    "tz": tz,
+                }
+                return date_from, date_to, ym
 
     class Sheets:
         """Spreadsheet-level helpers (selection/creation)"""
@@ -996,6 +1099,7 @@ class Megaton:
             self.to = self.To(self)
             self.dates = self.Dates(self)
             self.set = self.Set(self)
+            self.window = None
 
         @property
         def start_date(self):
@@ -1148,24 +1252,24 @@ class Megaton:
 
             def months(
                 self,
-                months_ago: int = 1,
+                ago: int = 1,
                 window_months: int = 13,
                 *,
                 tz: str = "Asia/Tokyo",
                 now: datetime | None = None,
             ) -> tuple[str, str, str]:
                 date_from, date_to, ym = dates.get_month_window(
-                    months_ago,
-                    window_months,
+                    months_ago=ago,
+                    window_months=window_months,
                     tz=tz,
                     now=now,
                 )
                 self.parent.set_dates(date_from, date_to)
-                self.parent.last_month_window = {
+                self.parent.window = {
                     "date_from": date_from,
                     "date_to": date_to,
                     "ym": ym,
-                    "months_ago": months_ago,
+                    "ago": ago,
                     "window_months": window_months,
                     "tz": tz,
                 }
