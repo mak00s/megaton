@@ -1,20 +1,20 @@
 # megaton
 
 Megaton は Google アナリティクス（GA4）、Google Search Console、Google Sheets、BigQuery を
-**Notebook（Jupyter / Colab）上から直感的に扱うためのツール**です。
+**Notebook（Jupyter / Colab）から直感的に扱うためのツール**です。
 
-> 目的：Notebook での分析・配布作業（GA → SC → Sheets など）を速く回すこと  
+> 目的：Notebook 上での分析・配布（GA → SC → Sheets など）を速く回すこと  
 > 非目的：汎用 SDK／本番バッチ基盤の置き換え
 
 ---
 
-## What is megaton
+## Megaton とは
 
-- Notebook 向けに **短く書ける API** を提供
+- Notebook（Jupyter / Google Colaboratory）向けに **短く書ける API** を提供
 - UI（ipywidgets）と headless の両方に対応
 - Notebook 実行中の **状態（state）を覚える設計**
 
-Megaton は「人間に優しい、記憶力のある相棒」を目指して設計されています。
+Megaton は「人間に優しい、記憶力のあるロボット」を目指して設計されています。
 
 ---
 
@@ -30,37 +30,74 @@ Megaton の API は、一般的な SDK とは異なる **Notebook 最適化**の
 
 ## Quick Start
 
+前提：`from megaton import start` 済み。
+
+### 1) サービスアカウントJSONのパスを渡す
 ```python
-from megaton.start import Megaton
-app = Megaton(None, headless=True)
+mg = start.Megaton("/path/to/service_account.json")
 ```
+
+### 2) JSON文字列を直接渡す
+```python
+mg = start.Megaton('{"type":"service_account","project_id":"...","client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}')
+```
+
+### 3) 環境変数から（推奨）
+`mg = start.Megaton()` のように引数を省略すると、`MEGATON_CREDS_JSON` が定義されていればその値を **パス**として扱います（ファイル or ディレクトリ）。
+
+- ファイルを渡した場合：そのJSONを使用
+- ディレクトリを渡した場合：含まれる JSON から選択するメニューが表示されます（headless では利用不可）
 
 ---
 
-## Usage（All-in Examples）
+## Usage
 
 ### 期間をセット（月次・YoY 対応）
 
+#### A) 開始日・終了日を直接指定（YYYY-MM-DD）
 ```python
-# Nヶ月前の月を基準に、13ヶ月ウィンドウ（前年同月比）
-app.report.set.months(months_ago=1, window_months=13)
-
-# 状態として保持される
-app.report.start_date
-app.report.end_date
-ym = app.report.last_month_window["ym"]
+mg.report.set.dates("2024-01-01", "2024-01-31")
 ```
+
+何も指定しない場合、期間は直近の範囲になります（GA4: `7daysAgo` / `yesterday`）。
+設定した期間は状態として保持されます。
+
+```python
+mg.report.start_date
+mg.report.end_date
+```
+
+#### B) 「Nヶ月前の月」を基準に期間をセット（前年同月比など）
+```python
+mg.report.set.months(months_ago=1, window_months=13)
+ym = mg.report.last_month_window["ym"]
+```
+
+- `set.months()` のデフォルトは「1ヶ月前の月を基準に 13ヶ月窓」です
+- タイムゾーンは JST（`Asia/Tokyo`）として扱われます
 
 ---
 
 ### GA4（最小例）
 
 ```python
-df = app.report.run(
+mg.report.run(
     d=["date", "eventName"],
     m=["eventCount"],
 )
-df.head()
+```
+
+```
+
+`mg.report.run(...)` はそのまま表示され、結果は `mg.report.data` に入ります。  
+そのまま加工・保存でき、必要なら `df = mg.report.data` として扱えます。
+
+```python
+# 簡易な前処理（rename/replace/type など）
+conf = {
+    "eventName": {"name": "event_name"},
+}
+mg.report.prep(conf)
 ```
 
 ---
@@ -68,17 +105,16 @@ df.head()
 ### Google Sheets（保存：名前指定）
 
 ```python
-# スプレッドシートを開く
-app.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
+mg.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
 
 # 上書き
-app.save.to.sheet("_ga", df)
+mg.save.to.sheet("_ga", df)
 
 # 追記
-app.append.to.sheet("_ga_log", df)
+mg.append.to.sheet("_ga_log", df)
 
 # upsert（dedup + overwrite）
-app.upsert.to.sheet(
+mg.upsert.to.sheet(
     "_ga_monthly",
     df,
     keys=["date", "eventName"],
@@ -92,25 +128,46 @@ app.upsert.to.sheet(
 `mg.sheet` は **現在選択中のワークシート**に対する操作です。
 
 ```python
-# シート選択
-app.sheets.select("CV")
-app.sheets.create("tmp_sheet")
-app.sheets.delete("tmp_sheet")
+# シート選択・作成・削除（collection-level）
+mg.sheets.select("CV")
+mg.sheets.create("tmp_sheet")
+mg.sheets.delete("tmp_sheet")
 
-# セル操作
-app.sheet.cell.set("L1", app.report.start_date)
-app.sheet.cell.set("N1", app.report.end_date)
+# セル操作（current sheet）
+mg.sheet.cell.set("L1", mg.report.start_date)
+mg.sheet.cell.set("N1", mg.report.end_date)
 
 # 範囲操作
-app.sheet.range.set(
-    "L1:N1",
-    [[app.report.start_date, app.report.end_date]],
-)
+mg.sheet.range.set("L1:N1", [[mg.report.start_date, mg.report.end_date]])
 
 # DataFrame 操作（現在シートに対して）
-app.sheet.save(df)
-app.sheet.append(df)
-app.sheet.upsert(df, keys=["ym", "page", "query"])
+mg.sheet.save(df)
+mg.sheet.append(df)
+mg.sheet.upsert(df, keys=["ym", "page", "query"])
+```
+
+---
+
+### 読み取り（まずは mg.sheet を使う）
+
+シート全体の読み取りは `mg.sheet.data` / `mg.sheet.df()` で十分なことが多いです。
+
+```python
+mg.sheets.select("CV")
+
+rows = mg.sheet.data       # list[dict]
+df_sheet = mg.sheet.df()   # DataFrame
+```
+
+セルや範囲のピンポイント読み取りは、現状は **legacy（gspread）** を使います。
+
+```python
+# セル単位（legacy）
+mg.gs.sheet.select("CV")
+cell_value = mg.gs.sheet._driver.acell("L1").value
+
+# 範囲（legacy）
+values = mg.gs.sheet._driver.get("L1:N1")  # 2次元配列
 ```
 
 ---
@@ -118,15 +175,14 @@ app.sheet.upsert(df, keys=["ym", "page", "query"])
 ### 期間セルの書き込み（report state 利用）
 
 ```python
-# report.start_date / end_date をセルに書き込む
-app.report.dates.to.sheet(
+mg.report.dates.to.sheet(
     sheet="CV",
     start_cell="L1",
     end_cell="N1",
 )
 
 # 期間文字列（未設定なら空文字）
-str(app.report.dates)  # e.g. "20240101-20240131"
+str(mg.report.dates)  # e.g. "20240101-20240131"
 ```
 
 ---
@@ -134,15 +190,15 @@ str(app.report.dates)  # e.g. "20240101-20240131"
 ### Search Console（取得）
 
 ```python
-# GA と同じ「現在の分析期間」をそのまま利用
-sites = app.sc.sites()
+# 権限を持つプロパティ一覧
+sites = mg.sc.sites()
 
-df_sc = app.sc.query(
-    site=sites[0],
-    start=app.report.start_date,
-    end=app.report.end_date,
+# プロパティを指定
+mg.sc.use(mg.sc.sites[0])
+
+df_sc = mg.sc.query(
     dimensions=["page", "query"],
-    row_limit=5000,
+    limit=5000,
 )
 
 df_sc.head()
@@ -153,13 +209,11 @@ df_sc.head()
 ### Search Console → Google Sheets（ym 付き保存）
 
 ```python
-df_sc["ym"] = app.report.last_month_window["ym"]
+df_sc["ym"] = mg.report.last_month_window["ym"]
 
-# 名前指定で保存
-app.save.to.sheet("_sc", df_sc)
+mg.save.to.sheet("_sc", df_sc)
 
-# upsert（ym + page + query）
-app.upsert.to.sheet(
+mg.upsert.to.sheet(
     "_sc_monthly",
     df_sc,
     keys=["ym", "page", "query"],
@@ -171,7 +225,7 @@ app.upsert.to.sheet(
 ### BigQuery（最小）
 
 ```python
-bq = app.launch_bigquery("my-gcp-project")
+bq = mg.launch_bigquery("my-gcp-project")
 df = bq.run("SELECT 1 AS test", to_dataframe=True)
 df
 ```
@@ -181,55 +235,55 @@ df
 ## Supported Notebook-facing API (Cheat Sheet)
 
 ### Core / Flow
-- `Megaton(...)`
-- `app.open.sheet(url)`
-- `app.launch_bigquery(project)`
+- `mg = start.Megaton(creds)`
+- `mg.open.sheet(url)`
+- `mg.launch_bigquery(project)`
 
 ### Report (GA)
-- `app.report.set.months(months_ago, window_months, tz?, now?)`
-- `app.report.set.dates(date_from, date_to)`
-- `app.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)`
-- `app.report.start_date`
-- `app.report.end_date`
-- `app.report.last_month_window["ym"]`
-- `app.report.dates`
-- `app.report.dates.to.sheet(sheet, start_cell, end_cell)`
+- `mg.report.set.months(months_ago, window_months, tz?, now?)`
+- `mg.report.set.dates(date_from, date_to)`
+- `mg.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)`
+- `mg.report.start_date`
+- `mg.report.end_date`
+- `mg.report.last_month_window["ym"]`
+- `mg.report.dates`
+- `mg.report.dates.to.sheet(sheet, start_cell, end_cell)`
 
 ### Sheets (by name)
-- `app.save.to.sheet(name, df?)`
-- `app.append.to.sheet(name, df?)`
-- `app.upsert.to.sheet(name, df?, keys, columns?, sort_by?)`
+- `mg.save.to.sheet(name, df?)`
+- `mg.append.to.sheet(name, df?)`
+- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?)`
 
-### Sheets (current worksheet)
-- `app.sheets.select(name)`
-- `app.sheets.create(name)`
-- `app.sheets.delete(name)`
-- `app.sheet.clear()`
-- `app.sheet.data`
-- `app.sheet.df()`
-- `app.sheet.cell.set(cell, value)`
-- `app.sheet.range.set(a1_range, values)`
-- `app.sheet.save(df?)`
-- `app.sheet.append(df?)`
-- `app.sheet.upsert(df?, keys, columns?, sort_by?)`
+### Sheets (collection / current)
+- `mg.sheets.select(name)`
+- `mg.sheets.create(name)`
+- `mg.sheets.delete(name)`
+- `mg.sheet.clear()`
+- `mg.sheet.data`
+- `mg.sheet.df()`
+- `mg.sheet.cell.set(cell, value)`
+- `mg.sheet.range.set(a1_range, values)`
+- `mg.sheet.save(df?)`
+- `mg.sheet.append(df?)`
+- `mg.sheet.upsert(df?, keys, columns?, sort_by?)`
 
 ### Search Console
-- `app.sc.sites()`
-- `app.sc.query(site, start, end, dimensions, row_limit?, **kwargs)`
+- `mg.sc.sites()`
+- `mg.sc.query(site_url, start_date, end_date, dimensions, row_limit?, **kwargs)`
 
 ### BigQuery
-- `app.launch_bigquery(project)`
+- `mg.launch_bigquery(project)`
 - `bq.run(sql, to_dataframe=True)`
 
 ---
 
 ## Legacy compatibility
 
-- `app.gs` は **過去 Notebook 互換の Google Sheets クライアント**です  
-  （例：`app.gs.sheet.select(...)`, `app.gs.sheet.data`）
+- `mg.gs` は **過去 Notebook 互換の Google Sheets クライアント**です  
+  （例：`mg.gs.sheet.select(...)`, `mg.gs.sheet.data`）
 - 新規 Notebook では以下を推奨します：
-  - シート操作：`app.sheet.*`
-  - 保存：`app.save / append / upsert.to.sheet()`
+  - シート操作：`mg.sheets.*` / `mg.sheet.*`
+  - 保存：`mg.save / append / upsert.to.sheet()`
 
 ---
 

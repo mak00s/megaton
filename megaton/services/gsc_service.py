@@ -264,3 +264,23 @@ class GSCService:
             return pd.DataFrame()
 
         return pd.concat(dfs, ignore_index=True)
+
+    def list_sites(self) -> list[str]:
+        client = self._get_client()
+        try:
+            response = client.sites().list().execute()
+        except HttpError as exc:
+            logger.warning("Search Console API error while listing sites: %s", exc)
+            return []
+        except Exception as exc:
+            logger.error("Search Console sites list failed: %s", exc)
+            return []
+
+        entries = response.get("siteEntry") if isinstance(response, dict) else None
+        if not entries:
+            return []
+        return [
+            entry.get("siteUrl")
+            for entry in entries
+            if isinstance(entry, dict) and entry.get("siteUrl")
+        ]
