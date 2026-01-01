@@ -59,6 +59,7 @@ def get_month_window(
         window_months: Window size in months.
         tz: Timezone name.
         now: Fixed datetime for testing (timezone-aware or naive).
+            If timezone-aware, it will be normalized to ``tz`` via ``astimezone``.
     """
     if months_ago < 0:
         raise ValueError("months_ago must be >= 0")
