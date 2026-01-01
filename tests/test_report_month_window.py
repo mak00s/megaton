@@ -22,4 +22,4 @@ def test_report_set_months_calls_set_dates():
 
     assert result == expected
     assert called["args"] == expected[:2]
-    assert report.last_month_window["ym"] == expected[2]
+    assert report.window["ym"] == expected[2]

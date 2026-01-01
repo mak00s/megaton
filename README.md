@@ -59,7 +59,7 @@ mg = start.Megaton('{"type":"service_account","project_id":"...","client_email":
 mg.report.set.dates("2024-01-01", "2024-01-31")
 ```
 
-何も指定しない場合、期間は直近の範囲になります（GA4: `7daysAgo` / `yesterday`）。
+何も指定しない場合は、直近7日間（前日まで）の期間が自動で使われます。
 設定した期間は状態として保持されます。
 
 ```python
@@ -69,8 +69,8 @@ mg.report.end_date
 
 #### B) 「Nヶ月前の月」を基準に期間をセット（前年同月比など）
 ```python
-mg.report.set.months(months_ago=1, window_months=13)
-ym = mg.report.last_month_window["ym"]
+mg.report.set.months(ago=1, window_months=13)
+ym = mg.report.window["ym"]
 ```
 
 - `set.months()` のデフォルトは「1ヶ月前の月を基準に 13ヶ月窓」です
@@ -87,10 +87,8 @@ mg.report.run(
 )
 ```
 
-```
-
-`mg.report.run(...)` はそのまま表示され、結果は `mg.report.data` に入ります。  
-そのまま加工・保存でき、必要なら `df = mg.report.data` として扱えます。
+取得データはそのまま表示されます。
+結果の簡易的な加工もできます。
 
 ```python
 # 簡易な前処理（rename/replace/type など）
@@ -99,6 +97,8 @@ conf = {
 }
 mg.report.prep(conf)
 ```
+
+結果は `mg.report.data` に入るので、必要なら `df = mg.report.data` などと取り出して活用できます。
 
 ---
 
@@ -148,9 +148,9 @@ mg.sheet.upsert(df, keys=["ym", "page", "query"])
 
 ---
 
-### 読み取り（まずは mg.sheet を使う）
+### 読み取り
 
-シート全体の読み取りは `mg.sheet.data` / `mg.sheet.df()` で十分なことが多いです。
+シート全体のデータは `mg.sheet.data` / `mg.sheet.df()` で参照できます。
 
 ```python
 mg.sheets.select("CV")
@@ -159,20 +159,20 @@ rows = mg.sheet.data       # list[dict]
 df_sheet = mg.sheet.df()   # DataFrame
 ```
 
-セルや範囲のピンポイント読み取りは、現状は **legacy（gspread）** を使います。
+セルや範囲のピンポイント読み取りもできます。
 
 ```python
-# セル単位（legacy）
+# セル単位
 mg.gs.sheet.select("CV")
 cell_value = mg.gs.sheet._driver.acell("L1").value
 
-# 範囲（legacy）
+# 範囲
 values = mg.gs.sheet._driver.get("L1:N1")  # 2次元配列
 ```
 
 ---
 
-### 期間セルの書き込み（report state 利用）
+### レポート期間をセルに書き込む例
 
 ```python
 mg.report.dates.to.sheet(
@@ -190,18 +190,18 @@ str(mg.report.dates)  # e.g. "20240101-20240131"
 ### Search Console（取得）
 
 ```python
-# 権限を持つプロパティ一覧
-sites = mg.sc.sites()
+# 権限を持つプロパティ一覧（初回アクセスで自動取得）
+sites = mg.sc.sites
 
-# プロパティを指定
-mg.sc.use(mg.sc.sites[0])
+# データを取得する対象のプロパティを選択
+mg.sc.use(sites[0])
 
+# データ取得
 df_sc = mg.sc.query(
     dimensions=["page", "query"],
+    metrics=["clicks", "impressions", "ctr", "position"],
     limit=5000,
 )
-
-df_sc.head()
 ```
 
 ---
@@ -209,7 +209,7 @@ df_sc.head()
 ### Search Console → Google Sheets（ym 付き保存）
 
 ```python
-df_sc["ym"] = mg.report.last_month_window["ym"]
+df_sc["ym"] = mg.report.window["ym"]
 
 mg.save.to.sheet("_sc", df_sc)
 
@@ -240,12 +240,12 @@ df
 - `mg.launch_bigquery(project)`
 
 ### Report (GA)
-- `mg.report.set.months(months_ago, window_months, tz?, now?)`
+- `mg.report.set.months(ago, window_months, tz?, now?)`
 - `mg.report.set.dates(date_from, date_to)`
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)`
 - `mg.report.start_date`
 - `mg.report.end_date`
-- `mg.report.last_month_window["ym"]`
+- `mg.report.window["ym"]`
 - `mg.report.dates`
 - `mg.report.dates.to.sheet(sheet, start_cell, end_cell)`
 
@@ -268,8 +268,12 @@ df
 - `mg.sheet.upsert(df?, keys, columns?, sort_by?)`
 
 ### Search Console
-- `mg.sc.sites()`
-- `mg.sc.query(site_url, start_date, end_date, dimensions, row_limit?, **kwargs)`
+- `mg.sc.sites`
+- `mg.sc.refresh.sites()`
+- `mg.sc.use(site_url)`
+- `mg.sc.set.dates(date_from, date_to)`
+- `mg.sc.set.months(ago, window_months, tz?, now?)`
+- `mg.sc.query(dimensions, metrics?, limit?, **kwargs)`
 
 ### BigQuery
 - `mg.launch_bigquery(project)`
