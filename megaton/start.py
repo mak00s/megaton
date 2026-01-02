@@ -729,6 +729,7 @@ class Megaton:
             self.data = None
             self.get = self.Get(self)
             self.set = self.Set(self)
+            self.run = self.Run(self)
 
         @property
         def sites(self):
@@ -759,32 +760,153 @@ class Megaton:
                 "Search Console dates are not set. Use mg.search.set.* or mg.report.set.* first."
             )
 
-        def run(
-            self,
-            dimensions: list,
-            metrics: list[str] | None = None,
-            limit: int = 5000,
-            **kwargs,
-        ):
-            if not self.site:
-                raise ValueError("Search Console site is not set. Call mg.search.use(site_url) first.")
+        class Run:
+            def __init__(self, parent):
+                self.parent = parent
 
-            if metrics is None:
-                metrics = ["clicks", "impressions", "ctr", "position"]
-
-            start_date, end_date = self._resolve_dates()
-
-            result = self.parent._gsc_service.query(
-                site_url=self.site,
-                start_date=start_date,
-                end_date=end_date,
-                dimensions=dimensions,
-                metrics=metrics,
-                row_limit=limit,
+            def __call__(
+                self,
+                dimensions: list,
+                metrics: list[str] | None = None,
+                limit: int = 5000,
                 **kwargs,
-            )
-            self.data = result
-            return result
+            ):
+                if not self.parent.site:
+                    raise ValueError("Search Console site is not set. Call mg.search.use(site_url) first.")
+
+                if metrics is None:
+                    metrics = ["clicks", "impressions", "ctr", "position"]
+
+                start_date, end_date = self.parent._resolve_dates()
+
+                result = self.parent.parent._gsc_service.query(
+                    site_url=self.parent.site,
+                    start_date=start_date,
+                    end_date=end_date,
+                    dimensions=dimensions,
+                    metrics=metrics,
+                    row_limit=limit,
+                    **kwargs,
+                )
+                self.parent.data = result
+                return result
+
+            def all(
+                self,
+                items: list[dict],
+                dimensions: list,
+                metrics: list[str] | None = None,
+                *,
+                item_key: str = "site",
+                site_url_key: str = "gsc_site_url",
+                item_filter=None,
+                add_month=None,
+                verbose: bool = True,
+                **run_kwargs,
+            ) -> pd.DataFrame:
+                """Run Search Console query for multiple items and combine results.
+
+                Args:
+                    items: List of item configuration dictionaries.
+                    dimensions: GSC dimensions (e.g., ['query', 'page']).
+                    metrics: GSC metrics (e.g., ['clicks', 'impressions', 'position']).
+                    item_key: Key name for item identifier in results (default: 'site').
+                    site_url_key: Key name for GSC site URL in item config (default: 'gsc_site_url').
+                        Empty values are skipped.
+                    item_filter: Filter items by list of identifiers or filter function.
+                        - If list: Include items where item[item_key] is in the list.
+                        - If callable: Include items where item_filter(item) returns True.
+                        - If None: Include all items.
+                    add_month: Add 'month' column with value:
+                        - If str: Use the string directly (e.g., '202501').
+                        - If DateWindow: Use start_ym field.
+                        - If None: Don't add month column.
+                    verbose: Print progress messages (default: True).
+                    **run_kwargs: Additional arguments passed to mg.search.run()
+                        (e.g., limit, country, clean, aggregate).
+
+                Returns:
+                    Combined DataFrame from all items with item_key column added.
+
+                Examples:
+                    >>> # Basic usage
+                    >>> df = mg.search.run.all(
+                    ...     sites,
+                    ...     dimensions=['query', 'page'],
+                    ...     metrics=['clicks', 'impressions'],
+                    ...     item_filter=['siteA', 'siteB'],
+                    ... )
+
+                    >>> # With month label from DateWindow
+                    >>> p = mg.search.set.months(ago=1, window_months=1)
+                    >>> df = mg.search.run.all(
+                    ...     clinics,
+                    ...     dimensions=['query', 'page'],
+                    ...     metrics=['clicks', 'impressions', 'position'],
+                    ...     item_key='clinic',
+                    ...     item_filter=CLINIC_FILTER,
+                    ...     add_month=p,
+                    ...     limit=25000,
+                    ...     country='jpn',
+                    ... )
+                """
+                # Filter items
+                if item_filter is None:
+                    selected_items = items
+                elif isinstance(item_filter, list):
+                    selected_items = [item for item in items if item.get(item_key) in item_filter]
+                elif callable(item_filter):
+                    selected_items = [item for item in items if item_filter(item)]
+                else:
+                    raise ValueError("item_filter must be None, a list, or a callable")
+
+                dfs = []
+                for item in selected_items:
+                    item_id = item.get(item_key, 'unknown')
+                    
+                    # Get site URL
+                    site_url = (item.get(site_url_key) or '').strip()
+                    if not site_url:
+                        if verbose:
+                            print(f"⚠️ GSC site_url empty for {item_id} (skipped)")
+                        continue
+
+                    if verbose:
+                        print(f"🔍 GSC {item_id}: {site_url}")
+
+                    try:
+                        self.parent.use(site_url)
+                        df = self(dimensions=dimensions, metrics=metrics, **run_kwargs)
+                        
+                        if df is None or df.empty:
+                            if verbose:
+                                print(f"⚠️ GSC empty data for {item_id}")
+                            continue
+                        
+                        df = df.copy()
+                        df[item_key] = item_id
+                        
+                        # Add month column if requested
+                        if add_month is not None:
+                            if isinstance(add_month, str):
+                                df['month'] = add_month
+                            elif hasattr(add_month, 'start_ym'):
+                                df['month'] = add_month.start_ym
+                            else:
+                                if verbose:
+                                    print(f"⚠️ add_month must be str or DateWindow, got {type(add_month)}")
+                        
+                        dfs.append(df)
+                    
+                    except Exception as e:
+                        if verbose:
+                            print(f"❌ GSC error for {item_id}: {e}")
+                        continue
+
+                if not dfs:
+                    return pd.DataFrame()
+                
+                return pd.concat(dfs, ignore_index=True)
 
         def filter_by_thresholds(self, df: pd.DataFrame, site: dict, clicks_zero_only: bool = False) -> pd.DataFrame:
             """Apply site-specific thresholds to a Search Console DataFrame.
@@ -1191,6 +1313,7 @@ class Megaton:
             self.to = self.To(self)
             self.dates = self.Dates(self)
             self.set = self.Set(self)
+            self.run = self.Run(self)
             self.window = None
 
         @property
@@ -1233,56 +1356,201 @@ class Megaton:
             self.start_date = date1
             self.end_date = date2
 
-        def run(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
-            """レポートを実行
+        class Run:
+            def __init__(self, parent):
+                self.parent = parent
 
-            Args:
-                d: list of dimensions. Item can be an api_name or a display_name
-                    or a tuple of api_name and a new column name.
-                m: list of metrics. Item can be an api_name or a display_name
-                    or a tuple of api_name and a new column name.
-                filter_d: dimension filter
-                filter_m: metric filter
-                sort: dimension or metric to order by
-                segments: segment (only for GA3)
-            """
-            rename_columns = {}
-            dimensions = []
-            for i in d:
-                if isinstance(i, tuple):
-                    dimensions.append(i[0])
-                    rename_columns[i[0]] = i[1]
-                else:
-                    dimensions.append(i)
+            def __call__(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
+                """レポートを実行
 
-            metrics = []
-            for i in m:
-                if isinstance(i, tuple):
-                    metrics.append(i[0])
-                    rename_columns[i[0]] = i[1]
-                else:
-                    metrics.append(i)
+                Args:
+                    d: list of dimensions. Item can be an api_name or a display_name
+                        or a tuple of api_name and a new column name.
+                    m: list of metrics. Item can be an api_name or a display_name
+                        or a tuple of api_name and a new column name.
+                    filter_d: dimension filter
+                    filter_m: metric filter
+                    sort: dimension or metric to order by
+                    segments: segment (only for GA3)
+                """
+                rename_columns = {}
+                dimensions = []
+                for i in d:
+                    if isinstance(i, tuple):
+                        dimensions.append(i[0])
+                        rename_columns[i[0]] = i[1]
+                    else:
+                        dimensions.append(i)
 
-            ver = self.parent.ga_ver
-            try:
-                if ver:
-                    self.data = self.parent.ga[ver].report.run(
-                        dimensions,
-                        metrics,
-                        dimension_filter=filter_d,
-                        metric_filter=filter_m,
-                        order_bys=sort,
-                        segments=kwargs.get('segments'),
-                    )
-                    if isinstance(self.data, pd.DataFrame):
-                        self.data = utils.prep_df(self.data, rename_columns=rename_columns)
-                        return self.show()
+                metrics = []
+                for i in m:
+                    if isinstance(i, tuple):
+                        metrics.append(i[0])
+                        rename_columns[i[0]] = i[1]
+                    else:
+                        metrics.append(i)
+
+                ver = self.parent.parent.ga_ver
+                try:
+                    if ver:
+                        self.parent.data = self.parent.parent.ga[ver].report.run(
+                            dimensions,
+                            metrics,
+                            dimension_filter=filter_d,
+                            metric_filter=filter_m,
+                            order_bys=sort,
+                            segments=kwargs.get('segments'),
+                        )
+                        if isinstance(self.parent.data, pd.DataFrame):
+                            self.parent.data = utils.prep_df(self.parent.data, rename_columns=rename_columns)
+                            return self.parent.show()
+                    else:
+                        logger.warning("GAのアカウントを選択してください。")
+                except (errors.BadRequest, ValueError) as e:
+                    print("抽出条件に問題があります。", e.message)
+                except errors.ApiDisabled as e:
+                    logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
+
+            def all(
+                self,
+                items: list[dict],
+                d: list = None,
+                m: list = None,
+                *,
+                dimensions: list = None,
+                metrics: list = None,
+                item_key: str = "site",
+                property_key: str = "ga4_property_id",
+                item_filter=None,
+                add_month=None,
+                verbose: bool = True,
+                **run_kwargs,
+            ) -> pd.DataFrame:
+                """Run GA4 report for multiple items and combine results.
+
+                Args:
+                    items: List of item configuration dictionaries.
+                    d: Dimensions (shorthand). List of dimension names or tuples.
+                    m: Metrics (shorthand). List of metric names or tuples.
+                    dimensions: Dimensions (explicit). Alternative to 'd'.
+                    metrics: Metrics (explicit). Alternative to 'm'.
+                    item_key: Key name for item identifier in results (default: 'site').
+                    property_key: Key name for GA4 property ID in item config (default: 'ga4_property_id').
+                    item_filter: Filter items by list of identifiers or filter function.
+                        - If list: Include items where item[item_key] is in the list.
+                        - If callable: Include items where item_filter(item) returns True.
+                        - If None: Include all items.
+                    add_month: Add 'month' column with value:
+                        - If str: Use the string directly (e.g., '202501').
+                        - If DateWindow: Use start_ym field.
+                        - If None: Don't add month column.
+                    verbose: Print progress messages (default: True).
+                    **run_kwargs: Additional arguments passed to mg.report.run()
+                        (e.g., filter_d, filter_m, sort, limit).
+
+                Returns:
+                    Combined DataFrame from all items with item_key column added.
+
+                Examples:
+                    >>> # Basic usage with shorthand
+                    >>> df = mg.report.run.all(
+                    ...     sites,
+                    ...     d=[('yearMonth','month'), ('defaultChannelGroup','channel')],
+                    ...     m=[('activeUsers','users')],
+                    ...     item_filter=['siteA', 'siteB'],
+                    ... )
+
+                    >>> # With explicit parameters
+                    >>> df = mg.report.run.all(
+                    ...     clinics,
+                    ...     dimensions=['date', 'eventName'],
+                    ...     metrics=['eventCount'],
+                    ...     item_key='clinic',
+                    ...     property_key='ga4_property_id',
+                    ...     item_filter=CLINIC_FILTER,
+                    ... )
+
+                    >>> # With month label from DateWindow
+                    >>> p = mg.report.set.months(ago=1, window_months=13)
+                    >>> df = mg.report.run.all(
+                    ...     sites,
+                    ...     d=[('defaultChannelGroup','channel')],
+                    ...     m=[('activeUsers','users')],
+                    ...     add_month=p,
+                    ... )
+                """
+                # Resolve d/m vs dimensions/metrics
+                if d is None and dimensions is not None:
+                    d = dimensions
+                if m is None and metrics is not None:
+                    m = metrics
+                
+                if d is None or m is None:
+                    raise ValueError("Must provide either (d, m) or (dimensions, metrics)")
+
+                # Filter items
+                if item_filter is None:
+                    selected_items = items
+                elif isinstance(item_filter, list):
+                    selected_items = [item for item in items if item.get(item_key) in item_filter]
+                elif callable(item_filter):
+                    selected_items = [item for item in items if item_filter(item)]
                 else:
-                    logger.warning("GAのアカウントを選択してください。")
-            except (errors.BadRequest, ValueError) as e:
-                print("抽出条件に問題があります。", e.message)
-            except errors.ApiDisabled as e:
-                logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
+                    raise ValueError("item_filter must be None, a list, or a callable")
+
+                dfs = []
+                for item in selected_items:
+                    item_id = item.get(item_key, 'unknown')
+                    property_id = item.get(property_key)
+                    
+                    if not property_id:
+                        if verbose:
+                            print(f"⚠️ GA4 property_id missing for {item_id}")
+                        continue
+
+                    if verbose:
+                        print(f"🔄 GA4 {item_id}...", end='')
+
+                    try:
+                        # Switch to the property
+                        self.parent.parent.ga['4'].property.id = property_id
+                        
+                        # Run the report
+                        self(d=d, m=m, **run_kwargs)
+                        df = self.parent.data
+                        
+                        if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                            if verbose:
+                                print(" empty")
+                            continue
+                        
+                        if verbose:
+                            print(" ✓")
+                        
+                        df = df.copy()
+                        df[item_key] = item_id
+                        
+                        # Add month column if requested
+                        if add_month is not None:
+                            if isinstance(add_month, str):
+                                df['month'] = add_month
+                            elif hasattr(add_month, 'start_ym'):
+                                df['month'] = add_month.start_ym
+                            else:
+                                if verbose:
+                                    print(f"⚠️ add_month must be str or DateWindow, got {type(add_month)}")
+                        
+                        dfs.append(df)
+                    
+                    except Exception as e:
+                        if verbose:
+                            print(f" ❌ {e}")
+                        continue
+
+                if not dfs:
+                    return pd.DataFrame()
+                
+                return pd.concat([df for df in dfs if not df.empty], ignore_index=True)
 
         def show(self):
             """Displays dataframe"""
@@ -1302,7 +1570,7 @@ class Megaton:
                 processed dataframe
             """
             if not isinstance(df, pd.DataFrame):
-                df = self.data
+                df = self.parent.data
 
             rename_columns = {}
             delete_columns = []
@@ -1331,7 +1599,7 @@ class Megaton:
                             type_columns[col] = v
 
             df = utils.prep_df(df, delete_columns, type_columns, rename_columns)
-            self.data = df
+            self.parent.data = df
             # return df
             return self.show()
 
