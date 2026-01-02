@@ -178,6 +178,18 @@ df_sc = mg.search.run(
 )
 ```
 
+### 設定シート（Config）の拡張
+
+最新版では Config シートにサイト単位のフィルタ閾値を含めることができます。主に以下の列を想定しています。
+
+- `gsc_site_url`: Search Console のサイト URL（例: `https://example.com/`）。`mg.search.use(site['gsc_site_url'])` で自動選択できます。
+- `min_pv`: （任意）ページビューの最小値。Search Console 以外の集計列 `pv` がある場合に適用されます。
+- `min_cv`: （任意）コンバージョン数の最小値。DataFrame に `cv` 列がある場合に適用されます。
+
+また `min_impressions`、`max_position` は既存と同様にサイト行に含めるようになり、これらの閾値はノートブック側で直接参照せず `mg.search.filter_by_thresholds(df, site)` を呼ぶことで一括適用できます。
+
+`thresholds_df` は非推奨となり、閾値は各 `site` レコード内で管理してください。
+
 - `dimensions` は最大 5 つまで指定できます。
 - `metrics` を省略するとデフォルトで `["clicks", "impressions", "ctr", "position"]` が使用されます。
 - `limit` は API の既定上限を変更しますが、大きくすると応答時間が長くなることがあります。

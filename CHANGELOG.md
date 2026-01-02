@@ -18,6 +18,10 @@
 
 - ドキュメントを大幅に更新し、README.md と Advanced Guide を整理しました。`mg.search` の紹介と Sheets 操作に関する手順を追記しました。
 
+### 追加（2026-01-02）
+
+- **Config リファクタ**: サイト単位で閾値（`min_impressions`, `max_position`, `min_pv`, `min_cv`）および Search Console 用 URL (`gsc_site_url`) を管理できるように `load_config()` を拡張しました。従来の `thresholds_df` は廃止予定で、各 `site` レコードに閾値を保持します。`mg.search.filter_by_thresholds()` ヘルパーを追加し、サイト設定に基づく一括フィルタリングが可能になりました。
+
 ## 0.6.0 - 2025-12-31
 
 - 認証プロバイダの分離と互換性保持のためのリファクタリング

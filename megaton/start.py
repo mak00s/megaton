@@ -786,6 +786,51 @@ class Megaton:
             self.data = result
             return result
 
+        def filter_by_thresholds(self, df: pd.DataFrame, site: dict) -> pd.DataFrame:
+            """Apply site-specific thresholds to a Search Console DataFrame.
+
+            Supported site keys: `min_impressions`, `max_position`, `min_pv`, `min_cv`.
+            The function is tolerant of missing columns and missing keys.
+            """
+            if df is None or df.empty:
+                return df
+            res = df.copy()
+            # impressions
+            min_imp = site.get("min_impressions")
+            if min_imp is not None:
+                try:
+                    min_imp_val = int(min_imp)
+                    if "impressions" in res.columns:
+                        res = res[res["impressions"] >= min_imp_val]
+                except Exception:
+                    pass
+            # position (max allowed)
+            max_pos = site.get("max_position")
+            if max_pos is not None:
+                try:
+                    max_pos_val = float(max_pos)
+                    if "position" in res.columns:
+                        res = res[res["position"] <= max_pos_val]
+                except Exception:
+                    pass
+            # page views (optional column 'pv')
+            min_pv = site.get("min_pv")
+            if min_pv is not None and "pv" in res.columns:
+                try:
+                    min_pv_val = int(min_pv)
+                    res = res[res["pv"] >= min_pv_val]
+                except Exception:
+                    pass
+            # conversions (optional column 'cv')
+            min_cv = site.get("min_cv")
+            if min_cv is not None and "cv" in res.columns:
+                try:
+                    min_cv_val = int(min_cv)
+                    res = res[res["cv"] >= min_cv_val]
+                except Exception:
+                    pass
+            return res
+
         class Get:
             def __init__(self, parent):
                 self.parent = parent
