@@ -8,7 +8,7 @@ from typing import Optional
 import pandas as pd
 
 from .. import errors
-from ..transform import table as table_tf
+from typing import Any
 
 
 @dataclass
@@ -18,6 +18,7 @@ class Config:
     source_map: dict[str, str]
     page_map: dict[str, str]
     query_map: dict[str, str]
+    # thresholds_df deprecated: thresholds are stored per-site in `sites` records
     thresholds_df: Optional[pd.DataFrame]
     group_domains: set[str]
 
@@ -59,12 +60,11 @@ def load_config(mg, sheet_url: str) -> Config:
     page_map = _to_map(page_map_df, "pattern", "category", "page_map")
     query_map = _to_map(query_map_df, "pattern", "mapped_to", "query_map")
 
-    threshold_cols = ["clinic", "min_impressions", "max_position"]
-    present = [col for col in threshold_cols if col in config_df.columns]
-    thresholds_df = config_df[present].copy() if present else None
-    thresholds_df = table_tf.normalize_thresholds_df(thresholds_df)
+    # Sites rows now include threshold columns (min_impressions, max_position, min_pv, min_cv)
+    # We no longer produce a separate thresholds_df; keep None for backward compatibility.
+    thresholds_df = None
 
-    sites = config_df.to_dict(orient="records")
+    sites: list[dict[str, Any]] = config_df.to_dict(orient="records")
     group_domains = set()
     for site in sites:
         domain = site.get("domain")
