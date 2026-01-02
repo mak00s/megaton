@@ -760,6 +760,53 @@ class Megaton:
                 "Search Console dates are not set. Use mg.search.set.* or mg.report.set.* first."
             )
 
+        @staticmethod
+        def _parse_dimension_filter(dimension_filter):
+            if dimension_filter is None:
+                return None
+
+            if isinstance(dimension_filter, (list, tuple)):
+                filters = []
+                for item in dimension_filter:
+                    if not isinstance(item, dict):
+                        raise ValueError("dimension_filter items must be dicts")
+                    filters.append(item)
+                return filters or None
+
+            if not isinstance(dimension_filter, str):
+                raise ValueError("dimension_filter must be a string, list, tuple, or None")
+
+            operator_map = {
+                "=~": "includingRegex",
+                "!~": "excludingRegex",
+                "=@": "contains",
+                "!@": "notContains",
+            }
+            filters = []
+            for raw in dimension_filter.split(";"):
+                cond = raw.strip()
+                if not cond:
+                    continue
+
+                op = next((candidate for candidate in operator_map if candidate in cond), None)
+                if op is None:
+                    raise ValueError(f"Invalid dimension_filter condition: {cond}")
+
+                dimension, expression = cond.split(op, 1)
+                dimension = dimension.strip()
+                expression = expression.strip()
+                if not dimension or not expression:
+                    raise ValueError(f"Invalid dimension_filter condition: {cond}")
+
+                filters.append(
+                    {
+                        "dimension": dimension,
+                        "operator": operator_map[op],
+                        "expression": expression,
+                    }
+                )
+            return filters or None
+
         class Run:
             def __init__(self, parent):
                 self.parent = parent
@@ -769,6 +816,8 @@ class Megaton:
                 dimensions: list,
                 metrics: list[str] | None = None,
                 limit: int = 5000,
+                *,
+                dimension_filter: str | list | tuple | None = None,
                 **kwargs,
             ):
                 if not self.parent.site:
@@ -778,6 +827,7 @@ class Megaton:
                     metrics = ["clicks", "impressions", "ctr", "position"]
 
                 start_date, end_date = self.parent._resolve_dates()
+                filters = self.parent._parse_dimension_filter(dimension_filter)
 
                 result = self.parent.parent._gsc_service.query(
                     site_url=self.parent.site,
@@ -786,6 +836,7 @@ class Megaton:
                     dimensions=dimensions,
                     metrics=metrics,
                     row_limit=limit,
+                    dimension_filter=filters,
                     **kwargs,
                 )
                 self.parent.data = result
@@ -797,6 +848,7 @@ class Megaton:
                 dimensions: list,
                 metrics: list[str] | None = None,
                 *,
+                dimension_filter: str | list | tuple | None = None,
                 item_key: str = "site",
                 site_url_key: str = "gsc_site_url",
                 item_filter=None,
@@ -821,9 +873,10 @@ class Megaton:
                         - If str: Use the string directly (e.g., '202501').
                         - If DateWindow: Use start_ym field.
                         - If None: Don't add month column.
+                    dimension_filter: Dimension filter string or list of filters (AND only).
                     verbose: Print progress messages (default: True).
                     **run_kwargs: Additional arguments passed to mg.search.run()
-                        (e.g., limit, country, clean, aggregate).
+                        (e.g., limit, country, clean).
 
                 Returns:
                     Combined DataFrame from all items with item_key column added.
@@ -876,7 +929,12 @@ class Megaton:
 
                     try:
                         self.parent.use(site_url)
-                        df = self(dimensions=dimensions, metrics=metrics, **run_kwargs)
+                        df = self(
+                            dimensions=dimensions,
+                            metrics=metrics,
+                            dimension_filter=dimension_filter,
+                            **run_kwargs,
+                        )
                         
                         if df is None or df.empty:
                             if verbose:

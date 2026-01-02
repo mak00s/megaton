@@ -195,6 +195,16 @@ df_sc = mg.search.run(
 )
 ```
 
+`dimension_filter` を指定すると Search Console 側で絞り込みできます（AND 条件のみ）。
+
+```python
+df_sc = mg.search.run(
+    dimensions=["query", "page"],
+    metrics=["clicks", "impressions"],
+    dimension_filter="page=~^/blog/;query=@ortho",  # RE2 正規表現 + 部分一致
+)
+```
+
 ### 設定シート（Config）の拡張
 
 最新版では Config シートにサイト単位のフィルタ閾値を含めることができます。主に以下の列を想定しています。
@@ -218,6 +228,7 @@ filtered = mg.search.filter_by_thresholds(df, site, clicks_zero_only=True)
 `thresholds_df` は非推奨となり、閾値は各 `site` レコード内で管理してください。
 
 - `dimensions` は最大 5 つまで指定できます。
+- `dimensions` は `date/hour/country/device/page/query` から選択できます。`month` を指定すると内部的に `date` で取得し、結果は月単位に集計されます。
 - `metrics` を省略するとデフォルトで `["clicks", "impressions", "ctr", "position"]` が使用されます。
 - `limit` は API の既定上限を変更しますが、大きくすると応答時間が長くなることがあります。
 
@@ -355,4 +366,3 @@ Megaton にはデータの確認やファイル操作を補助する機能が用
   pandas の DataFrame は真偽値を持たないため `df.empty` を使って空判定を行います。
 - **Colab で依存関係が足りない**  
   `MEGATON_AUTO_INSTALL=1` を設定すると不足している依存ライブラリを自動インストールします。
-
