@@ -111,6 +111,8 @@ Megaton には Sheets 連携が組み込まれており、データの保存、�
 - **プロパティ選択:** `mg.search.use(site_url)` で対象サイトを選択します。
 - **期間設定:** `mg.search.set.dates(...)` または `mg.search.set.months(...)` で期間を設定します。
 - **データ取得:** `mg.search.run(dimensions=[...], metrics=[...], limit=5000)` でパフォーマンスデータを取得し、結果は `mg.search.data` に格納されます。
+- **閾値フィルタ:** `mg.search.filter_by_thresholds(df, site)` でサイト設定の閾値（`min_impressions`, `max_position`, `min_pv`, `min_cv`）を適用してフィルタリングできます。
+  - `clicks_zero_only=True` を指定すると、クリック数が 0 の行にのみ閾値を適用し、クリック数が 1 以上の行は無条件に保持されます（従来動作の再現）。
 - **Sheets への保存:** GA4 と同様に `mg.save.to.sheet()` や `mg.append.to.sheet()` を用いて結果を Sheets に保存できます。
 
 ## BigQuery の使い方

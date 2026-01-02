@@ -55,6 +55,8 @@
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)` – 月単位のウィンドウを設定し、`DateWindow` を返します。
 - `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行します。
 - `mg.search.data` – 直近の Search Console 結果。
+- `mg.search.filter_by_thresholds(df, site, clicks_zero_only=False)` – サイト設定の閾値を適用してフィルタリングします。
+  - `clicks_zero_only=True` を指定すると、クリック数 > 0 の行は無条件に保持し、クリック数 = 0 の行のみ閾値でフィルタリングします。
 
 ## 表示
 
