@@ -80,6 +80,7 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 notebooks/private
+notebooks/shibuya*
 
 # IPython
 profile_default/
