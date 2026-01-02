@@ -1,26 +1,10 @@
 import pandas as pd
-from megaton.start import start
+from megaton.start import Megaton
 
 
 def test_filter_by_thresholds_basic():
-    # create a dummy Search instance by instantiating Megaton and accessing .search
-    class DummyParent:
-        pass
-
-    # Instead of creating full Megaton, import the Search class directly
-    from megaton.start import start as start_mod
-    # Create a minimal parent structure required by Search
-    class P:
-        def __init__(self):
-            self._gsc_service = None
-
-    parent = P()
-    S = start_mod.Megaton  # not used, but import ensures module loaded
-
-    from megaton.start import Megaton
-    # instantiate Search without initializing Megaton (avoid auth side-effects)
-    parent = object()
-    search = Megaton.Search(parent)
+    # Create Search instance without full Megaton initialization (avoid auth side-effects)
+    search = Megaton.Search(object())
 
     df = pd.DataFrame(
         {
@@ -40,9 +24,7 @@ def test_filter_by_thresholds_basic():
 
 
 def test_filter_by_thresholds_missing_columns():
-    from megaton.start import Megaton
-    parent = object()
-    search = Megaton.Search(parent)
+    search = Megaton.Search(object())
 
     df = pd.DataFrame({"query": ["x", "y"], "impressions": [10, 100], "position": [2, 3]})
     site = {"min_impressions": 50, "max_position": 5.0}
