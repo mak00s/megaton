@@ -2,6 +2,12 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
+## 0.7.1 – 2026‑01‑02
+
+### 修正 / 追加
+
+- Config の読み込みと Search Console 関連の振る舞いを改善しました（`load_config()` によるサイト単位の閾値管理、`mg.search.filter_by_thresholds()` の追加）。
+
 ## 0.7.0 – 2026‑01‑01
 
 ### 追加
