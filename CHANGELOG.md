@@ -6,13 +6,10 @@
 
 ### 修正 / 追加
 
+- **DateWindow 導入**: `mg.report.set.months()` と `mg.search.set.months()` が `DateWindow` namedtuple を返すようになりました。6つの日付フォーマット（`start_iso`, `end_iso`, `start_ym`, `end_ym`, `start_ymd`, `end_ymd`）を提供し、BigQuery の YYYYMMDD 形式や月ラベル生成が簡単になりました。`min_ymd` パラメータで開始日の制約も指定可能です。後方互換性のためタプルアンパッキング（最初の3要素）もサポートしています。
 - **Config リファクタ**: `load_config()` を拡張し、サイト単位で閾値（`min_impressions`, `max_position`, `min_pv`, `min_cv`）と Search Console 用 URL (`gsc_site_url`) を管理できるようにしました。
 - **Search ヘルパー追加**: `mg.search.filter_by_thresholds()` を追加し、サイト設定に基づく一括フィルタリングを可能にしました。
 - **ドキュメント更新**: Advanced Guide に新しい config フィールドと運用例を追記しました。
-
-### 破壊的変更
-
-- `cfg.thresholds_df` は `None` を返します（廃止予定）。移行先は各 `site` レコードの閾値です。
 
 ## 0.7.0 – 2026‑01‑01
 
@@ -20,7 +17,7 @@
 
 - **Search Console 対応の刷新**: `mg.search` を Google Search Console へのインタフェースとして導入しました。これにより、`mg.search.sites` でサイト一覧の取得、`mg.search.get.sites()` で再取得、`mg.search.use(site_url)` で対象サイトの選択、`mg.search.set.dates()` / `mg.search.set.months()` で期間設定、`mg.search.run()` でデータ取得が行えます。
 - **レポート期間セル書き込み**: `mg.report.dates.to.sheet(sheet, start_cell, end_cell)` を追加し、設定したレポート期間をスプレッドシートに直接書き込めるようにしました。
-- **Sheets ヘルパーの拡充**: 新しい `mg.sheets` と `mg.sheet` API により、ワークシートの選択 (`mg.sheets.select(name)`)、作成 (`mg.sheets.create(name)`)、削除 (`mg.sheets.delete(name)`)、および現在のシートへの保存・追記・アップサート (`mg.sheet.save(df)`, `mg.sheet.append(df)`, `mg.sheet.upsert(df, keys, columns?, sort_by?)`) を簡潔に実行できます。これにより既存の `mg.gs` インタフェースに比べて Notebook での操作がより直感的になりました。
+- **Sheets ヘルパーの拡充**: 新しい `mg.sheets` と `mg.sheet` API により、ワークシートの選択 (`mg.sheets.select(name)`)、作成 (`mg.sheets.create(name)`)、削除 (`mg.sheets.delete(name)`)、および現在のシートへの保存・追記・アップサート (`mg.sheet.save(df)`, `mg.sheet.append(df)`, `mg.sheet.upsert(df, keys, columns?, sort_by?)`) を簡潔に実行できます。これにより Notebook での操作がより直感的になりました。
 
 ### 変更
 

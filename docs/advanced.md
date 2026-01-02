@@ -71,15 +71,32 @@ ga4.property.select(ga4.account.properties[0]["id"])
   # 設定後は mg.report.start_date と mg.report.end_date に datetime.date オブジェクトが格納されます
   ```
 
-- **月次ウィンドウ:** `mg.report.set.months(ago=1, window_months=13, tz="Asia/Tokyo")`
+- **月次ウィンドウ:** `mg.report.set.months(ago=1, window_months=13, tz="Asia/Tokyo", min_ymd=None)`
 
   ```python
   # 直近 13 か月と前年同月を対象に設定
-  mg.report.set.months(ago=1, window_months=13)
-  print(mg.report.window)  # {'ago': 1, 'window_months': 13, 'ym': ['202312', '202401', ...]}
+  p = mg.report.set.months(ago=1, window_months=13)
+  print(mg.report.window)  # {'ago': 1, 'window_months': 13, 'ym': '202501'}
+  
+  # DateWindow から複数の日付フォーマットにアクセス
+  print(f"期間: {p.start_iso}〜{p.end_iso}")  # ISO 8601形式
+  table_from = p.start_ymd  # BigQuery用のYYYYMMDD形式
+  table_to = p.end_ymd
+  month_label = p.start_ym  # レポート用のYYYYMM形式
+  
+  # BigQuery のテーブル範囲に最小制約を適用
+  p = mg.report.set.months(ago=1, window_months=13, min_ymd="20240601")
+  # start_ymd が "20240601" より前なら "20240601" にクランプされる
   ```
 
-  `mg.report.window` には `'ym'` キーとしてウィンドウに含まれる年月のリストが格納されます。
+  **DateWindow の利点:**
+  - 手動での日付フォーマット変換（`.replace('-', '')`）が不要
+  - BigQuery の `_TABLE_SUFFIX BETWEEN` で使う YYYYMMDD 形式を直接取得
+  - レポートの月ラベル（YYYYMM）を `pd.to_datetime().strftime()` なしで取得
+  - `min_ymd` パラメータで開始日の制約を自動適用
+  - 後方互換性のため最初の3要素（start_iso, end_iso, start_ym）でタプルアンパッキング可能
+  
+  `mg.report.window` には `'ym'` キーとして対象月（YYYYMM）が格納されます。
 
 ### レポートの実行
 
