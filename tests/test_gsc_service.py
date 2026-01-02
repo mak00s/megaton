@@ -84,7 +84,6 @@ def test_query_paging_clean_and_aggregate():
         dimensions=["query", "page"],
         row_limit=3,
         clean=True,
-        aggregate=True,
     )
 
     assert len(client.analytics.calls) == 2
@@ -125,3 +124,66 @@ def test_query_retries_on_http_error(monkeypatch):
 
     assert len(client.analytics.calls) == 2
     assert not df.empty
+
+
+def test_query_month_dimension_aggregates_and_converts():
+    responses = {
+        0: [
+            {
+                "keys": ["2024-01-01", "https://example.com/a"],
+                "clicks": 1,
+                "impressions": 10,
+                "position": 2.0,
+            },
+            {
+                "keys": ["2024-01-15", "https://example.com/a"],
+                "clicks": 2,
+                "impressions": 20,
+                "position": 4.0,
+            },
+        ]
+    }
+    client = _FakeClient(responses)
+    service = GSCService(app=None, client=client)
+
+    df = service.query(
+        site_url="https://example.com",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        dimensions=["month", "page"],
+        metrics=["clicks", "impressions", "position"],
+    )
+
+    assert client.analytics.calls[0][1]["dimensions"] == ["date", "page"]
+    assert len(df) == 1
+    assert df.loc[0, "month"] == "202401"
+    assert df.loc[0, "page"] == "https://example.com/a"
+    assert df.loc[0, "clicks"] == 3
+    assert df.loc[0, "impressions"] == 30
+    assert df.loc[0, "position"] == pytest.approx((2 * 10 + 4 * 20) / 30, rel=1e-6)
+
+
+def test_query_invalid_dimensions():
+    client = _FakeClient({})
+    service = GSCService(app=None, client=client)
+
+    with pytest.raises(ValueError, match="Invalid dimensions"):
+        service.query(
+            site_url="https://example.com",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            dimensions=["invalid"],
+        )
+
+
+def test_query_month_and_date_not_allowed():
+    client = _FakeClient({})
+    service = GSCService(app=None, client=client)
+
+    with pytest.raises(ValueError, match="month"):
+        service.query(
+            site_url="https://example.com",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            dimensions=["month", "date"],
+        )

@@ -85,6 +85,7 @@ class GSCService:
         end_date: str,
         dimensions: list,
         metrics: Optional[list] = None,
+        dimension_filter: Optional[list] = None,
         country: Optional[str] = None,
         row_limit: int = 25000,
         start_row: int = 0,
@@ -92,13 +93,46 @@ class GSCService:
         max_retries: int = 3,
         backoff_factor: float = 2.0,
         clean: bool = False,
-        aggregate: bool = False,
         verbose: bool = False,
     ) -> pd.DataFrame:
         client = self._get_client()
 
         if metrics is None:
             metrics = ["clicks", "impressions", "ctr", "position"]
+
+        allowed_dims = {"date", "hour", "country", "device", "page", "query", "month"}
+        filter_dims = allowed_dims - {"month"}
+        invalid_dims = [dim for dim in dimensions if dim not in allowed_dims]
+        if invalid_dims:
+            raise ValueError(f"Invalid dimensions: {invalid_dims}. Allowed: {sorted(allowed_dims)}")
+
+        has_month = "month" in dimensions
+        if has_month and "date" in dimensions:
+            raise ValueError("Use either 'month' or 'date' in dimensions, not both.")
+
+        api_dimensions = ["date" if dim == "month" else dim for dim in dimensions]
+
+        dimension_filters = []
+        if dimension_filter is not None:
+            if not isinstance(dimension_filter, (list, tuple)):
+                raise ValueError("dimension_filter must be a list or tuple of dicts")
+            for item in dimension_filter:
+                if not isinstance(item, dict):
+                    raise ValueError("dimension_filter items must be dicts")
+                dimension = item.get("dimension")
+                operator = item.get("operator")
+                expression = item.get("expression")
+                if not dimension or operator is None or expression is None:
+                    raise ValueError("dimension_filter items must have dimension/operator/expression")
+                if dimension not in filter_dims:
+                    raise ValueError(f"Invalid filter dimension: {dimension}. Allowed: {sorted(filter_dims)}")
+                dimension_filters.append(
+                    {
+                        "dimension": dimension,
+                        "operator": operator,
+                        "expression": expression,
+                    }
+                )
 
         all_rows = []
         current_start = start_row
@@ -108,20 +142,25 @@ class GSCService:
             request_body = {
                 "startDate": start_date,
                 "endDate": end_date,
-                "dimensions": dimensions,
+                "dimensions": api_dimensions,
                 "rowLimit": row_limit,
                 "startRow": current_start,
             }
+
+            filters = list(dimension_filters)
             if country:
+                filters.append(
+                    {
+                        "dimension": "country",
+                        "operator": "equals",
+                        "expression": country,
+                    }
+                )
+            if filters:
                 request_body["dimensionFilterGroups"] = [
                     {
-                        "filters": [
-                            {
-                                "dimension": "country",
-                                "operator": "equals",
-                                "expression": country,
-                            }
-                        ]
+                        "groupType": "and",
+                        "filters": filters,
                     }
                 ]
 
@@ -185,11 +224,11 @@ class GSCService:
         data = []
         for idx, row in enumerate(all_rows):
             keys = row.get("keys", [])
-            if len(keys) < len(dimensions):
+            if len(keys) < len(api_dimensions):
                 if verbose:
                     logger.warning("Skipping row %s due to missing keys: %s", idx, keys)
                 continue
-            row_data = {dim: keys[i] for i, dim in enumerate(dimensions)}
+            row_data = {dim: keys[i] for i, dim in enumerate(api_dimensions)}
             row_data.update(
                 {
                     "clicks": row.get("clicks", 0),
@@ -207,7 +246,11 @@ class GSCService:
             df = df.copy()
             df["page"] = df["page"].apply(self._clean_page)
 
-        if aggregate:
+        if has_month and "date" in df.columns:
+            df = df.copy()
+            df["month"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y%m")
+
+        if clean or has_month:
             df = self._aggregate(df, dimensions)
 
         if "ctr" in metrics:
@@ -234,7 +277,6 @@ class GSCService:
         include_clinic: bool = True,
         include_month: bool = True,
         clean: bool = True,
-        aggregate: bool = True,
         verbose: bool = False,
     ) -> pd.DataFrame:
         dfs = []
@@ -260,7 +302,6 @@ class GSCService:
                 dimensions=dimensions,
                 country=country,
                 clean=clean,
-                aggregate=aggregate,
                 verbose=verbose,
             )
 

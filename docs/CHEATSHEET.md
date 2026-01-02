@@ -60,12 +60,15 @@
 - `mg.search.set.dates(date_from, date_to)` – 日付範囲を設定します。
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)` – 月単位のウィンドウを設定し、`DateWindow` を返します。
 - `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行します。
+  - `dimensions` は `date/hour/country/device/page/query` から選択できます。`month` を指定すると月単位に集計されます。
+  - `dimension_filter="page=~^/blog/;query=@ortho"` のように指定すると AND 条件で絞り込みできます（`=~`/`!~` は RE2 正規表現、`=@`/`!@` は部分一致）。
 - `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, add_month?, verbose?, **kwargs)` – 複数アイテムのクエリを一括実行して結合します。
   - `items` – アイテム設定のリスト（dict の list）
   - `item_key='site'` – アイテム識別子キー（デフォルト: 'site'）
   - `site_url_key='gsc_site_url'` – GSCサイトURLキー（空の場合はスキップ）
   - `item_filter=None` – アイテムフィルタ（リスト or 関数）
   - `add_month=None` – 月ラベル追加（str or DateWindow）
+  - `dimension_filter` – `mg.search.run()` と同様のフィルタを指定できます（AND 条件のみ）。
 - `mg.search.data` – 直近の Search Console 結果。
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only=False)` – サイト設定の閾値を適用してフィルタリングします。
   - `clicks_zero_only=True` を指定すると、クリック数 > 0 の行は無条件に保持し、クリック数 = 0 の行のみ閾値でフィルタリングします。
