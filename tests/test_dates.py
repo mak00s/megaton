@@ -44,25 +44,61 @@ def test_get_past_date_days_and_months(monkeypatch):
 def test_get_month_window_various_cases():
     now = datetime(2025, 3, 15, 10, 0, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
 
-    date_from, date_to, ym = dates.get_month_window(months_ago=1, window_months=1, now=now)
+    # Test backward compatibility with tuple unpacking
+    p = dates.get_month_window(months_ago=1, window_months=1, now=now)
+    date_from, date_to, ym = p[:3]
     assert date_from == "2025-02-01"
     assert date_to == "2025-02-28"
-    assert ym == "2025-02"
+    assert ym == "202502"
 
-    date_from, date_to, ym = dates.get_month_window(months_ago=1, window_months=13, now=now)
-    assert date_from == "2024-02-01"
-    assert date_to == "2025-02-28"
-    assert ym == "2025-02"
+    # Test all DateWindow fields
+    assert p.start_iso == "2025-02-01"
+    assert p.end_iso == "2025-02-28"
+    assert p.start_ym == "202502"
+    assert p.end_ym == "202502"
+    assert p.start_ymd == "20250201"
+    assert p.end_ymd == "20250228"
 
-    date_from, date_to, ym = dates.get_month_window(months_ago=0, window_months=1, now=now)
-    assert date_from == "2025-03-01"
-    assert date_to == "2025-03-14"
-    assert ym == "2025-03"
+    p = dates.get_month_window(months_ago=1, window_months=13, now=now)
+    assert p.start_iso == "2024-02-01"
+    assert p.end_iso == "2025-02-28"
+    assert p.start_ym == "202502"  # Target month
+    assert p.end_ym == "202502"
+    assert p.start_ymd == "20240201"
+    assert p.end_ymd == "20250228"
 
-    date_from, date_to, ym = dates.get_month_window(months_ago=0, window_months=13, now=now)
-    assert date_from == "2024-03-01"
-    assert date_to == "2025-03-14"
-    assert ym == "2025-03"
+    p = dates.get_month_window(months_ago=0, window_months=1, now=now)
+    assert p.start_iso == "2025-03-01"
+    assert p.end_iso == "2025-03-14"
+    assert p.start_ym == "202503"
+    assert p.end_ym == "202503"
+
+    p = dates.get_month_window(months_ago=0, window_months=13, now=now)
+    assert p.start_iso == "2024-03-01"
+    assert p.end_iso == "2025-03-14"
+    assert p.start_ym == "202503"
+    assert p.end_ym == "202503"
+
+
+def test_get_month_window_min_ymd_constraint():
+    """Test that min_ymd clamps start date to minimum constraint."""
+    now = datetime(2025, 3, 15, 10, 0, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
+
+    # Without constraint, window extends to 2024-03-01
+    p = dates.get_month_window(months_ago=0, window_months=13, now=now)
+    assert p.start_ymd == "20240301"
+
+    # With constraint, start date is clamped to 2024-06-01
+    p = dates.get_month_window(months_ago=0, window_months=13, now=now, min_ymd="20240601")
+    assert p.start_ymd == "20240601"
+    assert p.start_iso == "2024-06-01"
+    assert p.start_ym == "202406"
+    assert p.end_ymd == "20250314"
+
+    # Constraint is later than end date (no effect)
+    p = dates.get_month_window(months_ago=1, window_months=1, now=now, min_ymd="20250301")
+    assert p.start_ymd == "20250301"
+    assert p.end_ymd == "20250228"  # End date unchanged
 
 
 def test_get_month_window_validation():
