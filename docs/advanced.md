@@ -205,6 +205,16 @@ df_sc = mg.search.run(
 
 また `min_impressions`、`max_position` は既存と同様にサイト行に含めるようになり、これらの閾値はノートブック側で直接参照せず `mg.search.filter_by_thresholds(df, site)` を呼ぶことで一括適用できます。
 
+`filter_by_thresholds()` には `clicks_zero_only` パラメータを指定できます。`clicks_zero_only=True` を渡すと、クリック数が 0 の行にのみ閾値を適用し、クリック数が 1 以上の行は閾値に関わらず保持されます。これは従来の動作（クリックがあるキーワードは無条件に残す）を再現したい場合に便利です。
+
+```python
+# デフォルト: 全行に閾値を適用
+filtered = mg.search.filter_by_thresholds(df, site)
+
+# 旧動作: クリック数 > 0 の行は無条件に残し、クリック数 = 0 の行のみ閾値で除外
+filtered = mg.search.filter_by_thresholds(df, site, clicks_zero_only=True)
+```
+
 `thresholds_df` は非推奨となり、閾値は各 `site` レコード内で管理してください。
 
 - `dimensions` は最大 5 つまで指定できます。
