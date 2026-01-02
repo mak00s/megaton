@@ -812,7 +812,11 @@ class Megaton:
                 # Apply thresholds only to zero-click rows
                 res = self._apply_thresholds(df_zero, site)
                 
-                # Combine and return
+                # Combine and return (pd.concat handles empty dataframes correctly)
+                if df_keep.empty:
+                    return res
+                if res.empty:
+                    return df_keep
                 return pd.concat([df_keep, res], ignore_index=True)
             
             # Default behavior: apply thresholds to all rows

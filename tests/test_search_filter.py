@@ -71,11 +71,11 @@ def test_filter_by_thresholds_clicks_zero_only():
             "clicks": [5, 0],  # "x" has clicks>0
         }
     )
-    
+
     filtered_default = search.filter_by_thresholds(df2, site)
     # Default: only "y" passes thresholds
     assert list(filtered_default["query"]) == ["y"]
-    
+
     filtered_clicks_zero = search.filter_by_thresholds(df2, site, clicks_zero_only=True)
     # clicks_zero_only: "x" kept despite failing threshold (because clicks>0), "y" kept (passes threshold)
     assert sorted(list(filtered_clicks_zero["query"])) == ["x", "y"]
