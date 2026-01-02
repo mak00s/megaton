@@ -75,8 +75,10 @@ def test_load_config_builds_maps_and_domains():
     assert cfg.page_map == {"/foo": "Foo"}
     assert cfg.query_map == {"abc": "ABC"}
     assert cfg.group_domains == {"example.com", "example.org"}
-    assert isinstance(cfg.thresholds_df, pd.DataFrame)
-    assert set(cfg.thresholds_df.columns) == {"clinic", "min_impressions", "max_position"}
+    # thresholds_df is deprecated; thresholds are now stored in each site record
+    assert cfg.thresholds_df is None
+    assert cfg.sites[0]["min_impressions"] == 10
+    assert cfg.sites[0]["max_position"] == 5
 
 
 def test_load_config_raises_on_missing_columns():
@@ -103,11 +105,14 @@ def test_load_config_allows_optional_maps_missing():
     assert cfg.source_map == {}
     assert cfg.page_map == {}
     assert cfg.query_map == {}
-    assert cfg.thresholds_df is not None
-    assert cfg.thresholds_df["min_impressions"].tolist() == [10]
-    assert cfg.thresholds_df["max_position"].tolist() == [50]
-    assert str(cfg.thresholds_df["min_impressions"].dtype) in ("Int64", "int64")
-    assert str(cfg.thresholds_df["max_position"].dtype) in ("Int64", "int64")
+    # thresholds_df is deprecated; thresholds are now in site records with defaults
+    assert cfg.thresholds_df is None
+    assert len(cfg.sites) == 1
+    assert cfg.sites[0]["clinic"] == "A"
+    assert cfg.sites[0]["domain"] == "example.com"
+    # defaults should be applied
+    assert cfg.sites[0].get("min_impressions", 10) == 10
+    assert cfg.sites[0].get("max_position", 50) == 50
 
 
 def test_load_config_partial_threshold_columns():
@@ -118,8 +123,9 @@ def test_load_config_partial_threshold_columns():
 
     cfg = config_loader.load_config(mg, "https://example.com/sheet")
 
-    assert cfg.thresholds_df is not None
-    assert cfg.thresholds_df["min_impressions"].tolist() == [5]
-    assert cfg.thresholds_df["max_position"].tolist() == [50]
-    assert str(cfg.thresholds_df["min_impressions"].dtype) in ("Int64", "int64")
-    assert str(cfg.thresholds_df["max_position"].dtype) in ("Int64", "int64")
+    assert cfg.thresholds_df is None
+    assert len(cfg.sites) == 1
+    assert cfg.sites[0]["clinic"] == "A"
+    assert cfg.sites[0]["min_impressions"] == "5"
+    # max_position should use default if not provided
+    assert cfg.sites[0].get("max_position", 50) == 50
