@@ -6,8 +6,15 @@
 
 ### 修正 / 追加
 
-- **バッチ処理 API 追加**: `mg.search.run.all()` と `mg.report.run.all()` を追加し、複数アイテム（サイト、クリニック等）のデータを一括取得・結合できるようにしました。`item_key`, `item_filter`, `add_month` パラメータでフィルタリングと月ラベル追加をサポートします。`item_key` のデフォルトは `'site'` で、用途に応じて変更可能です。
+- **バッチ処理 API 追加**: `mg.search.run.all()` と `mg.report.run.all()` を追加し、複数アイテム（サイト、クリニック等）のデータを一括取得・結合できるようにしました。
+  - `items` パラメータで設定リスト（dict の list）を渡し、各要素に対してクエリを実行して結合します
+  - `item_key` (default: `'site'`) で識別子列名を指定します
+  - `item_filter` でフィルタリング（リスト or 関数）をサポートします
+  - `add_month` (str or DateWindow) で月ラベルを自動追加できます
+  - Search Console 用に `site_url_key` (default: `'gsc_site_url'`)、GA4用に `property_key` (default: `'ga4_property_id'`) を指定できます
+  - **注意:** `site_url_key` が空の場合、そのアイテムはスキップされます
 - **ドキュメント更新**: CHEATSHEET に `run.all()` の使い方を追記しました。
+- **Report 表示/保存の修正**: `mg.report.show()` / `mg.report.download()` が `self.data` を参照するように修正しました。
 
 ## 0.7.2 – 2026‑01‑02
 

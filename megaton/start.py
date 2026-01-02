@@ -812,7 +812,7 @@ class Megaton:
                     metrics: GSC metrics (e.g., ['clicks', 'impressions', 'position']).
                     item_key: Key name for item identifier in results (default: 'site').
                     site_url_key: Key name for GSC site URL in item config (default: 'gsc_site_url').
-                        Falls back to 'url' if not found.
+                        Empty values are skipped.
                     item_filter: Filter items by list of identifiers or filter function.
                         - If list: Include items where item[item_key] is in the list.
                         - If callable: Include items where item_filter(item) returns True.
@@ -864,14 +864,11 @@ class Megaton:
                 for item in selected_items:
                     item_id = item.get(item_key, 'unknown')
                     
-                    # Get site URL with fallback
-                    site_url = item.get(site_url_key, '').strip()
-                    if not site_url and site_url_key != 'url':
-                        site_url = item.get('url', '').strip()
-                    
+                    # Get site URL
+                    site_url = (item.get(site_url_key) or '').strip()
                     if not site_url:
                         if verbose:
-                            print(f"⚠️ GSC site_url missing for {item_id}")
+                            print(f"⚠️ GSC site_url empty for {item_id} (skipped)")
                         continue
 
                     if verbose:
@@ -1557,10 +1554,10 @@ class Megaton:
 
         def show(self):
             """Displays dataframe"""
-            return self.parent.show.table(self.parent.data)
+            return self.parent.show.table(self.data)
 
         def download(self, filename: str):
-            self.parent.parent.download(self.parent.data, filename)
+            self.parent.download(self.data, filename)
 
         def prep(self, conf: dict, df: pd.DataFrame = None):
             """dataframeを前処理

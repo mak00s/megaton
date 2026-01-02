@@ -91,6 +91,21 @@ Megaton の GA4 インタフェースでは、期間の設定からレポート�
   month_label = p.start_ym  # レポート用のYYYYMM形式
   ```
 - **レポート実行:** `mg.report.run(d=[...], m=[...], limit=N)` で GA4 データを取得し、結果は `mg.report.data` に格納されます。
+- **バッチ処理:** `mg.report.run.all(items, d, m, item_key='site', ...)` で複数プロパティのレポートを一括実行して結合できます。
+
+  ```python
+  # 複数クリニックから一括でレポート取得
+  p = mg.report.set.months(ago=1, window_months=13)
+  df = mg.report.run.all(
+      sites,  # サイト設定のリスト
+      d=[('yearMonth', 'month'), ('defaultChannelGroup', 'channel')],
+      m=['activeUsers', 'sessions'],
+      item_key='clinic',  # 識別子列名（デフォルト: 'site'）
+      property_key='ga4_property_id',  # GA4プロパティIDキー
+      item_filter=lambda s: s.get('clinic') != 'test',  # フィルタ（リスト or 関数）
+      add_month=p,  # 月ラベルを自動追加
+  )
+  ```
 - **前処理:** `mg.report.prep(conf)` を使えば列名の変更や型変換など簡易的なデータ整形が可能です。
 
 ## Google Sheets の使い方
@@ -111,6 +126,22 @@ Megaton には Sheets 連携が組み込まれており、データの保存、�
 - **プロパティ選択:** `mg.search.use(site_url)` で対象サイトを選択します。
 - **期間設定:** `mg.search.set.dates(...)` または `mg.search.set.months(...)` で期間を設定します。
 - **データ取得:** `mg.search.run(dimensions=[...], metrics=[...], limit=5000)` でパフォーマンスデータを取得し、結果は `mg.search.data` に格納されます。
+- **バッチ処理:** `mg.search.run.all(items, dimensions, metrics, item_key='site', ...)` で複数サイトのデータを一括取得して結合できます。
+  - `gsc_site_url` が空のアイテムはスキップされます。
+  ```python
+  # 複数サイトから一括でデータ取得
+  p = mg.search.set.months(ago=1, window_months=1)
+  df = mg.search.run.all(
+      sites,  # サイト設定のリスト
+      dimensions=['query', 'page'],
+      metrics=['clicks', 'impressions', 'position'],
+      item_key='clinic',  # 識別子列名（デフォルト: 'site'）
+      site_url_key='gsc_site_url',  # GSCサイトURLキー
+      item_filter=['札幌', '仙台'],  # フィルタ（リスト or 関数）
+      add_month=p,  # 月ラベルを自動追加
+  )
+  ```
+  - **注意:** `gsc_site_url` が空の場合、そのアイテムはスキップされます。
 - **閾値フィルタ:** `mg.search.filter_by_thresholds(df, site)` でサイト設定の閾値（`min_impressions`, `max_position`, `min_pv`, `min_cv`）を適用してフィルタリングできます。
   - `clicks_zero_only=True` を指定すると、クリック数が 0 の行にのみ閾値を適用し、クリック数が 1 以上の行は無条件に保持されます（従来動作の再現）。
 - **Sheets への保存:** GA4 と同様に `mg.save.to.sheet()` や `mg.append.to.sheet()` を用いて結果を Sheets に保存できます。

@@ -111,7 +111,7 @@ def test_search_run_all_with_add_month():
 
 
 def test_search_run_all_url_fallback():
-    """Test Search Console site_url_key fallback to 'url'"""
+    """Test Search Console with gsc_site_url (no fallback to 'url')"""
     app = Megaton(None, headless=True)
     app.search.start_date = "2025-01-01"
     app.search.end_date = "2025-01-31"
@@ -120,8 +120,8 @@ def test_search_run_all_url_fallback():
     
     with patch.object(app.search.run.__class__, '__call__', return_value=mock_df):
         with patch.object(app.search, 'use'):
-            # Site without gsc_site_url but with url
-            sites = [{'site': 'A', 'url': 'https://a.com/'}]
+            # Sites must have gsc_site_url
+            sites = [{'site': 'A', 'gsc_site_url': 'https://a.com/', 'url': 'https://a.com/'}]
             
             result = app.search.run.all(
                 sites,
@@ -165,6 +165,39 @@ def test_report_run_all_basic():
     assert len(result) == 2
     assert 'site' in result.columns
     assert set(result['site']) == {'siteA', 'siteB'}
+
+
+def test_search_run_all_empty_gsc_site_url():
+    """Test that empty gsc_site_url is skipped"""
+    app = Megaton(None, headless=True)
+    app.search.start_date = "2025-01-01"
+    app.search.end_date = "2025-01-31"
+    
+    call_count = {'count': 0}
+    
+    def mock_call(self, dimensions, metrics, **kwargs):
+        call_count['count'] += 1
+        return pd.DataFrame({'query': ['test'], 'clicks': [5]})
+    
+    with patch.object(app.search.run.__class__, '__call__', mock_call):
+        with patch.object(app.search, 'use'):
+            sites = [
+                {'clinic': 'A', 'gsc_site_url': 'https://a.com/'},
+                {'clinic': 'B', 'gsc_site_url': ''},  # Empty gsc_site_url, should skip
+                {'clinic': 'C', 'gsc_site_url': 'https://c.com/'},
+            ]
+            
+            result = app.search.run.all(
+                sites,
+                dimensions=['query'],
+                item_key='clinic',
+                verbose=False,
+            )
+    
+    # Should process A and C, skip B
+    assert len(result) == 2
+    assert set(result['clinic']) == {'A', 'C'}
+    assert call_count['count'] == 2
 
 
 def test_report_run_all_missing_property_id():
