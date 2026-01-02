@@ -19,6 +19,12 @@
   - `min_ymd` – 開始日の最小制約（YYYYMMDD形式）
 - `mg.report.set.dates(date_from, date_to)` – 日付範囲を直接設定します。
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)` – レポートを実行します。
+- `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?, add_month?, verbose?, **kwargs)` – 複数アイテムのレポートを一括実行して結合します。
+  - `sites` – サイト設定のリスト（dict の list）
+  - `site_key='site'` – サイト識別子キー
+  - `property_key='ga4_property_id'` – GA4プロパティIDキー
+  - `site_filter=None` – サイトフィルタ（リスト or 関数）
+  - `add_month=None` – 月ラベル追加（str or DateWindow）
 - `mg.report.start_date` / `mg.report.end_date` – 設定された開始日・終了日。
 - `mg.report.data` – 直近のレポート結果。
 - `mg.report.prep(conf, df?)` – 列名変更や値置換などの前処理を行います。
@@ -54,6 +60,12 @@
 - `mg.search.set.dates(date_from, date_to)` – 日付範囲を設定します。
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)` – 月単位のウィンドウを設定し、`DateWindow` を返します。
 - `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行します。
+- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, add_month?, verbose?, **kwargs)` – 複数アイテムのクエリを一括実行して結合します。
+  - `items` – アイテム設定のリスト（dict の list）
+  - `item_key='site'` – アイテム識別子キー（デフォルト: 'site'）
+  - `site_url_key='gsc_site_url'` – GSCサイトURLキー（'url'にフォールバック）
+  - `item_filter=None` – アイテムフィルタ（リスト or 関数）
+  - `add_month=None` – 月ラベル追加（str or DateWindow）
 - `mg.search.data` – 直近の Search Console 結果。
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only=False)` – サイト設定の閾値を適用してフィルタリングします。
   - `clicks_zero_only=True` を指定すると、クリック数 > 0 の行は無条件に保持し、クリック数 = 0 の行のみ閾値でフィルタリングします。
