@@ -786,15 +786,40 @@ class Megaton:
             self.data = result
             return result
 
-        def filter_by_thresholds(self, df: pd.DataFrame, site: dict) -> pd.DataFrame:
+        def filter_by_thresholds(self, df: pd.DataFrame, site: dict, clicks_zero_only: bool = False) -> pd.DataFrame:
             """Apply site-specific thresholds to a Search Console DataFrame.
 
             Supported site keys: `min_impressions`, `max_position`, `min_pv`, `min_cv`.
             The function is tolerant of missing columns and missing keys.
+            
+            Args:
+                df: DataFrame to filter
+                site: Dictionary containing threshold values
+                clicks_zero_only: If True and df has a 'clicks' column, only apply thresholds
+                                  to rows where clicks == 0. Rows with clicks > 0 are kept as-is.
+                                  This preserves legacy behavior where clicked rows are never filtered.
             """
             if df is None or df.empty:
                 return df
-            res = df.copy()
+            if site is None or not site:
+                return df
+            
+            # Handle clicks_zero_only mode
+            if clicks_zero_only and "clicks" in df.columns:
+                df_keep = df[df["clicks"] > 0].copy()
+                df_zero = df[df["clicks"] == 0].copy()
+                
+                # Apply thresholds only to zero-click rows
+                res = self._apply_thresholds(df_zero, site)
+                
+                # Combine and return
+                return pd.concat([df_keep, res], ignore_index=True)
+            
+            # Default behavior: apply thresholds to all rows
+            return self._apply_thresholds(df.copy(), site)
+        
+        def _apply_thresholds(self, res: pd.DataFrame, site: dict) -> pd.DataFrame:
+            """Internal helper to apply threshold filters to a DataFrame."""
             # impressions
             min_imp = site.get("min_impressions")
             if min_imp is not None:
