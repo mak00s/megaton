@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+from collections import namedtuple
 from datetime import datetime, timedelta
 import re
 
 from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
+
+
+DateWindow = namedtuple('DateWindow', [
+    'start_iso',   # ISO 8601: YYYY-MM-DD
+    'end_iso',     # ISO 8601: YYYY-MM-DD
+    'start_ym',    # Year-Month: YYYYMM
+    'end_ym',      # Year-Month: YYYYMM
+    'start_ymd',   # Compact: YYYYMMDD
+    'end_ymd',     # Compact: YYYYMMDD
+])
 
 
 def parse_end_date(raw_date_str: str) -> datetime:
@@ -37,12 +48,12 @@ def get_report_range(target_months_ago: int, tz: str = "Asia/Tokyo") -> tuple[st
 
     Prefer get_month_window() for configurable window sizes and timezones.
     """
-    date_from, date_to, _ = get_month_window(
+    result = get_month_window(
         months_ago=target_months_ago,
         window_months=13,
         tz=tz,
     )
-    return date_from, date_to
+    return result.start_iso, result.end_iso
 
 
 def get_month_window(
@@ -51,8 +62,9 @@ def get_month_window(
     *,
     tz: str = "Asia/Tokyo",
     now: datetime | None = None,
-) -> tuple[str, str, str]:
-    """Return (date_from, date_to, ym) for a month window.
+    min_ymd: str | None = None,
+) -> DateWindow:
+    """Return date range in multiple formats for a month window.
 
     Args:
         months_ago: Target month offset (0 = current month).
@@ -60,6 +72,27 @@ def get_month_window(
         tz: Timezone name.
         now: Fixed datetime for testing (timezone-aware or naive).
             If timezone-aware, it will be normalized to ``tz`` via ``astimezone``.
+        min_ymd: Minimum start date constraint in YYYYMMDD format.
+            If start_ymd is earlier than this, it will be clamped to min_ymd.
+
+    Returns:
+        DateWindow namedtuple with 6 fields:
+            - start_iso (str): Start date in YYYY-MM-DD format
+            - end_iso (str): End date in YYYY-MM-DD format
+            - start_ym (str): Start year-month in YYYYMM format
+            - end_ym (str): End year-month in YYYYMM format
+            - start_ymd (str): Start date in YYYYMMDD format
+            - end_ymd (str): End date in YYYYMMDD format
+
+    Examples:
+        >>> p = get_month_window(months_ago=1, window_months=13)
+        >>> p.start_iso
+        '2024-01-01'
+        >>> p.start_ymd
+        '20240101'
+
+        # Tuple unpacking (backward compatible with first 3 elements)
+        >>> start_iso, end_iso, start_ym = p[:3]
     """
     if months_ago < 0:
         raise ValueError("months_ago must be >= 0")
@@ -86,8 +119,30 @@ def get_month_window(
     else:
         date_from = target_month_start - relativedelta(months=window_months - 1)
 
-    ym = target_month_start.strftime("%Y-%m")
-    return date_from.isoformat(), date_to.isoformat(), ym
+    # Generate all format variants
+    start_iso = date_from.isoformat()
+    end_iso = date_to.isoformat()
+    start_ym = target_month_start.strftime("%Y%m")
+    end_ym = date_to.strftime("%Y%m")
+    start_ymd = date_from.strftime("%Y%m%d")
+    end_ymd = date_to.strftime("%Y%m%d")
+
+    # Apply min_ymd constraint if specified
+    if min_ymd and start_ymd < min_ymd:
+        start_ymd = min_ymd
+        # Update start_iso to match
+        start_iso = f"{min_ymd[:4]}-{min_ymd[4:6]}-{min_ymd[6:]}"
+        # Update start_ym to match
+        start_ym = min_ymd[:6]
+
+    return DateWindow(
+        start_iso=start_iso,
+        end_iso=end_iso,
+        start_ym=start_ym,
+        end_ym=end_ym,
+        start_ymd=start_ymd,
+        end_ymd=end_ymd,
+    )
 
 
 def get_past_date(

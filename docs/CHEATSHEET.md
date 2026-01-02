@@ -11,7 +11,12 @@
 
 ## レポート（GA4）
 
-- `mg.report.set.months(ago, window_months, tz?, now?)` – 月単位のウィンドウを設定します。
+- `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)` – 月単位のウィンドウを設定し、`DateWindow` を返します。
+  - 戻り値: `DateWindow(start_iso, end_iso, start_ym, end_ym, start_ymd, end_ymd)`
+  - `p.start_iso` / `p.end_iso` – ISO 8601形式（YYYY-MM-DD）
+  - `p.start_ym` / `p.end_ym` – 年月形式（YYYYMM）
+  - `p.start_ymd` / `p.end_ymd` – コンパクト形式（YYYYMMDD、BigQuery用）
+  - `min_ymd` – 開始日の最小制約（YYYYMMDD形式）
 - `mg.report.set.dates(date_from, date_to)` – 日付範囲を直接設定します。
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)` – レポートを実行します。
 - `mg.report.start_date` / `mg.report.end_date` – 設定された開始日・終了日。
@@ -47,7 +52,7 @@
 - `mg.search.get.sites()` – サイト一覧を更新して再取得します。
 - `mg.search.use(site_url)` – 指定したサイトを選択します。
 - `mg.search.set.dates(date_from, date_to)` – 日付範囲を設定します。
-- `mg.search.set.months(ago, window_months, tz?, now?)` – 月単位のウィンドウを設定します。
+- `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)` – 月単位のウィンドウを設定し、`DateWindow` を返します。
 - `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行します。
 - `mg.search.data` – 直近の Search Console 結果。
 

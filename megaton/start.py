@@ -856,24 +856,42 @@ class Megaton:
                 *,
                 tz: str = "Asia/Tokyo",
                 now: datetime | None = None,
-            ) -> tuple[str, str, str]:
-                date_from, date_to, ym = dates.get_month_window(
+                min_ymd: str | None = None,
+            ) -> "dates.DateWindow":
+                """Set report period using month window with multiple date formats.
+
+                Returns:
+                    DateWindow namedtuple with 6 fields:
+                        - start_iso, end_iso: ISO 8601 (YYYY-MM-DD)
+                        - start_ym, end_ym: Year-Month (YYYYMM)
+                        - start_ymd, end_ymd: Compact (YYYYMMDD)
+
+                Examples:
+                    >>> p = mg.report.set.months(ago=1, window_months=13)
+                    >>> p.start_iso, p.end_iso, p.start_ym
+                    ('2024-01-01', '2025-01-31', '202501')
+
+                    # Backward compatible tuple unpacking
+                    >>> date_from, date_to, ym = p[:3]
+                """
+                p = dates.get_month_window(
                     months_ago=ago,
                     window_months=window_months,
                     tz=tz,
                     now=now,
+                                    min_ymd=min_ymd,
                 )
-                self.parent.start_date = date_from
-                self.parent.end_date = date_to
+                self.parent.start_date = p.start_iso
+                self.parent.end_date = p.end_iso
                 self.parent.window = {
-                    "date_from": date_from,
-                    "date_to": date_to,
-                    "ym": ym,
+                    "date_from": p.start_iso,
+                    "date_to": p.end_iso,
+                    "ym": p.start_ym,
                     "ago": ago,
                     "window_months": window_months,
                     "tz": tz,
                 }
-                return date_from, date_to, ym
+                return p
 
     class Sheets:
         """Spreadsheet-level helpers (selection/creation)"""
@@ -1302,23 +1320,35 @@ class Megaton:
                 *,
                 tz: str = "Asia/Tokyo",
                 now: datetime | None = None,
-            ) -> tuple[str, str, str]:
-                date_from, date_to, ym = dates.get_month_window(
+                min_ymd: str | None = None,
+            ) -> "dates.DateWindow":
+                """Set search period using month window with multiple date formats.
+
+                Returns:
+                    DateWindow namedtuple with 6 fields for various date format needs.
+
+                Examples:
+                    >>> p = mg.search.set.months(ago=1, window_months=13)
+                    >>> p.start_iso, p.end_iso, p.start_ym
+                    ('2024-01-01', '2025-01-31', '202501')
+                """
+                p = dates.get_month_window(
+                                        min_ymd=min_ymd,
                     months_ago=ago,
                     window_months=window_months,
                     tz=tz,
                     now=now,
                 )
-                self.parent.set_dates(date_from, date_to)
+                self.parent.set_dates(p.start_iso, p.end_iso)
                 self.parent.window = {
-                    "date_from": date_from,
-                    "date_to": date_to,
-                    "ym": ym,
+                    "date_from": p.start_iso,
+                    "date_to": p.end_iso,
+                    "ym": p.start_ym,
                     "ago": ago,
                     "window_months": window_months,
                     "tz": tz,
                 }
-                return date_from, date_to, ym
+                return p
 
         class Dates:
             def __init__(self, parent):

@@ -83,7 +83,13 @@ Megaton の基本的な操作は以下の 4 ステップで構成されます：
 Megaton の GA4 インタフェースでは、期間の設定からレポート実行、データの前処理までを数行で行えます。
 
 - **期間の指定:** `mg.report.set.dates(start_date, end_date)` で日付範囲を設定します。省略すると直近7日間（前日まで）が自動で選択されます。
-- **月次ウィンドウ:** `mg.report.set.months(ago=1, window_months=13)` を使うと、前年同月比など月単位のウィンドウをまとめて設定できます。
+- **月次ウィンドウ:** `mg.report.set.months(ago=1, window_months=13)` を使うと、前年同月比など月単位のウィンドウをまとめて設定できます。戻り値は `DateWindow` namedtuple で、複数の日付フォーマット（ISO 8601、YYYYMMDD、YYYYMM）を提供します。
+  ```python
+  p = mg.report.set.months(ago=1, window_months=13)
+  print(f"期間: {p.start_iso}〜{p.end_iso}")  # ISO 8601形式
+  table_from = p.start_ymd  # BigQuery用のYYYYMMDD形式
+  month_label = p.start_ym  # レポート用のYYYYMM形式
+  ```
 - **レポート実行:** `mg.report.run(d=[...], m=[...], limit=N)` で GA4 データを取得し、結果は `mg.report.data` に格納されます。
 - **前処理:** `mg.report.prep(conf)` を使えば列名の変更や型変換など簡易的なデータ整形が可能です。
 
