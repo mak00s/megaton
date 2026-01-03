@@ -17,20 +17,6 @@
 - **keep_clicked パラメータ**: `clicks >= 1` の行を無条件に残すオプション。`filter_clicks()` では default=False、他のフィルターでは default=True です。
 - **group パラメータ**: URL 処理・分類メソッドで `group=True`（default）の場合、dimensions に基づいて自動集計します。大量データでは `group=False` にして最後だけ集計することでパフォーマンスを向上できます。
 
-### 修正
-
-- **SearchResult 集計ロジック**: `group=True` および `clean=True` 時の集計で、`position` を重み付き平均（impressions で重み付け）で正しく計算するようになりました。従来は単純合計だったため position の値が不正確でした。
-- **CTR 再計算**: 集計時に CTR を正しく再計算するようになりました（`clicks / impressions`）。従来は CTR を単純合計していたため、集計後の CTR が数学的に誤っていました。**CTR は元データに存在する場合のみ再計算され、存在しない場合は追加されません。**
-- **Run.all() dimensions**: `mg.search.run.all()` が `item_key` (default: 'site') を dimensions に自動追加するようになり、メソッドチェーン（`.decode()` など）でサイト識別子が保持されます。
-- **classify 動作**: `.classify(group=True)` が分類列（`query_category`、`page_category`）を含めて集計するようになりました。従来は分類列が削除されていました。
-- **classify dimensions 更新**: `.classify(group=True)` が内部 dimensions を更新するようになり、後続の `group=True` メソッドで分類列が保持されます。
-- **aggregate dimensions**: `.aggregate(by=...)` が指定列で集計する際、後続の `.group=True` メソッドが正しく動作するよう内部 dimensions を更新するようになりました。
-- **Run.all() 型注釈**: 戻り値の型注釈を `pd.DataFrame` から `SearchResult` に修正しました。
-- **Run.all() docstring**: 戻り値の説明を「Combined DataFrame」から「SearchResult」に修正し、使用例も `result = ...` に統一しました。
-- **Run.all() SearchResult 対応**: `mg.search.run.all()` が `self()` から返される `SearchResult` を正しく処理するようになりました（`.df` プロパティ経由で DataFrame にアクセス）。
-- **lower() 引数**: `columns` パラメータの mutable default を修正しました（`columns=['page']` → `columns=None`）。
-- **NaN 処理**: `keep_clicked=True` 時に `clicks` が NaN の行が意図せず削除される問題を修正しました。NaN 行は条件判定をスキップして保持されます。
-
 
 ## 0.7.4 – 2026‑01‑02
 
