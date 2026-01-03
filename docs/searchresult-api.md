@@ -2,6 +2,8 @@
 
 このドキュメントは新しい SearchResult メソッドチェーン API の使い方を説明します。
 
+**全 API の概要は [API リファレンス](api-reference.md#searchresult-メソッドチェーン) を参照してください。**
+
 ## 基本的な使い方
 
 ```python
