@@ -131,6 +131,64 @@ def test_report_run_all_basic():
     assert set(result['site']) == {'siteA', 'siteB'}
 
 
+def test_report_run_all_absolute_url_from_item_url():
+    """absolute=True converts relative paths using item['url'] domain only"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    mock_df = pd.DataFrame({'lp': ['/apl/netuser/?id=1'], 'users': [1]})
+
+    with patch.object(app.report.run.__class__, '__call__'):
+        app.report.data = mock_df
+        sites = [
+            {
+                'site': 'dentamap',
+                'ga4_property_id': '123456',
+                'url': 'https://plus.dentamap.jp/apl/netuser/',
+            }
+        ]
+
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'lp', {'absolute': True})],
+            m=['users'],
+            verbose=False,
+        )
+
+    assert result['lp'].iloc[0] == 'https://plus.dentamap.jp/apl/netuser/?id=1'
+
+
+def test_report_run_all_absolute_url_skips_without_base():
+    """absolute=True leaves relative paths when item['url'] is missing/empty"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    mock_df = pd.DataFrame({'lp': ['/landing/'], 'users': [1]})
+
+    with patch.object(app.report.run.__class__, '__call__'):
+        app.report.data = mock_df
+        sites = [
+            {'site': 'siteA', 'ga4_property_id': '123456', 'url': ''},
+        ]
+
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'lp', {'absolute': True})],
+            m=['users'],
+            verbose=False,
+        )
+
+    assert result['lp'].iloc[0] == '/landing/'
+
+
 def test_search_run_all_empty_gsc_site_url():
     """Test that empty gsc_site_url is skipped"""
     app = Megaton(None, headless=True)

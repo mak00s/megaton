@@ -328,6 +328,8 @@ df = mg.report.data
 **パラメータ:**
 - `items` (list[dict]) - アイテム設定のリスト
 - `d` (list | None) - ディメンション（省略形）
+  - 文字列または `(api_name, alias)` または `(api_name, alias, options)` のタプル
+  - `options={'absolute': True}` を指定すると、`item['url']` のドメインで相対パスを絶対URLに変換します
 - `m` (list | None) - 指標（省略形）
 - `dimensions` (list | None) - ディメンション（明示形）
 - `metrics` (list | None) - 指標（明示形）
@@ -354,6 +356,15 @@ df = mg.report.run.all(
 )
 
 assert 'site' in df.columns
+```
+
+```python
+# 相対URLを絶対URLに変換（item['url'] のドメインを使用）
+df = mg.report.run.all(
+    sites,
+    d=[('landingPage', 'lp', {'absolute': True})],
+    m=['activeUsers'],
+)
 ```
 
 ### `mg.report.prep(conf, df=None)`
