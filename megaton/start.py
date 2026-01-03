@@ -2004,20 +2004,18 @@ class Megaton:
                     return ""
 
                 def _apply_absolute(df, col, base_url):
+                    """ベクトル化した相対パス→絶対URL変換（高速化）"""
                     if not base_url or col not in df.columns:
                         return df
+                    
                     base = base_url.rstrip("/")
-
-                    def _to_absolute(val):
-                        if not isinstance(val, str) or not val:
-                            return val
-                        if val.startswith("http://") or val.startswith("https://"):
-                            return val
-                        if val.startswith("/"):
-                            return f"{base}{val}"
-                        return val
-
-                    df[col] = df[col].apply(_to_absolute)
+                    col_series = df[col]
+                    
+                    # 相対パスのマスク（/で始まるものだけ）
+                    is_relative = col_series.str.startswith('/', na=False)
+                    
+                    # マスクされた行のみ変換（コピーを避けて効率化）
+                    df.loc[is_relative, col] = base + df.loc[is_relative, col]
                     return df
 
                 for item in selected_items:
