@@ -510,6 +510,120 @@ def test_report_run_all_unsupported_metric_option():
             )
 
 
+def test_report_run_all_site_dimension_prefix():
+    """site. プレフィックスで次元を動的に指定"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    actual_dimensions_by_clinic = {}
+
+    def mock_call(self, d, m, **kwargs):
+        # clinic 名を取得（property.id で判断）
+        clinic_name = '札幌' if self.parent.parent.ga['4'].property.id == '12345' else 'dentamap'
+        actual_dimensions_by_clinic[clinic_name] = d
+        
+        # 次元に応じたデータを返す
+        if d and len(d) >= 2:
+            dim_name = d[1][0] if isinstance(d[1], tuple) else d[1]
+            if dim_name == 'landingPage':
+                self.parent.data = pd.DataFrame({'month': ['202501'], 'lp': ['/page1'], 'users': [100], 'clinic': ['札幌']})
+            elif dim_name == 'landingPagePlusQueryString':
+                self.parent.data = pd.DataFrame({'month': ['202501'], 'lp': ['/page1?id=123'], 'users': [50], 'clinic': ['dentamap']})
+        else:
+            self.parent.data = pd.DataFrame()
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': '札幌', 'ga4_property_id': '12345', 'lp_dim': 'landingPage'},
+            {'clinic': 'dentamap', 'ga4_property_id': '67890', 'lp_dim': 'landingPagePlusQueryString'},
+        ]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month'), ('site.lp_dim', 'lp')],
+            m=[('activeUsers', 'users')],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # 各サイトで異なる次元が使われたことを確認（順序非依存）
+    assert len(actual_dimensions_by_clinic) == 2
+    assert '札幌' in actual_dimensions_by_clinic
+    assert 'dentamap' in actual_dimensions_by_clinic
+    assert actual_dimensions_by_clinic['札幌'][1] == ('landingPage', 'lp')
+    assert actual_dimensions_by_clinic['dentamap'][1] == ('landingPagePlusQueryString', 'lp')
+    
+    # 結果が統合されていることを確認
+    assert len(result) == 2
+    assert '札幌' in result['clinic'].values
+    assert 'dentamap' in result['clinic'].values
+
+
+def test_report_run_all_site_dimension_with_options():
+    """site. プレフィックスで次元を指定し、オプションも適用"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    def mock_call(self, d, m, **kwargs):
+        # 次元に応じたデータを返す（相対パス）
+        if d and len(d) >= 2:
+            dim_name = d[1][0] if isinstance(d[1], tuple) else d[1]
+            if dim_name == 'landingPage':
+                self.parent.data = pd.DataFrame({'month': ['202501'], 'lp': ['/page1'], 'users': [100]})
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': '札幌', 'ga4_property_id': '12345', 'lp_dim': 'landingPage', 'url': 'https://example.com'},
+        ]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month'), ('site.lp_dim', 'lp', {'absolute': True})],
+            m=[('activeUsers', 'users')],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # absolute オプションが適用され、絶対URLに変換されていることを確認
+    assert len(result) == 1
+    assert result['lp'].iloc[0] == 'https://example.com/page1'
+
+
+def test_report_run_all_site_dimension_missing_key():
+    """site. プレフィックスで存在しないキーを指定するとエラー"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    def mock_call(self, d, m, **kwargs):
+        self.parent.data = pd.DataFrame()
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': '札幌', 'ga4_property_id': '12345'},  # lp_dim キーがない
+        ]
+        
+        with pytest.raises(ValueError, match="Site key 'lp_dim' not found"):
+            app.report.run.all(
+                sites,
+                d=[('yearMonth', 'month'), ('site.lp_dim', 'lp')],
+                m=[('activeUsers', 'users')],
+                item_key='clinic',
+                verbose=False,
+            )
+
+
 def test_report_run_all_metric_specific_filter_d():
     """メトリクスごとに異なるfilter_dを指定"""
     app = Megaton(None, headless=True)
