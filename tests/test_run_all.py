@@ -189,6 +189,103 @@ def test_report_run_all_absolute_url_skips_without_base():
     assert result['lp'].iloc[0] == '/landing/'
 
 
+def test_report_run_all_absolute_preserves_already_absolute():
+    """absolute=True preserves URLs that are already absolute"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    mock_df = pd.DataFrame({
+        'lp': ['https://other.com/page', 'http://another.com/test'],
+        'users': [1, 2]
+    })
+
+    with patch.object(app.report.run.__class__, '__call__'):
+        app.report.data = mock_df
+        sites = [
+            {'site': 'siteA', 'ga4_property_id': '123456', 'url': 'https://example.com'},
+        ]
+
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'lp', {'absolute': True})],
+            m=['users'],
+            verbose=False,
+        )
+
+    # 既に絶対URLの場合は変更しない
+    assert result['lp'].iloc[0] == 'https://other.com/page'
+    assert result['lp'].iloc[1] == 'http://another.com/test'
+
+
+def test_report_run_all_absolute_handles_none_and_empty():
+    """absolute=True preserves None and empty strings"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    mock_df = pd.DataFrame({
+        'lp': [None, '', '/page'],
+        'users': [1, 2, 3]
+    })
+
+    with patch.object(app.report.run.__class__, '__call__'):
+        app.report.data = mock_df
+        sites = [
+            {'site': 'siteA', 'ga4_property_id': '123456', 'url': 'https://example.com'},
+        ]
+
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'lp', {'absolute': True})],
+            m=['users'],
+            verbose=False,
+        )
+
+    # None と空文字はそのまま、相対パスのみ変換
+    assert pd.isna(result['lp'].iloc[0])
+    assert result['lp'].iloc[1] == ''
+    assert result['lp'].iloc[2] == 'https://example.com/page'
+
+
+def test_report_run_all_absolute_preserves_query_and_fragment():
+    """absolute=True preserves query parameters and fragments"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    mock_df = pd.DataFrame({
+        'lp': ['/page?a=1&b=2', '/section#anchor'],
+        'users': [1, 2]
+    })
+
+    with patch.object(app.report.run.__class__, '__call__'):
+        app.report.data = mock_df
+        sites = [
+            {'site': 'siteA', 'ga4_property_id': '123456', 'url': 'https://example.com'},
+        ]
+
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'lp', {'absolute': True})],
+            m=['users'],
+            verbose=False,
+        )
+
+    # クエリパラメータとフラグメントは保持される
+    assert result['lp'].iloc[0] == 'https://example.com/page?a=1&b=2'
+    assert result['lp'].iloc[1] == 'https://example.com/section#anchor'
+
+
 def test_search_run_all_empty_gsc_site_url():
     """Test that empty gsc_site_url is skipped"""
     app = Megaton(None, headless=True)
