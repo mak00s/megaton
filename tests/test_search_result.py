@@ -63,15 +63,15 @@ def test_lower():
     assert lowered.df['page'].iloc[0] == 'https://example.com/page'
 
 
-def test_filter_clicks_keep_clicked_false():
-    """keep_clicked=False で全行に閾値を適用"""
+def test_filter_clicks_applies_threshold():
+    """filter_clicks は全行に閾値を適用"""
     df = pd.DataFrame({
         'query': ['a', 'b', 'c'],
         'clicks': [0, 1, 2],
         'impressions': [100, 100, 100]
     })
     result = SearchResult(df, None, ['query'])
-    filtered = result.filter_clicks(min=2, keep_clicked=False)
+    filtered = result.filter_clicks(min=2)
     # clicks >= 2 の行のみ
     assert len(filtered.df) == 1
     assert filtered.df['query'].iloc[0] == 'c'

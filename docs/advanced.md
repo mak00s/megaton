@@ -319,7 +319,8 @@ mg.sheet.cell.set("A1", "Hello World")
 mg.sheet.range.set("B2:D4", [[1, 2, 3], [4, 5, 6], [7, 8, 9]])
 
 # 現在のシートのデータを DataFrame として取得
-df_sheet = mg.sheet.df()
+import pandas as pd
+df_sheet = pd.DataFrame(mg.sheet.data)
 ```
 
 ### 補助機能

@@ -6,15 +6,15 @@
 
 ### 追加
 
-- **SearchResult メソッドチェーン**: `mg.search.run()` と `mg.search.run.all()` が `SearchResult` オブジェクトを返すようになり、メソッドチェーンで段階的な処理が可能になりました。
-  - **URL 処理**: `.decode(group=True)` – URL デコード、`.remove_params(keep=None, group=True)` – クエリパラメータ削除、`.remove_fragment(group=True)` – フラグメント削除、`.lower(columns=None, group=True)` – 小文字化
-  - **分類**: `.classify(query=None, page=None, group=True)` – クエリ・ページの正規化とカテゴリ分類
-  - **フィルター**: `.filter_clicks()`, `.filter_impressions()`, `.filter_ctr()`, `.filter_position()` – 指標ごとのフィルタリング。`sites` パラメータで行ごとに異なる閾値を適用可能
-  - **集計**: `.aggregate(by=None)` – 手動集計
+- **SearchResult メソッドチェーン**: `mg.search.run()` と `mg.search.run.all()` でメソッドチェーンによる段階的な処理が可能になりました。
+  - **URL 処理**: `.decode()` – URL デコード、`.remove_params()` – クエリパラメータ削除、`.remove_fragment()` – フラグメント削除、`.lower()` – 小文字化
+  - **分類**: `.classify()` – クエリ・ページの正規化とカテゴリ分類
+  - **フィルター**: `.filter_clicks()`, `.filter_impressions()`, `.filter_ctr()`, `.filter_position()` – 指標ごとのフィルタリング
+  - **集計**: `.aggregate(by=None)` – ディメンションの組み合わせを一意にする集計
   - **DataFrame アクセス**: `.df` プロパティ
 - **clean パラメータ**: `mg.search.run(clean=True)` で自動的に URL 正規化（decode + ? 削除 + # 削除 + 小文字化）を実行します。
 - **sites パラメータ**: フィルターメソッドで行ごとに異なる閾値を適用可能。DataFrame の `site_key` 列（default: 'site'）で各行に対応するサイト設定を検索します。
-- **keep_clicked パラメータ**: `clicks >= 1` の行を無条件に残すオプション。`filter_clicks()` では default=False、他のフィルターでは default=True です。
+- **keep_clicked パラメータ**: `clicks >= 1` の行を無条件に残すオプション。すべてのフィルターで default=False です（明示的に True を指定すると有効化）。
 - **group パラメータ**: URL 処理・分類メソッドで `group=True`（default）の場合、dimensions に基づいて自動集計します。大量データでは `group=False` にして最後だけ集計することでパフォーマンスを向上できます。
 
 ### 修正 / 追加
@@ -32,10 +32,9 @@
   - `items` パラメータで設定リスト（dict の list）を渡し、各要素に対してクエリを実行して結合します
   - `item_key` (default: `'site'`) で識別子列名を指定します
   - `item_filter` でフィルタリング（リスト or 関数）をサポートします
-  - `add_month` (str or DateWindow) で月ラベルを自動追加できます
   - Search Console 用に `site_url_key` (default: `'gsc_site_url'`)、GA4用に `property_key` (default: `'ga4_property_id'`) を指定できます
   - **注意:** `site_url_key` が空の場合、そのアイテムはスキップされます
-- **ドキュメント更新**: CHEATSHEET に `run.all()` の使い方を追記しました。
+- **ドキュメント更新**: `docs/cheatsheet.md` に `run.all()` の使い方を追記しました。
 - **Report 表示/保存の修正**: `mg.report.show()` / `mg.report.download()` が `self.data` を参照するように修正しました。
 
 ## 0.7.2 – 2026‑01‑02

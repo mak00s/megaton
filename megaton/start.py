@@ -233,7 +233,7 @@ class SearchResult:
         
         return SearchResult(df, self.parent, new_dimensions)
     
-    def filter_clicks(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+    def filter_clicks(self, min=None, max=None, sites=None, site_key='site'):
         """
         クリック数でフィルタリング
         
@@ -242,26 +242,25 @@ class SearchResult:
             max: 最大クリック数
             sites: サイト辞書のリスト（行ごとに閾値を適用）
             site_key: DataFrame 内でサイトを識別する列名（default: 'site'）
-            keep_clicked: True の場合、clicks >= 1 の行は無条件に残す（default: False）
         
         Returns:
             SearchResult
         """
-        return self._filter_metric('clicks', min, max, sites, site_key, keep_clicked,
+        return self._filter_metric('clicks', min, max, sites, site_key, False,
                                    'min_clicks', 'max_clicks')
     
-    def filter_impressions(self, min=None, max=None, sites=None, site_key='site', keep_clicked=True):
-        """インプレッション数でフィルタリング（default: keep_clicked=True）"""
+    def filter_impressions(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+        """インプレッション数でフィルタリング（default: keep_clicked=False）"""
         return self._filter_metric('impressions', min, max, sites, site_key, keep_clicked,
                                    'min_impressions', 'max_impressions')
     
-    def filter_ctr(self, min=None, max=None, sites=None, site_key='site', keep_clicked=True):
-        """CTRでフィルタリング（default: keep_clicked=True）"""
+    def filter_ctr(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+        """CTRでフィルタリング（default: keep_clicked=False）"""
         return self._filter_metric('ctr', min, max, sites, site_key, keep_clicked,
                                    'min_ctr', 'max_ctr')
     
-    def filter_position(self, min=None, max=None, sites=None, site_key='site', keep_clicked=True):
-        """平均順位でフィルタリング（default: keep_clicked=True）"""
+    def filter_position(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+        """平均順位でフィルタリング（default: keep_clicked=False）"""
         return self._filter_metric('position', min, max, sites, site_key, keep_clicked,
                                    'min_position', 'max_position')
     
@@ -1220,7 +1219,6 @@ class Megaton:
                 item_key: str = "site",
                 site_url_key: str = "gsc_site_url",
                 item_filter=None,
-                add_month=None,
                 verbose: bool = True,
                 **run_kwargs,
             ) -> 'SearchResult':
@@ -1237,10 +1235,6 @@ class Megaton:
                         - If list: Include items where item[item_key] is in the list.
                         - If callable: Include items where item_filter(item) returns True.
                         - If None: Include all items.
-                    add_month: Add 'month' column with value:
-                        - If str: Use the string directly (e.g., '202501').
-                        - If DateWindow: Use start_ym field.
-                        - If None: Don't add month column.
                     dimension_filter: Dimension filter string or list of filters (AND only).
                     verbose: Print progress messages (default: True).
                     **run_kwargs: Additional arguments passed to mg.search.run()
@@ -1259,15 +1253,13 @@ class Megaton:
                     ...     item_filter=['siteA', 'siteB'],
                     ... )
 
-                    >>> # With month label from DateWindow
-                    >>> p = mg.search.set.months(ago=1, window_months=1)
+                    >>> # With filtering
                     >>> result = mg.search.run.all(
                     ...     clinics,
                     ...     dimensions=['query', 'page'],
                     ...     metrics=['clicks', 'impressions', 'position'],
                     ...     item_key='clinic',
                     ...     item_filter=CLINIC_FILTER,
-                    ...     add_month=p,
                     ...     limit=25000,
                     ...     country='jpn',
                     ... )
@@ -1315,17 +1307,6 @@ class Megaton:
                         
                         df = df.copy()
                         df[item_key] = item_id
-                        
-                        # Add month column if requested
-                        if add_month is not None:
-                            if isinstance(add_month, str):
-                                df['month'] = add_month
-                            elif hasattr(add_month, 'start_ym'):
-                                df['month'] = add_month.start_ym
-                            else:
-                                if verbose:
-                                    print(f"⚠️ add_month must be str or DateWindow, got {type(add_month)}")
-                        
                         dfs.append(df)
                     
                     except Exception as e:
@@ -1338,18 +1319,14 @@ class Megaton:
                     new_dimensions = list(dimensions)
                     if item_key not in new_dimensions:
                         new_dimensions.append(item_key)
-                    if add_month is not None and 'month' not in new_dimensions:
-                        new_dimensions.append('month')
                     return SearchResult(pd.DataFrame(), self.parent, new_dimensions)
                 
                 combined_df = pd.concat(dfs, ignore_index=True)
                 
-                # dimensions を構築: item_key と month を適切に追加
+                # dimensions を構築: item_key を適切に追加
                 new_dimensions = list(dimensions)
                 if item_key not in new_dimensions:
                     new_dimensions.append(item_key)
-                if add_month is not None and 'month' not in new_dimensions:
-                    new_dimensions.append('month')
                 
                 return SearchResult(combined_df, self.parent, new_dimensions)
 
@@ -1556,8 +1533,6 @@ class Megaton:
             self._ensure_sheet_selected()
             return self.parent.gs.sheet.data
 
-        def df(self):
-            return pd.DataFrame(self.data or [])
 
         def _coerce_df(self, df):
             if df is None:
@@ -1867,7 +1842,6 @@ class Megaton:
                 item_key: str = "site",
                 property_key: str = "ga4_property_id",
                 item_filter=None,
-                add_month=None,
                 verbose: bool = True,
                 **run_kwargs,
             ) -> pd.DataFrame:
@@ -1885,10 +1859,6 @@ class Megaton:
                         - If list: Include items where item[item_key] is in the list.
                         - If callable: Include items where item_filter(item) returns True.
                         - If None: Include all items.
-                    add_month: Add 'month' column with value:
-                        - If str: Use the string directly (e.g., '202501').
-                        - If DateWindow: Use start_ym field.
-                        - If None: Don't add month column.
                     verbose: Print progress messages (default: True).
                     **run_kwargs: Additional arguments passed to mg.report.run()
                         (e.g., filter_d, filter_m, sort, limit).
@@ -1913,15 +1883,6 @@ class Megaton:
                     ...     item_key='clinic',
                     ...     property_key='ga4_property_id',
                     ...     item_filter=CLINIC_FILTER,
-                    ... )
-
-                    >>> # With month label from DateWindow
-                    >>> p = mg.report.set.months(ago=1, window_months=13)
-                    >>> df = mg.report.run.all(
-                    ...     sites,
-                    ...     d=[('defaultChannelGroup','channel')],
-                    ...     m=[('activeUsers','users')],
-                    ...     add_month=p,
                     ... )
                 """
                 # Resolve d/m vs dimensions/metrics
@@ -1974,17 +1935,6 @@ class Megaton:
                         
                         df = df.copy()
                         df[item_key] = item_id
-                        
-                        # Add month column if requested
-                        if add_month is not None:
-                            if isinstance(add_month, str):
-                                df['month'] = add_month
-                            elif hasattr(add_month, 'start_ym'):
-                                df['month'] = add_month.start_ym
-                            else:
-                                if verbose:
-                                    print(f"⚠️ add_month must be str or DateWindow, got {type(add_month)}")
-                        
                         dfs.append(df)
                     
                     except Exception as e:
