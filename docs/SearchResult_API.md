@@ -144,14 +144,12 @@ result = (mg.search
 
 ### DataFrame アクセス
 - `.df` – DataFrame にアクセスするプロパティ
-- `.to_df()` – DataFrame を取得するメソッド
 
 ### 一括処理
 - `mg.search.run.all(items, dimensions, ...)` – 複数サイト/アイテムを処理
   - `SearchResult` を返す（DataFrame ではない）
   - 自動的に `item_key` を dimensions に追加
   - 全パラメータは docstring を参照
-- `.to_df()` – 明示的に DataFrame を取得するメソッド
 
 ## 注意事項
 

@@ -11,15 +11,6 @@ def test_search_result_df_property():
     assert len(result.df) == 1
 
 
-def test_search_result_to_df():
-    """to_df() メソッドで DataFrame を取得できる"""
-    df = pd.DataFrame({'query': ['test'], 'clicks': [10]})
-    result = SearchResult(df, None, ['query'])
-    to_df = result.to_df()
-    assert isinstance(to_df, pd.DataFrame)
-    assert len(to_df) == 1
-
-
 def test_decode():
     """decode() が URL デコードを行う"""
     df = pd.DataFrame({
@@ -361,4 +352,3 @@ def test_classify_updates_dimensions():
     # 後続の group=True 呼び出しで category 列が保持される
     decoded = classified.decode(group=True)
     assert 'query_category' in decoded.df.columns
-

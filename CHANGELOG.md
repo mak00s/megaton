@@ -11,7 +11,7 @@
   - **分類**: `.classify(query=None, page=None, group=True)` – クエリ・ページの正規化とカテゴリ分類
   - **フィルター**: `.filter_clicks()`, `.filter_impressions()`, `.filter_ctr()`, `.filter_position()` – 指標ごとのフィルタリング。`sites` パラメータで行ごとに異なる閾値を適用可能
   - **集計**: `.aggregate(by=None)` – 手動集計
-  - **DataFrame アクセス**: `.df` プロパティまたは `.to_df()` メソッド
+  - **DataFrame アクセス**: `.df` プロパティ
 - **clean パラメータ**: `mg.search.run(clean=True)` で自動的に URL 正規化（decode + ? 削除 + # 削除 + 小文字化）を実行します。
 - **sites パラメータ**: フィルターメソッドで行ごとに異なる閾値を適用可能。DataFrame の `site_key` 列（default: 'site'）で各行に対応するサイト設定を検索します。
 - **keep_clicked パラメータ**: `clicks >= 1` の行を無条件に残すオプション。`filter_clicks()` では default=False、他のフィルターでは default=True です。

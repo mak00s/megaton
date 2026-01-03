@@ -41,10 +41,6 @@ class SearchResult:
         """DataFrame として直接アクセス（後方互換性）"""
         return self._df
     
-    def to_df(self):
-        """DataFrame を明示的に取得"""
-        return self._df
-    
     def _aggregate(self, df):
         """dimensions に基づいて集計 (位置は重み付き平均、他は合計)"""
         return self._aggregate_gsc(df, self.dimensions)
