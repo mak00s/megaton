@@ -59,12 +59,14 @@
 - `mg.search.use(site_url)` – 指定したサイトを選択します。
 - `mg.search.set.dates(date_from, date_to)` – 日付範囲を設定します。
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)` – 月単位のウィンドウを設定し、`DateWindow` を返します。
-- `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行します。
+- `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行し、`SearchResult` を返します（`.df` で DataFrame にアクセス）。
   - `dimensions` は `date/hour/country/device/page/query` から選択できます。`month` を指定すると月単位に集計されます。
+  - `clean=True` を指定すると URL 正規化と集計を自動実行します。
   - `dimension_filter="page=~^/blog/;query=@ortho"` のように指定すると AND 条件で絞り込みできます（`=~`/`!~` は RE2 正規表現、`=@`/`!@` は部分一致）。
-- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, add_month?, verbose?, **kwargs)` – 複数アイテムのクエリを一括実行して結合します。
+  - **メソッドチェーン:** `.decode()`, `.classify()`, `.filter_*()` などで処理を連鎖できます。詳しくは `docs/SearchResult_API.md` を参照。
+- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, add_month?, verbose?, **kwargs)` – 複数アイテムのクエリを一括実行して結合し、`SearchResult` を返します。
   - `items` – アイテム設定のリスト（dict の list）
-  - `item_key='site'` – アイテム識別子キー（デフォルト: 'site'）
+  - `item_key='site'` – アイテム識別子キー（デフォルト: 'site'）。**自動的に dimensions に追加されます。**
   - `site_url_key='gsc_site_url'` – GSCサイトURLキー（空の場合はスキップ）
   - `item_filter=None` – アイテムフィルタ（リスト or 関数）
   - `add_month=None` – 月ラベル追加（str or DateWindow）

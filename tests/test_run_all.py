@@ -36,10 +36,12 @@ def test_search_run_all_basic():
                 verbose=False,
             )
     
-    assert isinstance(result, pd.DataFrame)
-    assert len(result) == 2
-    assert 'site' in result.columns
-    assert set(result['site']) == {'siteA', 'siteB'}
+    assert result is not None
+    result_df = result.df
+    assert isinstance(result_df, pd.DataFrame)
+    assert len(result_df) == 2
+    assert 'site' in result_df.columns
+    assert set(result_df['site']) == {'siteA', 'siteB'}
 
 
 def test_search_run_all_with_filter():
@@ -66,8 +68,9 @@ def test_search_run_all_with_filter():
                 verbose=False,
             )
     
-    assert len(result) == 2
-    assert set(result['clinic']) == {'A', 'C'}
+    result_df = result.df
+    assert len(result_df) == 2
+    assert set(result_df['clinic']) == {'A', 'C'}
 
 
 def test_search_run_all_with_add_month():
@@ -89,8 +92,9 @@ def test_search_run_all_with_add_month():
                 add_month='202501',
                 verbose=False,
             )
-            assert 'month' in result.columns
-            assert result['month'].iloc[0] == '202501'
+            result_df = result.df
+            assert 'month' in result_df.columns
+            assert result_df['month'].iloc[0] == '202501'
             
             # Test with DateWindow
             p = dates.DateWindow(
@@ -107,7 +111,8 @@ def test_search_run_all_with_add_month():
                 add_month=p,
                 verbose=False,
             )
-            assert result['month'].iloc[0] == '202501'
+            result_df = result.df
+            assert result_df['month'].iloc[0] == '202501'
 
 
 def test_search_run_all_url_fallback():
@@ -129,8 +134,9 @@ def test_search_run_all_url_fallback():
                 verbose=False,
             )
     
-    assert len(result) == 1
-    assert result['site'].iloc[0] == 'A'
+    result_df = result.df
+    assert len(result_df) == 1
+    assert result_df['site'].iloc[0] == 'A'
 
 
 def test_report_run_all_basic():
@@ -195,8 +201,9 @@ def test_search_run_all_empty_gsc_site_url():
             )
     
     # Should process A and C, skip B
-    assert len(result) == 2
-    assert set(result['clinic']) == {'A', 'C'}
+    result_df = result.df
+    assert len(result_df) == 2
+    assert set(result_df['clinic']) == {'A', 'C'}
     assert call_count['count'] == 2
 
 
@@ -230,3 +237,49 @@ def test_report_run_all_missing_property_id():
     # Should only process sites A and C
     assert len(result) == 2
     assert set(result['site']) == {'A', 'C'}
+
+
+def test_search_run_all_handles_searchresult():
+    """Test that run.all() correctly handles SearchResult from self()"""
+    from megaton.start import SearchResult
+    
+    app = Megaton(None, headless=True)
+    app.search.start_date = "2025-01-01"
+    app.search.end_date = "2025-01-31"
+    
+    # Create a SearchResult instead of DataFrame
+    mock_df = pd.DataFrame({
+        'query': ['test query'],
+        'clicks': [10],
+        'impressions': [100],
+    })
+    mock_result = SearchResult(mock_df, None, ['query'])
+    
+    # Patch to return SearchResult (not DataFrame)
+    with patch.object(app.search.run.__class__, '__call__', return_value=mock_result):
+        with patch.object(app.search, 'use'):
+            sites = [
+                {'site': 'siteA', 'gsc_site_url': 'https://example.com/'},
+                {'site': 'siteB', 'gsc_site_url': 'https://example2.com/'},
+            ]
+            
+            result = app.search.run.all(
+                sites,
+                dimensions=['query'],
+                metrics=['clicks', 'impressions'],
+                verbose=False,
+            )
+    
+    # Should successfully handle SearchResult.df
+    assert result is not None
+    result_df = result.df
+    assert isinstance(result_df, pd.DataFrame)
+    assert len(result_df) == 2
+    assert 'site' in result_df.columns
+    
+    # item_key が dimensions に含まれることを確認
+    assert 'site' in result.dimensions
+    
+    # メソッドチェーンで site が保持されることを確認
+    decoded = result.decode(group=True)
+    assert 'site' in decoded.df.columns
