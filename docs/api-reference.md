@@ -331,6 +331,7 @@ df = mg.report.data
   - 文字列または `(api_name, alias)` または `(api_name, alias, options)` のタプル
   - `options={'absolute': True}` を指定すると、`item['url']` のドメインで相対パスを絶対URLに変換します
 - `m` (list | None) - 指標（省略形）
+  - `site.<key>` を指定すると `item[<key>]` をメトリクスとして使用します
 - `dimensions` (list | None) - ディメンション（明示形）
 - `metrics` (list | None) - 指標（明示形）
 - `item_key` (str) - 識別子のキー名（default: 'site'）
@@ -356,6 +357,15 @@ df = mg.report.run.all(
 )
 
 assert 'site' in df.columns
+```
+
+```python
+# サイト別メトリクス（site.<key>）
+df = mg.report.run.all(
+    sites,
+    d=[('yearMonth', 'month')],
+    m=[('site.cv', 'cv')],
+)
 ```
 
 ```python
