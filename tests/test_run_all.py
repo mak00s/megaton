@@ -131,6 +131,93 @@ def test_report_run_all_basic():
     assert set(result['site']) == {'siteA', 'siteB'}
 
 
+def test_report_run_all_site_metric_prefix():
+    """site. プレフィックスでサイト別メトリクスを指定"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    metrics_used = []
+
+    def mock_call(self, d, m, **kwargs):
+        metrics_used.append(m)
+        self.parent.data = pd.DataFrame({'users': [1]})
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': '札幌', 'ga4_property_id': '12345', 'cv': 'totalPurchasers'},
+            {'clinic': '仙台', 'ga4_property_id': '67890', 'cv': 'keyEvents'},
+        ]
+
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month')],
+            m=[('site.cv', 'cv')],
+            item_key='clinic',
+            verbose=False,
+        )
+
+    assert len(result) == 2
+    assert metrics_used == [
+        [('totalPurchasers', 'cv')],
+        [('keyEvents', 'cv')],
+    ]
+
+
+def test_report_run_all_site_metric_missing_key():
+    """site. プレフィックスで存在しないキーを指定するとエラー"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+
+    with pytest.raises(ValueError, match="Site key 'cv' not found"):
+        app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month')],
+            m=[('site.cv', 'cv')],
+            item_key='clinic',
+            verbose=False,
+        )
+
+
+def test_report_run_all_mixed_metrics():
+    """通常メトリクスと site. プレフィックスの混在"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    metrics_used = []
+
+    def mock_call(self, d, m, **kwargs):
+        metrics_used.append(m)
+        self.parent.data = pd.DataFrame({'users': [1], 'cv': [2]})
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345', 'cv': 'totalPurchasers'}]
+
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month')],
+            m=[('activeUsers', 'users'), ('site.cv', 'cv')],
+            item_key='clinic',
+            verbose=False,
+        )
+
+    assert len(result) == 1
+    assert metrics_used == [[('activeUsers', 'users'), ('totalPurchasers', 'cv')]]
+
+
 def test_report_run_all_absolute_url_from_item_url():
     """absolute=True converts relative paths using item['url'] domain only"""
     app = Megaton(None, headless=True)

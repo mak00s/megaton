@@ -1930,6 +1930,7 @@ class Megaton:
                     items: List of item configuration dictionaries.
                     d: Dimensions (shorthand). List of dimension names or tuples.
                     m: Metrics (shorthand). List of metric names or tuples.
+                        - 'site.<key>' を指定すると item[key] を参照して動的に置換します。
                     dimensions: Dimensions (explicit). Alternative to 'd'.
                     metrics: Metrics (explicit). Alternative to 'm'.
                     item_key: Key name for item identifier in results (default: 'site').
@@ -1963,6 +1964,14 @@ class Megaton:
                     ...     property_key='ga4_property_id',
                     ...     item_filter=CLINIC_FILTER,
                     ... )
+
+                    >>> # site別メトリクス（site.cv で item['cv'] を参照）
+                    >>> df = mg.report.run.all(
+                    ...     clinics,
+                    ...     d=[('yearMonth','month')],
+                    ...     m=[('site.cv','cv')],
+                    ...     item_key='clinic',
+                    ... )
                 """
                 # Resolve d/m vs dimensions/metrics
                 if d is None and dimensions is not None:
@@ -1981,6 +1990,42 @@ class Megaton:
                         opts = dim[2]
                         if isinstance(opts, dict) and opts.get("absolute"):
                             dimension_options[out_col] = opts
+
+                def _raise_missing_site_key(item, key):
+                    item_label = (
+                        item.get(item_key)
+                        or item.get("clinic")
+                        or item.get("domain")
+                        or "unknown"
+                    )
+                    available_keys = ", ".join(f"'{k}'" for k in item.keys())
+                    raise ValueError(
+                        f"Site key '{key}' not found in site '{item_label}'. "
+                        f"Available keys: {available_keys}"
+                    )
+
+                def _resolve_metrics(item, metric_defs):
+                    resolved = []
+                    for metric_def in metric_defs:
+                        if isinstance(metric_def, tuple) and metric_def:
+                            metric_name = metric_def[0]
+                            if isinstance(metric_name, str) and metric_name.startswith("site."):
+                                key = metric_name[5:]
+                                actual_metric = item.get(key)
+                                if actual_metric is None or actual_metric == "":
+                                    _raise_missing_site_key(item, key)
+                                resolved.append((actual_metric, *metric_def[1:]))
+                            else:
+                                resolved.append(metric_def)
+                        elif isinstance(metric_def, str) and metric_def.startswith("site."):
+                            key = metric_def[5:]
+                            actual_metric = item.get(key)
+                            if actual_metric is None or actual_metric == "":
+                                _raise_missing_site_key(item, key)
+                            resolved.append(actual_metric)
+                        else:
+                            resolved.append(metric_def)
+                    return resolved
 
                 # Filter items
                 if item_filter is None:
@@ -2035,7 +2080,8 @@ class Megaton:
                         self.parent.parent.ga['4'].property.id = property_id
                         
                         # Run the report
-                        self(d=d, m=m, **run_kwargs)
+                        resolved_m = _resolve_metrics(item, m)
+                        self(d=d, m=resolved_m, **run_kwargs)
                         df = self.parent.data
                         
                         if df is None or (isinstance(df, pd.DataFrame) and df.empty):
@@ -2057,6 +2103,8 @@ class Megaton:
                         dfs.append(df)
                     
                     except Exception as e:
+                        if isinstance(e, ValueError) and str(e).startswith("Site key"):
+                            raise
                         if verbose:
                             print(f" ❌ {e}")
                         continue

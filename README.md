@@ -98,6 +98,7 @@ Megaton の GA4 インタフェースでは、期間の設定からレポート�
   ```
 - **レポート実行:** `mg.report.run(d=[...], m=[...])` で GA4 データを取得し、結果は `mg.report.data` に格納されます。
 - **バッチ処理:** `mg.report.run.all(items, d, m, item_key='site', ...)` で複数プロパティのレポートを一括実行して結合できます。
+  - **動的メトリクス:** `m` で `site.<key>` を指定すると、各 item の `item[<key>]` をメトリクスとして使います。
 
   ```python
   # 複数クリニックから一括でレポート取得
@@ -109,6 +110,15 @@ Megaton の GA4 インタフェースでは、期間の設定からレポート�
       item_key='clinic',  # 識別子列名（デフォルト: 'site'）
       property_key='ga4_property_id',  # GA4プロパティIDキー
       item_filter=lambda s: s.get('clinic') != 'test',  # フィルタ（リスト or 関数）
+  )
+  ```
+  ```python
+  # サイトごとに異なるメトリクスを指定（例: site['cv']）
+  df = mg.report.run.all(
+      sites,
+      d=[('yearMonth', 'month')],
+      m=[('site.cv', 'cv')],
+      item_key='clinic',
   )
   ```
   - **相対URLの絶対化:** `d` の3要素タプルで `{'absolute': True}` を指定すると、`item['url']` のドメインで相対パスを補完できます。

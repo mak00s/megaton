@@ -27,6 +27,7 @@
   - `property_key='ga4_property_id'` – GA4プロパティIDキー
   - `item_filter=None` – アイテムフィルタ（リスト or 関数）
   - `d` の3要素タプルに `{'absolute': True}` を指定すると、`item['url']` のドメインで相対パスを絶対URLに変換します。
+  - `m` に `site.<key>` を指定すると、`item[<key>]` をメトリクスとして使用します。
 - `mg.report.start_date` / `mg.report.end_date` – 設定された開始日・終了日。
 - `mg.report.data` – 直近のレポート結果。
 - `mg.report.prep(conf, df?)` – 列名変更や値置換などの前処理を行います。
