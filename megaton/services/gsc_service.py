@@ -102,6 +102,14 @@ class GSCService:
 
         allowed_dims = {"date", "hour", "country", "device", "page", "query", "month"}
         filter_dims = allowed_dims - {"month"}
+        allowed_ops = {
+            "contains",
+            "notContains",
+            "equals",
+            "notEquals",
+            "includingRegex",
+            "excludingRegex",
+        }
         invalid_dims = [dim for dim in dimensions if dim not in allowed_dims]
         if invalid_dims:
             raise ValueError(f"Invalid dimensions: {invalid_dims}. Allowed: {sorted(allowed_dims)}")
@@ -115,17 +123,33 @@ class GSCService:
         dimension_filters = []
         if dimension_filter is not None:
             if not isinstance(dimension_filter, (list, tuple)):
-                raise ValueError("dimension_filter must be a list or tuple of dicts")
+                raise ValueError(
+                    "dimension_filter must be a list or tuple of dicts "
+                    "with keys: dimension, operator, expression"
+                )
             for item in dimension_filter:
                 if not isinstance(item, dict):
-                    raise ValueError("dimension_filter items must be dicts")
+                    raise ValueError(
+                        "dimension_filter items must be dicts "
+                        "with keys: dimension, operator, expression"
+                    )
                 dimension = item.get("dimension")
                 operator = item.get("operator")
                 expression = item.get("expression")
                 if not dimension or operator is None or expression is None:
-                    raise ValueError("dimension_filter items must have dimension/operator/expression")
+                    raise ValueError(
+                        "dimension_filter items must have dimension/operator/expression"
+                    )
                 if dimension not in filter_dims:
-                    raise ValueError(f"Invalid filter dimension: {dimension}. Allowed: {sorted(filter_dims)}")
+                    raise ValueError(
+                        f"Invalid filter dimension: {dimension}. "
+                        f"Allowed: {sorted(filter_dims)}"
+                    )
+                if operator not in allowed_ops:
+                    raise ValueError(
+                        f"Invalid filter operator: {operator}. "
+                        f"Allowed: {sorted(allowed_ops)}"
+                    )
                 dimension_filters.append(
                     {
                         "dimension": dimension,

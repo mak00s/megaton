@@ -774,7 +774,9 @@ class Megaton:
                 return filters or None
 
             if not isinstance(dimension_filter, str):
-                raise ValueError("dimension_filter must be a string, list, tuple, or None")
+                raise ValueError(
+                    "dimension_filter must be a string, list, tuple, or None"
+                )
 
             operator_map = {
                 "=~": "includingRegex",
@@ -782,6 +784,7 @@ class Megaton:
                 "=@": "contains",
                 "!@": "notContains",
             }
+            allowed_ops = ", ".join(operator_map.keys())
             filters = []
             for raw in dimension_filter.split(";"):
                 cond = raw.strip()
@@ -790,13 +793,19 @@ class Megaton:
 
                 op = next((candidate for candidate in operator_map if candidate in cond), None)
                 if op is None:
-                    raise ValueError(f"Invalid dimension_filter condition: {cond}")
+                    raise ValueError(
+                        "Invalid dimension_filter condition: "
+                        f"{cond}. Allowed operators: {allowed_ops}"
+                    )
 
                 dimension, expression = cond.split(op, 1)
                 dimension = dimension.strip()
                 expression = expression.strip()
                 if not dimension or not expression:
-                    raise ValueError(f"Invalid dimension_filter condition: {cond}")
+                    raise ValueError(
+                        "Invalid dimension_filter condition: "
+                        f"{cond}. Expected <dimension><op><expression>"
+                    )
 
                 filters.append(
                     {
