@@ -195,7 +195,185 @@ mg.report.set.dates("2024-01-01", "2024-01-31")
 # "A1" に開始日を、"B1" に終了日を書き込み
 mg.report.dates.to.sheet("_meta", "A1", "B1")
 ```
+### ReportResult のメソッドチェーン
 
+`mg.report.run.all()` は `ReportResult` オブジェクトを返します。これは GA4 レポートデータをラップし、メソッドチェーンでデータ処理を行えるクラスです（Search Console の `SearchResult` と同様のパターンです）。
+
+#### ReportResult の基本的な使い方
+
+```python
+# run.all() の結果は ReportResult オブジェクト
+result = mg.report.run.all(
+    sites,
+    d=[('yearMonth', 'month'), ('sessionSource', 'source')],
+    m=[('activeUsers', 'users')],
+    item_key='clinic',
+)
+
+# DataFrame として取得
+df = result.df
+
+# メソッドチェーンで処理
+processed = (result
+    .fill(to='(not set)')  # 欠損値を埋める
+    .classify(
+        dimension='source',
+        by={'.*google.*': 'Search', '.*yahoo.*': 'Search'},
+        output='source_category'
+    )
+    .group(by=['month', 'source_category'], metrics=['users'])
+    .to_int(metrics='users')
+    .sort(by='users', ascending=False)
+)
+
+df_processed = processed.df
+```
+
+#### ディメンションの自動推定
+
+`ReportResult` はデータフレームの列を自動的にディメンションとメトリクスに分類します。これにより `fill()` や `classify(group=True)` などのメソッドが正しく動作します。
+
+**自動推定の仕組み:**
+1. **明示的な指定が最優先**: `ReportResult(df, dimensions=['date', 'source'])` のように指定された場合は、それを使用
+2. **既知のディメンションを保護**: `month`, `yearMonth`, `date` などの数値型ディメンションは保護
+3. **既知のメトリクスを除外**: `sessions`, `users`, `cv`, `ad_cost` などを除外
+4. **数値型列を自動検出**: 残りの数値型列をカスタムメトリクスとして扱う
+5. **非数値列をディメンションとする**: 最終的にメトリクスでない列がディメンションになる
+
+```python
+# 例: カスタムメトリクス (cv, ad_cost) を含むデータ
+df = pd.DataFrame({
+    'month': [202401, 202402],      # 数値型だが既知のディメンション → dimensions
+    'sessionSource': ['google', 'yahoo'],  # 文字列型 → dimensions
+    'sessions': [100, 50],          # 既知のメトリクス → metrics
+    'cv': [10, 5],                  # 数値型（カスタム） → metrics（自動検出）
+    'ad_cost': [1000, 500],         # 数値型（カスタム） → metrics（自動検出）
+})
+
+result = ReportResult(df)
+# result.dimensions = ['month', 'sessionSource']
+# メトリクス = ['sessions', 'cv', 'ad_cost']
+
+# classify() で正しく集計される
+result.classify(
+    dimension='sessionSource',
+    by={'google': 'Search', 'yahoo': 'Search'},
+    group=True  # sessions, cv, ad_cost がすべて合算される
+)
+```
+
+**注意点:**
+- **数値型ディメンションを使う場合**: `month`/`yearMonth` などは `KNOWN_GA4_DIMENSIONS` に含まれているため自動的に保護されます
+- **独自の数値型ディメンションを使う場合**: 明示的に `dimensions` パラメータを指定してください
+
+```python
+# 独自の数値型ディメンション（例: 年齢層を数値で表現）
+df = pd.DataFrame({
+    'age_group': [20, 30, 40],  # カスタムな数値型ディメンション
+    'sessions': [100, 150, 80]
+})
+
+# 明示的に指定（推奨）
+result = ReportResult(df, dimensions=['age_group'])
+
+# または、自動推定を使う場合は文字列型に変換
+df['age_group'] = df['age_group'].astype(str)
+result = ReportResult(df)
+```
+
+#### 利用可能なメソッド
+
+**classify(dimension, by, output=None, default=None, group=True)**  
+ディメンション列の値を正規表現パターンで分類します。
+
+```python
+# デフォルト: 分類後に集計（元のdimensionは除外）
+result.classify(
+    dimension='sessionSource',
+    by={'.*google.*': 'Search', '.*yahoo.*': 'Search', '.*facebook.*': 'Social'},
+    output='source_type',  # 省略時は '{dimension}_category'
+    default='Other'  # 省略時は '(other)'
+)
+
+# 集計せず生データを保持
+result.classify(
+    dimension='sessionSource',
+    by={'.*google.*': 'Search'},
+    group=False  # 元のsessionSource列も保持
+)
+```
+
+**group(by, metrics=None, method='sum')**  
+指定したディメンションで集計します。
+
+```python
+# 単一ディメンションで集計
+result.group(by='sessionSource', metrics=['sessions', 'users'])
+
+# 複数ディメンションで集計
+result.group(by=['date', 'sessionSource'])
+
+# 集計方法を指定（sum, mean, count, min, max）
+result.group(by='date', metrics=['sessions'], method='mean')
+```
+
+**sort(by, ascending=True)**  
+指定した列でソートします。
+
+```python
+# 降順ソート
+result.sort(by='sessions', ascending=False)
+
+# 複数列でソート
+result.sort(by=['date', 'sessions'], ascending=[True, False])
+```
+
+**fill(to='(not set)', dimensions=None)**  
+ディメンション列の欠損値を指定した値で埋めます。
+
+```python
+# すべてのディメンションを埋める
+result.fill()
+
+# 特定のディメンションのみ埋める
+result.fill(to='Unknown', dimensions=['sessionSource'])
+```
+
+**to_int(metrics, fill_value=0)**  
+指標列を整数型に変換します（欠損値は fill_value で埋められます）。
+
+```python
+# 単一指標を変換
+result.to_int(metrics='sessions')
+
+# 複数指標を変換
+result.to_int(metrics=['sessions', 'users'], fill_value=0)
+```
+
+**replace(dimension, by)**  
+ディメンション列の値を辞書マッピングで置換します。
+
+```python
+result.replace(
+    dimension='sessionSource',
+    by={'google': 'Google', 'yahoo': 'Yahoo!', 'direct': 'Direct'}
+)
+```
+
+#### 後方互換性
+
+ReportResult は DataFrame と同様の操作をサポートしています。
+
+```python
+result = mg.report.run.all(sites, d=['date'], m=['sessions'])
+
+# DataFrame的な操作
+len(result)  # 行数を取得
+result['sessions']  # 列にアクセス
+result.df  # DataFrame として取得
+result.columns  # 列名のリスト
+result.empty  # 空かどうか
+```
 ### DataFrame の保存・ダウンロード
 
 Megaton はローカルやノートブック環境への保存にも対応しています。

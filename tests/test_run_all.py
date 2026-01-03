@@ -125,7 +125,9 @@ def test_report_run_all_basic():
             verbose=False,
         )
     
-    assert isinstance(result, pd.DataFrame)
+    # ReportResult インスタンスであることを確認
+    from megaton.start import ReportResult
+    assert isinstance(result, ReportResult)
     assert len(result) == 2
     assert 'site' in result.columns
     assert set(result['site']) == {'siteA', 'siteB'}
@@ -794,3 +796,233 @@ def test_report_run_all_global_explicit_same_filter_optimization():
     assert filters_used == ['sessionDefaultChannelGroup==Organic Search']
     assert result['users'].iloc[0] == 100
     assert result['cv'].iloc[0] == 10
+
+
+def test_report_run_all_site_dimension_string_with_multiple_metrics():
+    """文字列の site.<key> を使用してメトリクス統合時の列名解決をテスト
+    
+    バグ再現：文字列 'site.lp_dim' を d に渡すと、resolved_d では 'landingPage' に解決されるが、
+    マージ時の dim_cols 取得で元の d を使うと 'site.lp_dim' を列名として探してしまいKeyError
+    
+    修正後：resolved_d から dim_cols を取得することで正しく 'landingPage' を使用してマージ
+    """
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    call_count = 0
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        
+        # filter_dに応じて異なるデータを返す（列名はAPIが返す実際の名前）
+        if filter_d == 'filter1':
+            self.parent.data = pd.DataFrame({'month': ['202501'], 'landingPage': ['/page1'], 'users': [100]})
+        elif filter_d == 'filter2':
+            self.parent.data = pd.DataFrame({'month': ['202501'], 'landingPage': ['/page1'], 'cv': [10]})
+        else:
+            self.parent.data = pd.DataFrame()
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345', 'lp_dim': 'landingPage'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month'), 'site.lp_dim'],  # 文字列パターンで site.lp_dim -> 'landingPage' に解決
+            m=[
+                ('activeUsers', 'users', {'filter_d': 'filter1'}),
+                ('totalPurchasers', 'cv', {'filter_d': 'filter2'}),
+            ],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # 2つの異なるfilter_dで2回APIコール
+    assert call_count == 2
+    # マージが成功することを確認（KeyErrorが発生しない）
+    assert len(result) == 1
+    assert 'landingPage' in result.columns  # site.lp_dim が landingPage に解決されている
+    assert 'month' in result.columns
+    assert 'clinic' in result.columns
+    assert 'users' in result.columns
+    assert 'cv' in result.columns
+    assert result['users'].iloc[0] == 100
+    assert result['cv'].iloc[0] == 10
+
+
+def test_report_run_all_custom_metrics_dimensions():
+    """カスタムメトリクス（cv, ad_cost等）が dimensions に入らないことを確認"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        # カスタムメトリクスを含むデータを返す
+        self.parent.data = pd.DataFrame({
+            'month': ['202501', '202501'],
+            'sessionSource': ['google', 'yahoo'],
+            'sessions': [100, 50],
+            'cv': [10, 5],  # カスタムメトリクス
+            'ad_cost': [1000.0, 500.0],  # カスタムメトリクス
+        })
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month'), ('sessionDefaultChannelGroup', 'sessionSource')],
+            m=[('sessions', 'sessions'), ('cv', 'cv'), ('ad_cost', 'ad_cost')],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # カスタムメトリクスが dimensions に含まれない
+    assert 'cv' not in result.dimensions
+    assert 'ad_cost' not in result.dimensions
+    # ディメンションのみが含まれる（item_key も除外される）
+    assert 'month' in result.dimensions
+    assert 'sessionSource' in result.dimensions
+    assert 'clinic' not in result.dimensions  # item_key は除外
+
+
+def test_report_run_all_numeric_dimensions_protected():
+    """数値型ディメンション（month, yearMonth等）が dimensions に正しく含まれることを確認"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        # 数値型ディメンションを含むデータを返す
+        self.parent.data = pd.DataFrame({
+            'month': [202501, 202501],  # 数値型だが既知のディメンション
+            'yearMonth': [202501, 202501],  # 数値型だが既知のディメンション
+            'sessionSource': ['google', 'yahoo'],
+            'sessions': [100, 50],
+            'cv': [10, 5],  # カスタムメトリクス
+        })
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('month', 'month'), ('yearMonth', 'yearMonth'), ('sessionSource', 'sessionSource')],
+            m=[('sessions', 'sessions'), ('cv', 'cv')],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # 数値型でも既知のディメンションは dimensions に含まれる
+    assert 'month' in result.dimensions
+    assert 'yearMonth' in result.dimensions
+    assert 'sessionSource' in result.dimensions
+    # メトリクスは除外される
+    assert 'sessions' not in result.dimensions
+    assert 'cv' not in result.dimensions
+    # item_key は除外される
+    assert 'clinic' not in result.dimensions
+
+
+def test_report_run_all_explicit_dimension_alias_kept():
+    """明示指定の次元エイリアス（数値型でも）を dimensions に保持"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        self.parent.data = pd.DataFrame({
+            'ym': [202501, 202502],
+            'sessions': [100, 50],
+        })
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'ym')],
+            m=[('sessions', 'sessions')],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    assert 'ym' in result.dimensions
+    assert 'sessions' not in result.dimensions
+    assert 'clinic' not in result.dimensions
+
+
+def test_report_run_all_empty_result_preserves_dimensions():
+    """空結果でも明示指定したディメンションが保持されることを確認"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        # 空DataFrameを返す（列はあるが0行）
+        self.parent.data = pd.DataFrame(columns=['month', 'source', 'sessions'])
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month'), ('sessionSource', 'source')],
+            m=[('sessions', 'sessions')],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # 空結果でもディメンション情報が保持される
+    assert len(result) == 0
+    assert 'month' in result.dimensions
+    assert 'source' in result.dimensions
+    assert 'sessions' not in result.dimensions
+    # メソッドチェーンが動作することを確認
+    filled = result.fill()
+    assert filled.dimensions == result.dimensions
+
+def test_report_run_all_empty_no_site_prefix_in_dimensions():
+    """全サイトスキップ時、site.プレフィックスが dimensions に残らないことを確認"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    # 全サイトで ga4_property_id が欠落しているケース
+    sites = [
+        {'clinic': '札幌'},  # ga4_property_id なし
+        {'clinic': '仙台'},  # ga4_property_id なし
+    ]
+    
+    result = app.report.run.all(
+        sites,
+        d=['site.lp_dim', ('yearMonth', 'month')],  # 文字列で site.lp_dim を指定
+        m=[('sessions', 'sessions')],
+        item_key='clinic',
+        verbose=False,
+    )
+    
+    # 空結果でも site. プレフィックスが除去される
+    assert len(result) == 0
+    assert 'site.lp_dim' not in result.dimensions
+    assert 'lp_dim' in result.dimensions  # site. が除去された列名
+    assert 'month' in result.dimensions
