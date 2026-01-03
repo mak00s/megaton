@@ -3,6 +3,8 @@
 
 このファイルは、Jupyter/Colab ノートブックから利用するための **Megaton の API 一覧** です。`?` は引数が任意であることを示します。`df?` を省略すると `mg.report.data` が既定値として使われます。
 
+**詳細な説明（パラメータ、戻り値、例）は [API リファレンス](api-reference.md) を参照してください。**
+
 ## コア / フロー
 
 - `mg = start.Megaton(creds)` – 認証情報を渡して Megaton オブジェクトを作成します。

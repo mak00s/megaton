@@ -1,6 +1,12 @@
 # megaton
 
 Megaton は Google Analytics 4、Google Search Console、Google Sheets、BigQuery を **Jupyter/Colab ノートブックから簡潔に操作するためのツール** です。Notebook 上で分析・配布（GA → SC → Sheets 等）を高速に実施でき、汎用 SDK の代替ではなく Notebook 向けの UX に特化しています。
+## ドキュメント
+
+- **[API リファレンス](docs/api-reference.md)** - 全 API の網羅的な説明（パラメータ、戻り値、使用例）
+- **[チートシート](docs/cheatsheet.md)** - クイックリファレンス
+- **[SearchResult API](docs/searchresult-api.md)** - メソッドチェーン詳細ガイド
+- **[アドバンスガイド](docs/advanced.md)** - 認証、設計思想、運用
 
 ## 目次
 1. [インストール](#インストール)
@@ -57,14 +63,14 @@ Google サービスにアクセスするために **サービスアカウント 
    mg.report.set.dates("2024-01-01", "2024-01-31")
 
    # GA4 レポート実行
-   df = mg.report.run(
+   mg.report.run(
        d=["date", "eventName"],
        m=["eventCount"],
    )
 
    # スプレッドシートを開いて保存
    mg.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
-   mg.save.to.sheet("_ga_data", df)
+   mg.save.to.sheet("_ga_data", mg.report.data)
    ```
 
 
@@ -90,7 +96,7 @@ Megaton の GA4 インタフェースでは、期間の設定からレポート�
   table_from = p.start_ymd  # BigQuery用のYYYYMMDD形式
   month_label = p.start_ym  # レポート用のYYYYMM形式
   ```
-- **レポート実行:** `mg.report.run(d=[...], m=[...], limit=N)` で GA4 データを取得し、結果は `mg.report.data` に格納されます。
+- **レポート実行:** `mg.report.run(d=[...], m=[...])` で GA4 データを取得し、結果は `mg.report.data` に格納されます。
 - **バッチ処理:** `mg.report.run.all(items, d, m, item_key='site', ...)` で複数プロパティのレポートを一括実行して結合できます。
 
   ```python

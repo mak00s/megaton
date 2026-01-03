@@ -2,6 +2,8 @@
 
 README の補足として、設計思想・認証・使い分け・詳細な機能をまとめます。基本的なワークフローや環境構築は README を参照してください。
 
+**API の詳細は [API リファレンス](api-reference.md) を参照してください。**
+
 ---
 
 ## 設計思想
@@ -100,41 +102,40 @@ ga4.property.select(ga4.account.properties[0]["id"])
 
 ### レポートの実行
 
-`report.run()` では次元 (`d` または `dimensions`) や指標 (`m` または `metrics`) を列挙し、必要に応じてフィルタやソートを指定します。
+`report.run()` では次元 (`d`) や指標 (`m`) を列挙し、必要に応じてフィルタやソートを指定します。
 
 ```python
-df = mg.report.run(
+mg.report.run(
     d=[("date", "日付"), ("eventName", "イベント名")],
     m=[("eventCount", "イベント数")],
     filter_d="eventName==page_view;country==Japan",
     sort="-eventCount",
-    limit=1000,
 )
 ```
 
 - `d` / `m` には GA4 API の **api_name** あるいは表示名を指定できます。タプル形式 `(元の名前, 新しい列名)` を使うと DataFrame の列名を変更しながら取得できます。
 - `filter_d` や `filter_m` は `;` 区切りで AND 条件を指定するシンプルな文字列フィルタです。
 - `sort` は `-eventCount` のようにマイナス記号で降順を表します。先頭に `+` を付けるか省略すると昇順になります。
-- データフレームは戻り値として受け取れるほか `mg.report.data` にも保存されます。
+- 結果は `mg.report.data` に保存されます。
 
 ### データ前処理
 
-`report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換、欠損値処理など簡易的な前処理を行えます。
+`report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換など簡易的な前処理を行えます。
 
 ```python
 # 日付列を文字列に変換し、イベント数を整数に変換する例
 conf = {
-    "rename": {"eventCount": "イベント数"},
-    "convert": {"date": str, "eventCount": int},
+    "eventCount": {"name": "イベント数", "type": int},
+    "date": {"type": str},
 }
-df_clean = mg.report.prep(conf)
+mg.report.prep(conf)
 ```
 
-前処理結果は戻り値として受け取れるほか、`mg.report.data` も更新されます。
+前処理結果は `mg.report.data` に反映されます。
 
 ### レポート期間の書き出し
 
-`mg.report.dates.to.sheet(sheet_name, start_cell, end_cell)` を使うと、設定済みの開始日と終了日を Google Sheets に書き出せます。複数レポートの期間管理やドキュメント作成に便利です。
+`mg.report.dates.to.sheet(sheet, start_cell, end_cell)` を使うと、設定済みの開始日と終了日を Google Sheets に書き出せます。複数レポートの期間管理やドキュメント作成に便利です。
 
 ```python
 mg.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
