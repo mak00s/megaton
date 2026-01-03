@@ -118,6 +118,25 @@ mg.report.run(
 - `sort` は `-eventCount` のようにマイナス記号で降順を表します。先頭に `+` を付けるか省略すると昇順になります。
 - 結果は `mg.report.data` に保存されます。
 
+### 複数サイトの一括取得（run.all）
+
+`report.run.all()` を使うと、複数の GA4 プロパティを一括取得して結合できます。  
+サイトごとにメトリクス名が異なる場合は `site.<key>` を使って動的に指定できます。
+
+```python
+sites = [
+    {"clinic": "札幌", "ga4_property_id": "12345", "cv": "totalPurchasers"},
+    {"clinic": "仙台", "ga4_property_id": "67890", "cv": "keyEvents"},
+]
+
+df = mg.report.run.all(
+    sites,
+    d=[("yearMonth", "month")],
+    m=[("activeUsers", "users"), ("site.cv", "cv")],
+    item_key="clinic",
+)
+```
+
 ### データ前処理
 
 `report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換など簡易的な前処理を行えます。
