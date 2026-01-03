@@ -42,7 +42,23 @@ class GSCService:
 
     @staticmethod
     def _clean_page(value: str) -> str:
+        """
+        URL 正規化
+        1. URL デコード（%xx → 文字）
+        2. ? 以降（クエリパラメータ）を削除
+        3. # 以降（フラグメント）を削除
+        4. 小文字化
+        
+        Args:
+            value: 正規化する URL
+        
+        Returns:
+            正規化された URL
+        """
         try:
+            # 1. デコード（既存の unquote を活用）
+            # 2-3. ? と # を削除（既存ロジック）
+            # 4. 小文字化（既存ロジック）
             return unquote(str(value)).split("?", 1)[0].split("#", 1)[0].strip().lower()
         except Exception:
             return str(value)

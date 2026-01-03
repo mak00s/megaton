@@ -22,6 +22,373 @@ from .ui import widgets
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
 
+class SearchResult:
+    """Search Console データをラップし、メソッドチェーンで処理を行うクラス"""
+    
+    def __init__(self, df, parent, dimensions):
+        """
+        Args:
+            df: pandas DataFrame
+            parent: Search インスタンス
+            dimensions: ディメンションのリスト（例: ['query', 'page']）
+        """
+        self._df = df
+        self.parent = parent
+        self.dimensions = dimensions
+    
+    @property
+    def df(self):
+        """DataFrame として直接アクセス（後方互換性）"""
+        return self._df
+    
+    def to_df(self):
+        """DataFrame を明示的に取得"""
+        return self._df
+    
+    def _aggregate(self, df):
+        """dimensions に基づいて集計 (位置は重み付き平均、他は合計)"""
+        return self._aggregate_gsc(df, self.dimensions)
+    
+    def _aggregate_gsc(self, df, dims):
+        """GSC データを集計 (位置は重み付き平均、CTR は再計算、他は合計)"""
+        if df.empty:
+            return df
+        
+        # 位置の重み付き処理
+        if 'position' in df.columns and 'impressions' in df.columns:
+            df = df.copy()
+            df['weighted_position'] = df['position'] * df['impressions']
+        
+        # 集計対象の指標列を特定（CTR は除外して後で再計算）
+        metric_cols = [col for col in ['clicks', 'impressions'] if col in df.columns]
+        if 'weighted_position' in df.columns:
+            metric_cols.append('weighted_position')
+        
+        if not metric_cols:
+            # 指標列がない場合はそのまま返す
+            return df
+        
+        # 集計
+        grouped = df.groupby(dims, as_index=False)[metric_cols].sum()
+        
+        # 位置の計算
+        if 'weighted_position' in grouped.columns:
+            grouped['position'] = (grouped['weighted_position'] / grouped['impressions']).round(6)
+            grouped = grouped.drop(columns=['weighted_position'])
+        
+        # CTR の再計算（元データに ctr 列があった場合のみ）
+        if 'ctr' in df.columns and 'clicks' in grouped.columns and 'impressions' in grouped.columns:
+            grouped['ctr'] = (grouped['clicks'] / grouped['impressions'].replace(0, float('nan'))).fillna(0)
+        
+        return grouped
+    
+    def decode(self, group=True):
+        """
+        URL デコード（%xx → 文字）
+        
+        Args:
+            group: True の場合、dimensions で集計（default: True）
+        
+        Returns:
+            SearchResult
+        """
+        from urllib.parse import unquote
+        
+        df = self._df.copy()
+        
+        # query, page 列が存在する場合にデコード
+        if 'query' in df.columns:
+            df['query'] = df['query'].apply(lambda x: unquote(str(x)) if pd.notna(x) else x)
+        if 'page' in df.columns:
+            df['page'] = df['page'].apply(lambda x: unquote(str(x)) if pd.notna(x) else x)
+        
+        if group:
+            df = self._aggregate(df)
+        
+        return SearchResult(df, self.parent, self.dimensions)
+    
+    def remove_params(self, keep=None, group=True):
+        """
+        クエリパラメータを削除
+        
+        Args:
+            keep: 保持するパラメータのリスト（例: ['utm_source']）
+            group: True の場合、dimensions で集計（default: True）
+        
+        Returns:
+            SearchResult
+        """
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+        
+        df = self._df.copy()
+        
+        if 'page' in df.columns:
+            def clean_params(url):
+                if pd.isna(url):
+                    return url
+                parsed = urlparse(str(url))
+                if keep:
+                    # keep リストのパラメータのみ保持
+                    params = parse_qs(parsed.query)
+                    kept_params = {k: v for k, v in params.items() if k in keep}
+                    new_query = urlencode(kept_params, doseq=True)
+                    return urlunparse(parsed._replace(query=new_query))
+                else:
+                    # 全パラメータを削除
+                    return urlunparse(parsed._replace(query=''))
+            
+            df['page'] = df['page'].apply(clean_params)
+        
+        if group:
+            df = self._aggregate(df)
+        
+        return SearchResult(df, self.parent, self.dimensions)
+    
+    def remove_fragment(self, group=True):
+        """
+        # 以降のフラグメントを削除
+        
+        Args:
+            group: True の場合、dimensions で集計（default: True)
+        
+        Returns:
+            SearchResult
+        """
+        from urllib.parse import urlparse, urlunparse
+        
+        df = self._df.copy()
+        
+        if 'page' in df.columns:
+            def clean_fragment(url):
+                if pd.isna(url):
+                    return url
+                parsed = urlparse(str(url))
+                return urlunparse(parsed._replace(fragment=''))
+            
+            df['page'] = df['page'].apply(clean_fragment)
+        
+        if group:
+            df = self._aggregate(df)
+        
+        return SearchResult(df, self.parent, self.dimensions)
+    
+    def lower(self, columns=None, group=True):
+        """
+        指定列を小文字化
+        
+        Args:
+            columns: 小文字化する列のリスト（default: ['page']）
+            group: True の場合、dimensions で集計（default: True）
+        
+        Returns:
+            SearchResult
+        """
+        if columns is None:
+            columns = ['page']
+        df = self._df.copy()
+        
+        for col in columns:
+            if col in df.columns:
+                df[col] = df[col].str.lower()
+        
+        if group:
+            df = self._aggregate(df)
+        
+        return SearchResult(df, self.parent, self.dimensions)
+    
+    def classify(self, query=None, page=None, group=True):
+        """
+        クエリ・ページの正規化とカテゴリ分類
+        
+        Args:
+            query: クエリ分類マップ {pattern: category} の辞書
+            page: ページ分類マップ {pattern: category} の辞書
+            group: True の場合、分類列で集計（default: True）
+        
+        Returns:
+            SearchResult
+        """
+        from megaton.transform.text import map_by_regex
+        from megaton.transform.classify import classify_by_regex
+        
+        df = self._df.copy()
+        
+        # クエリの正規化と分類
+        if query and 'query' in df.columns:
+            df['query_normalized'] = map_by_regex(df['query'], query)
+            df = classify_by_regex(df, 'query_normalized', query, 'query_category')
+        
+        # ページの分類
+        if page and 'page' in df.columns:
+            df = classify_by_regex(df, 'page', page, 'page_category')
+        
+        if group:
+            # 分類列を含めて集計
+            group_cols = list(self.dimensions)
+            if 'query_category' in df.columns:
+                group_cols.append('query_category')
+            if 'page_category' in df.columns:
+                group_cols.append('page_category')
+            df = self._aggregate_gsc(df, group_cols)
+            # dimensions を更新して、後続の group=True が正しく動作するようにする
+            new_dimensions = group_cols
+        else:
+            new_dimensions = self.dimensions
+        
+        return SearchResult(df, self.parent, new_dimensions)
+    
+    def filter_clicks(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+        """
+        クリック数でフィルタリング
+        
+        Args:
+            min: 最小クリック数
+            max: 最大クリック数
+            sites: サイト辞書のリスト（行ごとに閾値を適用）
+            site_key: DataFrame 内でサイトを識別する列名（default: 'site'）
+            keep_clicked: True の場合、clicks >= 1 の行は無条件に残す（default: False）
+        
+        Returns:
+            SearchResult
+        """
+        return self._filter_metric('clicks', min, max, sites, site_key, keep_clicked,
+                                   'min_clicks', 'max_clicks')
+    
+    def filter_impressions(self, min=None, max=None, sites=None, site_key='site', keep_clicked=True):
+        """インプレッション数でフィルタリング（default: keep_clicked=True）"""
+        return self._filter_metric('impressions', min, max, sites, site_key, keep_clicked,
+                                   'min_impressions', 'max_impressions')
+    
+    def filter_ctr(self, min=None, max=None, sites=None, site_key='site', keep_clicked=True):
+        """CTRでフィルタリング（default: keep_clicked=True）"""
+        return self._filter_metric('ctr', min, max, sites, site_key, keep_clicked,
+                                   'min_ctr', 'max_ctr')
+    
+    def filter_position(self, min=None, max=None, sites=None, site_key='site', keep_clicked=True):
+        """平均順位でフィルタリング（default: keep_clicked=True）"""
+        return self._filter_metric('position', min, max, sites, site_key, keep_clicked,
+                                   'min_position', 'max_position')
+    
+    def _filter_metric(self, metric, min_val, max_val, sites, site_key, keep_clicked,
+                       min_key, max_key):
+        """
+        指標ごとのフィルタリングを実行
+        
+        Args:
+            metric: 指標名（'clicks', 'impressions', 'ctr', 'position'）
+            min_val: 最小値（明示的指定、最優先）
+            max_val: 最大値（明示的指定、最優先）
+            sites: サイト辞書のリスト
+            site_key: DataFrame 内のサイト識別列名
+            keep_clicked: clicks >= 1 の行を無条件に残すか
+            min_key: sites 辞書内の最小値キー（例: 'min_clicks'）
+            max_key: sites 辞書内の最大値キー（例: 'max_clicks'）
+        
+        Returns:
+            SearchResult
+        """
+        df = self._df.copy()
+        
+        # sites リストから閾値を取得（行ごとに適用）
+        if sites and site_key in df.columns:
+            # sites を辞書に変換（site_key をキーに）
+            site_map = {s.get(site_key): s for s in sites if s.get(site_key)}
+            
+            # 行ごとに閾値を取得（明示的な min/max がない場合のみ）
+            if min_val is None:
+                df['_min'] = df[site_key].map(
+                    lambda x: site_map.get(x, {}).get(min_key)
+                )
+            else:
+                df['_min'] = min_val
+            
+            if max_val is None:
+                df['_max'] = df[site_key].map(
+                    lambda x: site_map.get(x, {}).get(max_key)
+                )
+            else:
+                df['_max'] = max_val
+            
+            # keep_clicked の処理
+            if keep_clicked and 'clicks' in df.columns:
+                clicked = df[df['clicks'] >= 1].copy()
+                unclicked = df[df['clicks'] == 0].copy()
+                nan_clicks = df[df['clicks'].isna()].copy()
+                
+                # unclicked にのみ閾値を適用
+                mask = pd.Series(True, index=unclicked.index)
+                if '_min' in unclicked.columns and unclicked['_min'].notna().any():
+                    mask &= (unclicked[metric] >= unclicked['_min']) | unclicked['_min'].isna()
+                if '_max' in unclicked.columns and unclicked['_max'].notna().any():
+                    mask &= (unclicked[metric] <= unclicked['_max']) | unclicked['_max'].isna()
+                
+                unclicked = unclicked[mask]
+                
+                # clicked, unclicked, NaN を結合
+                parts = [clicked, unclicked]
+                if not nan_clicks.empty:
+                    parts.append(nan_clicks)
+                df = pd.concat(parts)
+            else:
+                # 全行に閾値を適用
+                mask = pd.Series(True, index=df.index)
+                if '_min' in df.columns and df['_min'].notna().any():
+                    mask &= (df[metric] >= df['_min']) | df['_min'].isna()
+                if '_max' in df.columns and df['_max'].notna().any():
+                    mask &= (df[metric] <= df['_max']) | df['_max'].isna()
+                
+                df = df[mask]
+            
+            # 一時列を削除
+            df = df.drop(columns=['_min', '_max'], errors='ignore')
+        
+        else:
+            # sites がない場合、明示的な min/max のみ適用
+            if keep_clicked and 'clicks' in df.columns:
+                clicked = df[df['clicks'] >= 1]
+                unclicked = df[df['clicks'] == 0]
+                nan_clicks = df[df['clicks'].isna()]
+                
+                if min_val is not None:
+                    unclicked = unclicked[unclicked[metric] >= min_val]
+                if max_val is not None:
+                    unclicked = unclicked[unclicked[metric] <= max_val]
+                
+                # clicked, unclicked, NaN を結合
+                parts = [clicked, unclicked]
+                if not nan_clicks.empty:
+                    parts.append(nan_clicks)
+                df = pd.concat(parts)
+            else:
+                if min_val is not None:
+                    df = df[df[metric] >= min_val]
+                if max_val is not None:
+                    df = df[df[metric] <= max_val]
+        
+        return SearchResult(df, self.parent, self.dimensions)
+    
+    def aggregate(self, by=None):
+        """
+        手動集計
+        
+        Args:
+            by: 集計するカテゴリ列。None の場合は dimensions で集計
+        
+        Returns:
+            SearchResult
+        """
+        if by:
+            group_cols = [by] if isinstance(by, str) else list(by)
+            df = self._aggregate_gsc(self._df, group_cols)
+            # dimensions を更新して、後続の group=True が正しく動作するようにする
+            new_dimensions = group_cols
+        else:
+            df = self._aggregate(self._df)
+            new_dimensions = self.dimensions
+        
+        return SearchResult(df, self.parent, new_dimensions)
+
+
 class Megaton:
     """メガトンはGAを使うアナリストの味方
     """
@@ -813,6 +1180,7 @@ class Megaton:
                 limit: int = 5000,
                 *,
                 dimension_filter: str | list | tuple | None = None,
+                clean: bool = False,
                 **kwargs,
             ):
                 if not self.parent.site:
@@ -834,8 +1202,17 @@ class Megaton:
                     dimension_filter=filters,
                     **kwargs,
                 )
+                
+                # clean=True の場合、_clean_page() を適用
+                if clean and 'page' in result.columns:
+                    from megaton.services.gsc_service import GSCService
+                    result['page'] = result['page'].apply(GSCService._clean_page)
+                    # GSC の重み付き集計を使用
+                    search_result = SearchResult(result, self.parent, dimensions)
+                    result = search_result._aggregate_gsc(result, dimensions)
+                
                 self.parent.data = result
-                return result
+                return SearchResult(result, self.parent, dimensions)
 
             def all(
                 self,
@@ -850,7 +1227,7 @@ class Megaton:
                 add_month=None,
                 verbose: bool = True,
                 **run_kwargs,
-            ) -> pd.DataFrame:
+            ) -> 'SearchResult':
                 """Run Search Console query for multiple items and combine results.
 
                 Args:
@@ -874,11 +1251,12 @@ class Megaton:
                         (e.g., limit, country, clean).
 
                 Returns:
-                    Combined DataFrame from all items with item_key column added.
+                    SearchResult containing combined data from all items with item_key column added.
+                    The item_key is automatically included in dimensions for proper grouping.
 
                 Examples:
                     >>> # Basic usage
-                    >>> df = mg.search.run.all(
+                    >>> result = mg.search.run.all(
                     ...     sites,
                     ...     dimensions=['query', 'page'],
                     ...     metrics=['clicks', 'impressions'],
@@ -887,7 +1265,7 @@ class Megaton:
 
                     >>> # With month label from DateWindow
                     >>> p = mg.search.set.months(ago=1, window_months=1)
-                    >>> df = mg.search.run.all(
+                    >>> result = mg.search.run.all(
                     ...     clinics,
                     ...     dimensions=['query', 'page'],
                     ...     metrics=['clicks', 'impressions', 'position'],
@@ -924,12 +1302,15 @@ class Megaton:
 
                     try:
                         self.parent.use(site_url)
-                        df = self(
+                        result = self(
                             dimensions=dimensions,
                             metrics=metrics,
                             dimension_filter=dimension_filter,
                             **run_kwargs,
                         )
+                        
+                        # SearchResult から DataFrame を取得
+                        df = result.df if hasattr(result, 'df') else result
                         
                         if df is None or df.empty:
                             if verbose:
@@ -957,9 +1338,24 @@ class Megaton:
                         continue
 
                 if not dfs:
-                    return pd.DataFrame()
+                    # 空の場合も dimensions の構築ロジックを統一
+                    new_dimensions = list(dimensions)
+                    if item_key not in new_dimensions:
+                        new_dimensions.append(item_key)
+                    if add_month is not None and 'month' not in new_dimensions:
+                        new_dimensions.append('month')
+                    return SearchResult(pd.DataFrame(), self.parent, new_dimensions)
                 
-                return pd.concat(dfs, ignore_index=True)
+                combined_df = pd.concat(dfs, ignore_index=True)
+                
+                # dimensions を構築: item_key と month を適切に追加
+                new_dimensions = list(dimensions)
+                if item_key not in new_dimensions:
+                    new_dimensions.append(item_key)
+                if add_month is not None and 'month' not in new_dimensions:
+                    new_dimensions.append('month')
+                
+                return SearchResult(combined_df, self.parent, new_dimensions)
 
         def filter_by_thresholds(self, df: pd.DataFrame, site: dict, clicks_zero_only: bool = False) -> pd.DataFrame:
             """Apply site-specific thresholds to a Search Console DataFrame.
