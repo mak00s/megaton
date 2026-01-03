@@ -784,36 +784,22 @@ class Megaton:
                 "=@": "contains",
                 "!@": "notContains",
             }
-            allowed_ops = ", ".join(operator_map.keys())
-            filters = []
-            for raw in dimension_filter.split(";"):
-                cond = raw.strip()
-                if not cond:
-                    continue
-
-                op = next((candidate for candidate in operator_map if candidate in cond), None)
-                if op is None:
-                    raise ValueError(
-                        "Invalid dimension_filter condition: "
-                        f"{cond}. Allowed operators: {allowed_ops}"
-                    )
-
-                dimension, expression = cond.split(op, 1)
-                dimension = dimension.strip()
-                expression = expression.strip()
-                if not dimension or not expression:
-                    raise ValueError(
-                        "Invalid dimension_filter condition: "
-                        f"{cond}. Expected <dimension><op><expression>"
-                    )
-
-                filters.append(
-                    {
-                        "dimension": dimension,
-                        "operator": operator_map[op],
-                        "expression": expression,
-                    }
-                )
+            allowed_ops = tuple(operator_map.keys())
+            allowed_label = " ".join(allowed_ops)
+            parsed = utils.parse_filter_conditions(
+                dimension_filter,
+                allowed_ops=allowed_ops,
+                error_class=ValueError,
+                allowed_ops_label=allowed_label,
+            )
+            filters = [
+                {
+                    "dimension": item["field"],
+                    "operator": operator_map[item["operator"]],
+                    "expression": item["value"],
+                }
+                for item in parsed
+            ]
             return filters or None
 
         class Run:
