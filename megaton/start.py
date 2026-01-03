@@ -233,6 +233,83 @@ class SearchResult:
         
         return SearchResult(df, self.parent, new_dimensions)
     
+    def normalize_queries(self, mode='remove_all', prefer_by='impressions', group=True):
+        """
+        クエリの空白を正規化して重複を排除
+        
+        空白バリエーション（例: "矯正歯科", "矯正 歯科"）を統一し、
+        各バリエーションの中で最も指標が高い元クエリを代表値として保持します。
+        
+        Args:
+            mode: 'remove_all'（空白削除）または 'collapse'（空白を1つに）
+            prefer_by: 代表クエリを選ぶ基準（'impressions', 'clicks', 'position'）
+                      - 'position': 最小値（最良順位）を選択
+                      - その他: 最大値を選択
+                      - group=True の場合は必須（データに列が存在する必要あり）
+            group: True の場合、正規化後に集約（default: True）
+                   False の場合、query_key 列のみ追加（集約なし）
+        
+        Returns:
+            SearchResult
+        
+        Raises:
+            ValueError: group=True で prefer_by 列がデータに存在しない場合
+        
+        Example:
+            # "矯正 歯科" と "矯正歯科" を統一
+            result = (mg.search
+                .run(dimensions=['month', 'query', 'page'])
+                .normalize_queries(prefer_by='impressions')
+                .classify(query=cfg.query_map))
+        """
+        from megaton.transform.text import normalize_whitespace
+        from megaton.transform.table import dedup_by_key
+        
+        df = self._df.copy()
+        
+        if 'query' not in df.columns:
+            return self
+        
+        # prefer_by は文字列のみ（単一指標での選択）
+        if not isinstance(prefer_by, str):
+            raise TypeError("prefer_by must be a string")
+        
+        # query_key を作成（空白を正規化）
+        df['query_key'] = normalize_whitespace(df['query'], mode=mode)
+        
+        # dimensions から query を除外し、query_key を追加したキー列を作成
+        key_cols = [d for d in self.dimensions if d != 'query']
+        key_cols.append('query_key')
+        
+        if group:
+            # 各 query_key の代表クエリを取得
+            # position は最小値（最良順位）、その他は最大値を選択
+            prefer_ascending = (prefer_by == 'position')
+            top_queries = dedup_by_key(
+                df,
+                key_cols=key_cols,
+                prefer_by=prefer_by,
+                prefer_ascending=prefer_ascending,
+                keep='first',
+            )
+            
+            # query_key で集約
+            df = self._aggregate_gsc(df, key_cols)
+            
+            # 代表クエリを戻す
+            df = df.merge(
+                top_queries[key_cols + ['query']],
+                on=key_cols,
+                how='left',
+            )
+            
+            # query_key 列を削除
+            df = df.drop(columns=['query_key'])
+        # else: query_key 列のみ追加（集約なし）
+        
+        # dimensions は元のまま（query を含む）
+        return SearchResult(df, self.parent, self.dimensions)
+    
     def filter_clicks(self, min=None, max=None, sites=None, site_key='site'):
         """
         クリック数でフィルタリング

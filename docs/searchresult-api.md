@@ -56,6 +56,20 @@ result = (mg.search
 df = result.df
 ```
 
+## クエリの空白バリエーション統一
+
+```python
+# "矯正 歯科", "矯正  歯科" などを "矯正歯科" に統一
+result = (mg.search
+    .run(dimensions=['month', 'query', 'page'], clean=True)
+    .normalize_queries(mode='remove_all', prefer_by='impressions')  # 空白削除
+    .classify(query=cfg.query_map, page=cfg.page_map)
+    .filter_impressions(sites=cfg.sites, keep_clicked=True))
+
+# 各バリエーションの中で最もインプレッションが多い元クエリが保持される
+df = result.df
+```
+
 ## 複数サイトの一括処理
 
 ```python
@@ -128,6 +142,17 @@ result = (mg.search
 - `.remove_params(keep=None, group=True)` – クエリパラメータを削除
 - `.remove_fragment(group=True)` – フラグメント (#...) を削除
 - `.lower(columns=None, group=True)` – 指定列を小文字化（デフォルト: `['page']`）
+
+### クエリ正規化
+- `.normalize_queries(mode='remove_all', prefer_by='impressions', group=True)` – クエリの空白バリエーションを統一
+  - `mode='remove_all'`: 空白を削除（例: "矯正 歯科" → "矯正歯科"）
+  - `mode='collapse'`: 複数空白を1つに統一
+  - `prefer_by`: 代表クエリを選ぶ基準（'impressions', 'clicks', 'position'）
+    - **'position'**: 最小値（最良順位）を選択（例: rank 2 が rank 10 より優先）
+    - その他の指標: 最大値を選択（例: impressions が最も多いクエリを選択）
+    - **注意**: 文字列のみ（リスト不可）。`group=True` の場合、指定した列がデータに存在する必要があります
+  - `group=True`: 正規化後に集約し、代表クエリを保持
+  - `group=False`: `query_key` 列のみ追加（集約なし、`prefer_by` は不要）
 
 ### 分類
 - `.classify(query=None, page=None, group=True)` – クエリ/ページの正規化と分類
