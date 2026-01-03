@@ -18,9 +18,15 @@ def test_normalize_key_cols_strips_and_removes_dot0():
 
 def test_dedup_by_key_prefers_highest_value():
     df = pd.DataFrame({"k": [1, 1, 2], "score": [5, 9, 1], "val": [10, 20, 30]})
+    # デフォルト（prefer_ascending=False）は最大値を選択
     result = table.dedup_by_key(df, ["k"], prefer_by="score")
     assert len(result) == 2
     assert result.loc[result["k"] == 1, "val"].iloc[0] == 20
+    
+    # prefer_ascending=True は最小値を選択
+    result_min = table.dedup_by_key(df, ["k"], prefer_by="score", prefer_ascending=True)
+    assert len(result_min) == 2
+    assert result_min.loc[result_min["k"] == 1, "val"].iloc[0] == 10
 
 
 def test_group_sum_sums_columns():
