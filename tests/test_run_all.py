@@ -73,48 +73,6 @@ def test_search_run_all_with_filter():
     assert set(result_df['clinic']) == {'A', 'C'}
 
 
-def test_search_run_all_with_add_month():
-    """Test Search Console with add_month parameter"""
-    app = Megaton(None, headless=True)
-    app.search.start_date = "2025-01-01"
-    app.search.end_date = "2025-01-31"
-    
-    mock_df = pd.DataFrame({'query': ['test'], 'clicks': [5]})
-    
-    with patch.object(app.search.run.__class__, '__call__', return_value=mock_df):
-        with patch.object(app.search, 'use'):
-            sites = [{'site': 'A', 'gsc_site_url': 'https://a.com/'}]
-            
-            # Test with string
-            result = app.search.run.all(
-                sites,
-                dimensions=['query'],
-                add_month='202501',
-                verbose=False,
-            )
-            result_df = result.df
-            assert 'month' in result_df.columns
-            assert result_df['month'].iloc[0] == '202501'
-            
-            # Test with DateWindow
-            p = dates.DateWindow(
-                start_iso='2025-01-01',
-                end_iso='2025-01-31',
-                start_ym='202501',
-                end_ym='202501',
-                start_ymd='20250101',
-                end_ymd='20250131',
-            )
-            result = app.search.run.all(
-                sites,
-                dimensions=['query'],
-                add_month=p,
-                verbose=False,
-            )
-            result_df = result.df
-            assert result_df['month'].iloc[0] == '202501'
-
-
 def test_search_run_all_url_fallback():
     """Test Search Console with gsc_site_url (no fallback to 'url')"""
     app = Megaton(None, headless=True)

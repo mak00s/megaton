@@ -103,7 +103,6 @@ Megaton の GA4 インタフェースでは、期間の設定からレポート�
       item_key='clinic',  # 識別子列名（デフォルト: 'site'）
       property_key='ga4_property_id',  # GA4プロパティIDキー
       item_filter=lambda s: s.get('clinic') != 'test',  # フィルタ（リスト or 関数）
-      add_month=p,  # 月ラベルを自動追加
   )
   ```
 - **前処理:** `mg.report.prep(conf)` を使えば列名の変更や型変換など簡易的なデータ整形が可能です。
@@ -127,7 +126,7 @@ Megaton には Sheets 連携が組み込まれており、データの保存、�
 - **期間設定:** `mg.search.set.dates(...)` または `mg.search.set.months(...)` で期間を設定します。
 - **データ取得:** `mg.search.run(dimensions=[...], metrics=[...], limit=5000)` でパフォーマンスデータを取得し、`SearchResult` オブジェクトを返します（`.df` で DataFrame にアクセス可能）。
   - `dimensions` は `date/hour/country/device/page/query` から選択できます。`month` を指定すると月単位に集計されます。
-  - **メソッドチェーン:** 返される `SearchResult` は `.decode()`, `.classify()`, `.filter_*()` などのメソッドでパイプライン処理が可能です。詳しくは `docs/SearchResult_API.md` を参照。
+- **メソッドチェーン:** 返される `SearchResult` は `.decode()`, `.classify()`, `.filter_*()` などのメソッドでパイプライン処理が可能です。詳しくは `docs/searchresult-api.md` を参照。
 - **フィルタ:** `dimension_filter="page=~^/blog/;query=@ortho"` のように指定すると AND 条件で絞り込みできます（`=~`/`!~` は RE2 正規表現、`=@`/`!@` は部分一致）。
 - **バッチ処理:** `mg.search.run.all(items, dimensions, metrics, item_key='site', ...)` で複数サイトのデータを一括取得して結合できます（`SearchResult` を返します）。
   - `gsc_site_url` が空のアイテムはスキップされます。
@@ -142,7 +141,6 @@ Megaton には Sheets 連携が組み込まれており、データの保存、�
       item_key='clinic',  # 識別子列名（デフォルト: 'site'）
       site_url_key='gsc_site_url',  # GSCサイトURLキー
       item_filter=['札幌', '仙台'],  # フィルタ（リスト or 関数）
-      add_month=p,  # 月ラベルを自動追加
   )
   
   # メソッドチェーンで処理（clinic 列が保持される）
@@ -178,7 +176,7 @@ Megaton の利用においてよく遭遇する問題とその解決策をまと
 
 ## チートシート
 
-利用可能なメソッドの詳しい一覧は別ファイル [CHEATSHEET.md](docs/CHEATSHEET.md) を参照してください。
+利用可能なメソッドの詳しい一覧は別ファイル [cheatsheet.md](docs/cheatsheet.md) を参照してください。
 
 ## レガシー互換性
 

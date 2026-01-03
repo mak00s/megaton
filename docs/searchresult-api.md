@@ -47,7 +47,7 @@ aggregated2 = result2.decode(group=True)  # CTR 列は追加されない
 result = (mg.search
     .run(dimensions=['month', 'query', 'page'], clean=True)
     .classify(query=cfg.query_map, page=cfg.page_map)
-    .filter_clicks(min=1, keep_clicked=False)
+    .filter_clicks(min=1)
     .filter_impressions(sites=cfg.sites, keep_clicked=True)
     .filter_position(sites=cfg.sites, keep_clicked=True))
 
@@ -114,7 +114,7 @@ result = (mg.search
 # clicks >= 1 の行は他の指標の閾値をバイパスする
 result = (mg.search
     .run(dimensions=['query', 'page'], clean=True)
-    .filter_clicks(min=1, keep_clicked=False)  # clicks >= 1 のみ
+    .filter_clicks(min=1)  # clicks >= 1 のみ
     .filter_impressions(min=100, keep_clicked=True)  # clicks >= 1 は min=100 をバイパス
     .filter_position(max=20, keep_clicked=True))  # clicks >= 1 は max=20 をバイパス
 ```
@@ -133,10 +133,10 @@ result = (mg.search
   - `group=True` の場合、カテゴリ列を dimensions に追加
 
 ### フィルタリング
-- `.filter_clicks(min, max, sites, site_key='site', keep_clicked=False)` – クリック数でフィルタ
-- `.filter_impressions(min, max, sites, site_key='site', keep_clicked=True)` – インプレッション数でフィルタ
-- `.filter_ctr(min, max, sites, site_key='site', keep_clicked=True)` – CTR でフィルタ（metrics に `clicks` と `impressions` の両方が必要）
-- `.filter_position(min, max, sites, site_key='site', keep_clicked=True)` – ポジションでフィルタ
+- `.filter_clicks(min, max, sites, site_key='site')` – クリック数でフィルタ
+- `.filter_impressions(min, max, sites, site_key='site', keep_clicked=False)` – インプレッション数でフィルタ
+- `.filter_ctr(min, max, sites, site_key='site', keep_clicked=False)` – CTR でフィルタ（metrics に `clicks` と `impressions` の両方が必要）
+- `.filter_position(min, max, sites, site_key='site', keep_clicked=False)` – ポジションでフィルタ
 
 ### 集約
 - `.aggregate(by=None)` – 指定列または dimensions による手動集約
@@ -155,6 +155,6 @@ result = (mg.search
 
 - `group=True`（デフォルト）: 各操作後に dimensions で集約
 - `group=False`: 集約をスキップ（大規模データセットのパフォーマンスに有効）
-- `keep_clicked=True`（impressions/ctr/position のデフォルト）: clicks >= 1 の行は閾値をバイパス
-- `keep_clicked=False`（clicks のデフォルト）: すべての行に閾値を適用
+- `keep_clicked=False`（デフォルト）: すべての行に閾値を適用
+- `keep_clicked=True`: clicks >= 1 の行は閾値をバイパス（明示的に指定する必要あり）
 - 後方互換性: `.df` プロパティにより SearchResult は DataFrame のように振る舞う
