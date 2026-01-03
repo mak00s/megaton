@@ -184,15 +184,16 @@ mg.search.set.months(ago=0, window_months=3, tz="Asia/Tokyo")
 
 ### クエリの実行
 
-`mg.search.run(dimensions, metrics, limit=5000, **kwargs)` でパフォーマンスデータを取得します。結果は `mg.search.data` に格納され、DataFrame としても返されます。
+`mg.search.run(dimensions, metrics, limit=5000, **kwargs)` でパフォーマンスデータを取得します。結果は `mg.search.data` に格納され、`SearchResult` を返します（DataFrame は `.df` で取得できます）。
 
 ```python
-df_sc = mg.search.run(
+result = mg.search.run(
     dimensions=["date", "query", "page"],
     metrics=["clicks", "impressions", "ctr", "position"],
     limit=10000,
     sort="-clicks",
 )
+df_sc = result.df
 ```
 
 `dimension_filter` を指定すると Search Console 側で絞り込みできます（AND 条件のみ）。
@@ -203,6 +204,36 @@ df_sc = mg.search.run(
     metrics=["clicks", "impressions"],
     dimension_filter="page=~^/blog/;query=@ortho",  # RE2 正規表現 + 部分一致
 )
+```
+
+`clean=True` を指定すると URL 正規化（decode + ? 削除 + # 削除 + 小文字化）を実行し、正規化後の値で集計します。
+
+```python
+result = mg.search.run(
+    dimensions=["query", "page"],
+    metrics=["clicks", "impressions", "position"],
+    clean=True,
+)
+df_sc = result.df
+```
+
+### SearchResult のメソッドチェーン
+
+`SearchResult` は URL 正規化や分類、フィルタをチェーンできます。
+
+```python
+result = mg.search.run(
+    dimensions=["query", "page"],
+    metrics=["clicks", "impressions", "position"],
+)
+
+df_sc = (
+    result
+    .decode(group=False)
+    .remove_params(group=False)
+    .remove_fragment(group=False)
+    .lower(group=True)
+).df
 ```
 
 ### 設定シート（Config）の拡張
