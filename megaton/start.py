@@ -8,6 +8,7 @@ import sys
 from types import SimpleNamespace
 from typing import Optional
 from datetime import datetime
+from urllib.parse import urlparse
 from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
@@ -253,6 +254,7 @@ class SearchResult:
             SearchResult
         
         Raises:
+            TypeError: prefer_by が文字列以外の場合
             ValueError: group=True で prefer_by 列がデータに存在しない場合
         
         Example:
@@ -272,7 +274,7 @@ class SearchResult:
         
         # prefer_by は文字列のみ（単一指標での選択）
         if not isinstance(prefer_by, str):
-            raise TypeError("prefer_by must be a string")
+            raise TypeError(f"prefer_by must be a string, got {type(prefer_by).__name__}")
         
         # query_key を作成（空白を正規化）
         df['query_key'] = normalize_whitespace(df['query'], mode=mode)
@@ -1971,6 +1973,15 @@ class Megaton:
                 if d is None or m is None:
                     raise ValueError("Must provide either (d, m) or (dimensions, metrics)")
 
+                # Capture per-dimension options (e.g., {'absolute': True})
+                dimension_options = {}
+                for dim in d:
+                    if isinstance(dim, tuple) and len(dim) >= 3:
+                        out_col = dim[1]
+                        opts = dim[2]
+                        if isinstance(opts, dict) and opts.get("absolute"):
+                            dimension_options[out_col] = opts
+
                 # Filter items
                 if item_filter is None:
                     selected_items = items
@@ -1982,6 +1993,33 @@ class Megaton:
                     raise ValueError("item_filter must be None, a list, or a callable")
 
                 dfs = []
+                def _normalize_base_url(url):
+                    if not url:
+                        return ""
+                    parsed = urlparse(str(url))
+                    if parsed.scheme and parsed.netloc:
+                        return f"{parsed.scheme}://{parsed.netloc}"
+                    if parsed.netloc:
+                        return parsed.netloc
+                    return ""
+
+                def _apply_absolute(df, col, base_url):
+                    if not base_url or col not in df.columns:
+                        return df
+                    base = base_url.rstrip("/")
+
+                    def _to_absolute(val):
+                        if not isinstance(val, str) or not val:
+                            return val
+                        if val.startswith("http://") or val.startswith("https://"):
+                            return val
+                        if val.startswith("/"):
+                            return f"{base}{val}"
+                        return val
+
+                    df[col] = df[col].apply(_to_absolute)
+                    return df
+
                 for item in selected_items:
                     item_id = item.get(item_key, 'unknown')
                     property_id = item.get(property_key)
@@ -2012,6 +2050,12 @@ class Megaton:
                         
                         df = df.copy()
                         df[item_key] = item_id
+                        if dimension_options:
+                            base_url = _normalize_base_url(item.get("url"))
+                            if base_url:
+                                for col, opts in dimension_options.items():
+                                    if opts.get("absolute"):
+                                        df = _apply_absolute(df, col, base_url)
                         dfs.append(df)
                     
                     except Exception as e:

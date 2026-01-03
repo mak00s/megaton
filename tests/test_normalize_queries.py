@@ -246,7 +246,7 @@ def test_normalize_queries_missing_prefer_by_with_group():
 
 
 def test_normalize_queries_prefer_by_must_be_string():
-    """prefer_by はリストではなく文字列のみ許可"""
+    """prefer_by は文字列以外を拒否する"""
     df = pd.DataFrame({
         'query': ['test', 'test '],
         'clicks': [10, 5],
@@ -255,5 +255,5 @@ def test_normalize_queries_prefer_by_must_be_string():
     result = SearchResult(df, None, ['query'])
     
     # prefer_by にリストを渡すとエラー
-    with pytest.raises(TypeError, match="prefer_by must be a string"):
+    with pytest.raises(TypeError, match="prefer_by must be a string, got list"):
         result.normalize_queries(prefer_by=['impressions', 'clicks'], group=True)
