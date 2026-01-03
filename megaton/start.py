@@ -2004,7 +2004,50 @@ class Megaton:
                         f"Available keys: {available_keys}"
                     )
 
+                def _resolve_dimensions(item, dimension_defs):
+                    """
+                    次元定義の site.xxx パターンを解決
+                    
+                    Args:
+                        item: サイト情報dict
+                        dimension_defs: 次元定義リスト
+                    
+                    Returns:
+                        解決済み次元定義リスト
+                    """
+                    resolved = []
+                    for dim_def in dimension_defs:
+                        if isinstance(dim_def, tuple) and dim_def:
+                            dim_name = dim_def[0]
+                            if isinstance(dim_name, str) and dim_name.startswith("site."):
+                                key = dim_name[5:]
+                                actual_dim = item.get(key)
+                                if actual_dim is None or actual_dim == "":
+                                    _raise_missing_site_key(item, key)
+                                resolved.append((actual_dim, *dim_def[1:]))
+                            else:
+                                resolved.append(dim_def)
+                        elif isinstance(dim_def, str) and dim_def.startswith("site."):
+                            key = dim_def[5:]
+                            actual_dim = item.get(key)
+                            if actual_dim is None or actual_dim == "":
+                                _raise_missing_site_key(item, key)
+                            resolved.append(actual_dim)
+                        else:
+                            resolved.append(dim_def)
+                    return resolved
+
                 def _resolve_metrics(item, metric_defs):
+                    """
+                    メトリクス定義の site.xxx パターンを解決
+                    
+                    Args:
+                        item: サイト情報dict
+                        metric_defs: メトリクス定義リスト
+                    
+                    Returns:
+                        解決済みメトリクス定義リスト
+                    """
                     resolved = []
                     for metric_def in metric_defs:
                         if isinstance(metric_def, tuple) and metric_def:
@@ -2122,6 +2165,9 @@ class Megaton:
                         # Switch to the property
                         self.parent.parent.ga['4'].property.id = property_id
                         
+                        # 次元を解決
+                        resolved_d = _resolve_dimensions(item, d)
+                        
                         # メトリクスを解決
                         resolved_m = _resolve_metrics(item, m)
                         
@@ -2140,8 +2186,8 @@ class Megaton:
                             if current_filter_d:
                                 call_kwargs['filter_d'] = current_filter_d
                             
-                            # APIコール
-                            self(d=d, m=metrics, **call_kwargs)
+                            # APIコール（解決済みの次元を使用）
+                            self(d=resolved_d, m=metrics, **call_kwargs)
                             df = self.parent.data
                             
                             if df is not None and not (isinstance(df, pd.DataFrame) and df.empty):

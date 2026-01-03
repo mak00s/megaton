@@ -121,21 +121,30 @@ mg.report.run(
 ### 複数サイトの一括取得（run.all）
 
 `report.run.all()` を使うと、複数の GA4 プロパティを一括取得して結合できます。  
-サイトごとにメトリクス名が異なる場合は `site.<key>` を使って動的に指定できます。
+サイトごとにメトリクス名や次元名が異なる場合は `site.<key>` を使って動的に指定できます。
 
 ```python
 sites = [
-    {"clinic": "札幌", "ga4_property_id": "12345", "cv": "totalPurchasers"},
-    {"clinic": "仙台", "ga4_property_id": "67890", "cv": "keyEvents"},
+    {"clinic": "札幌", "ga4_property_id": "12345", "cv": "totalPurchasers", "lp_dim": "landingPage"},
+    {"clinic": "仙台", "ga4_property_id": "67890", "cv": "keyEvents", "lp_dim": "landingPagePlusQueryString"},
 ]
 
 df = mg.report.run.all(
     sites,
-    d=[("yearMonth", "month")],
+    d=[("yearMonth", "month"), ("site.lp_dim", "lp")],  # 次元も動的指定可能
     m=[("activeUsers", "users"), ("site.cv", "cv")],
     item_key="clinic",
 )
 ```
+
+**注:** 次元名（`landingPage`, `landingPagePlusQueryString` など）は GA4 の標準次元名を使用します。利用可能な次元の一覧は `mg.show.ga.dimensions` で確認できます。
+
+#### 動的指定の仕様（v0.8.0+）
+
+- **メトリクス:** `("site.cv", "cv")` → 各サイトの `cv` キーの値を使用
+- **次元:** `("site.lp_dim", "lp")` → 各サイトの `lp_dim` キーの値を使用
+- **オプション対応:** `("site.lp_dim", "lp", {"absolute": True})` のように次元オプションも利用可能
+- **エラー処理:** 指定したキーがサイト情報に存在しない場合は `ValueError` が発生
 
 #### メトリクス別 filter_d 指定（v0.8.0+）
 
