@@ -22,6 +22,29 @@ from .ui import widgets
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
 
+# GA4の既知のメトリクス名（標準 + よく使われるカスタムメトリクス）
+KNOWN_GA4_METRICS = {
+    # 標準メトリクス
+    'sessions', 'users', 'newUsers', 'activeUsers',
+    'engagedSessions', 'engagementRate', 'totalRevenue',
+    'averageSessionDuration', 'screenPageViews', 'eventCount',
+    'conversions', 'sessionConversionRate', 'bounceRate',
+    'totalPurchasers', 'purchaseRevenue', 'itemRevenue',
+    'transactions', 'totalUsers', 'eventCountPerUser',
+    # よく使われるカスタムメトリクス（エイリアス）
+    'cv', 'ad_cost', 'cost', 'impressions', 'clicks',
+}
+
+# GA4の既知のディメンション名（数値化され得るディメンションを保護）
+KNOWN_GA4_DIMENSIONS = {
+    # 日付・時間系（数値型になり得る）
+    'date', 'month', 'yearMonth', 'year', 'week', 'day',
+    'dateHour', 'dateHourMinute', 'dayOfWeek', 'dayOfWeekName',
+    # その他の一般的なディメンション
+    'sessionSource', 'sessionMedium', 'sessionCampaignName',
+    'deviceCategory', 'country', 'city', 'landingPage', 'pagePath',
+}
+
 
 class SearchResult:
     """Search Console データをラップし、メソッドチェーンで処理を行うクラス"""
@@ -461,6 +484,302 @@ class SearchResult:
             new_dimensions = self.dimensions
         
         return SearchResult(df, self.parent, new_dimensions)
+
+
+class ReportResult:
+    """GA4 レポートデータをラップし、メソッドチェーンで処理を行うクラス"""
+    
+    def __init__(self, df, dimensions=None):
+        """
+        Args:
+            df: pandas DataFrame
+            dimensions: ディメンションのリスト（例: ['date', 'sessionSource']）
+                       None の場合は自動で推定（指標以外の列）
+        """
+        self._df = df
+        
+        # dimensions の推定（明示指定がある場合は最優先）
+        if dimensions is None:
+            # 自動判定の順序:
+            # 1. KNOWN_GA4_DIMENSIONS に含まれる列は dimensions として確保
+            # 2. KNOWN_GA4_METRICS を除外
+            # 3. 残りの数値列もメトリクスとして除外（カスタムメトリクスの自動検出）
+            # 4. 最終的に dimensions = 既知dimension + 非数値列
+            if df is None or len(df.columns) == 0:
+                self.dimensions = []
+            else:
+                # 数値列のうち既知のディメンションを除いたものをメトリクス候補とする
+                numeric_cols = set(df.select_dtypes(include=['number']).columns)
+                numeric_cols -= KNOWN_GA4_DIMENSIONS  # 既知ディメンションは除外
+                metric_cols = KNOWN_GA4_METRICS | numeric_cols
+                # dimensions = 非メトリクス列
+                self.dimensions = [col for col in df.columns if col not in metric_cols]
+        else:
+            self.dimensions = dimensions
+    
+    @property
+    def df(self):
+        """DataFrame として直接アクセス（後方互換性）"""
+        return self._df
+    
+    @property
+    def empty(self):
+        """DataFrame が空かどうか"""
+        return self._df.empty
+    
+    @property
+    def columns(self):
+        """DataFrame の列名"""
+        return self._df.columns.tolist()
+    
+    def __repr__(self):
+        """ReportResult オブジェクトの文字列表現"""
+        return f"ReportResult({len(self._df)} rows x {len(self._df.columns)} columns)"
+    
+    def __len__(self):
+        """len() でデータフレームの行数を返す（後方互換性）"""
+        return len(self._df)
+    
+    def __getitem__(self, key):
+        """df[key] として列にアクセス（後方互換性）"""
+        return self._df[key]
+    
+    def classify(self, dimension, by, output=None, default=None, group=True):
+        """
+        ディメンションの値を分類マッピングで変換
+        
+        Args:
+            dimension: 分類対象のディメンション列名
+            by: 分類マッピング辞書 {pattern: category}
+                pattern は正規表現として解釈される
+            output: 出力列名（default: dimension + '_category'）
+            default: マッチしない場合のデフォルト値（default: '(other)'）
+            group: True の場合、分類列を含めて集計（default: True）
+        
+        Returns:
+            ReportResult（新しい分類列を追加、groupがTrueなら集計済み）
+        
+        Example:
+            result.classify(
+                dimension='sessionSource',
+                by={'.*google.*': 'Google', '.*yahoo.*': 'Yahoo'},
+                output='source_category'
+            )
+        """
+        from megaton.transform.classify import classify_by_regex
+        
+        df = self._df.copy()
+        
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+        
+        # デフォルトの出力列名
+        if output is None:
+            output = f"{dimension}_category"
+        
+        # デフォルト値
+        if default is None:
+            default = '(other)'
+        
+        # 分類実行
+        df = classify_by_regex(df, dimension, by, output, default)
+        
+        if group:
+            # 分類列を含めて集計（元のdimensionは除外）
+            new_dimensions = [d for d in self.dimensions if d != dimension]
+            if output not in new_dimensions:
+                new_dimensions.append(output)
+            
+            metrics = [col for col in df.select_dtypes(include=['number']).columns 
+                      if col not in new_dimensions]
+            if metrics:
+                agg_dict = {col: 'sum' for col in metrics}
+                df = df.groupby(new_dimensions, as_index=False).agg(agg_dict)
+        else:
+            # 分類列を追加（元のdimensionは保持）
+            new_dimensions = self.dimensions.copy()
+            if output not in new_dimensions:
+                new_dimensions.append(output)
+        
+        return ReportResult(df, new_dimensions)
+    
+    def group(self, by, metrics=None, method='sum'):
+        """
+        指定したディメンションで集計
+        
+        Args:
+            by: 集計キーとなるディメンション列名または列名のリスト
+            metrics: 集計する指標列名のリスト（または単一の列名文字列）
+            method: 集計方法（'sum', 'mean', 'count', 'min', 'max'）
+        
+        Returns:
+            ReportResult（集計後のデータ）
+        
+        Example:
+            # sessionSource でセッション数を集計
+            result.group(by='sessionSource', metrics=['sessions'])
+            
+            # 複数ディメンションで集計
+            result.group(by=['date', 'sessionSource'])
+        """
+        df = self._df.copy()
+        
+        # by を list に統一
+        if isinstance(by, str):
+            by = [by]
+        
+        # metrics を list に統一
+        if metrics is not None and isinstance(metrics, str):
+            metrics = [metrics]
+        
+        # 空DataFrame対応
+        if df.empty:
+            # metric列を含む空DataFrameを返す（存在する列のみ）
+            if metrics:
+                # 既存の列のみ含める（存在しない列は除外）
+                valid_metrics = [m for m in metrics if m in df.columns]
+                columns = by + valid_metrics
+            else:
+                columns = by
+            return ReportResult(pd.DataFrame(columns=columns), by)
+        
+        # 指標列を特定
+        if metrics is None:
+            # 数値列を自動検出（by に指定された列を除く）
+            metrics = [col for col in df.select_dtypes(include=['number']).columns 
+                      if col not in by]
+        else:
+            # 明示指定されたmetricsが存在しない列は除外
+            metrics = [m for m in metrics if m in df.columns]
+        
+        if not metrics:
+            # メトリクスがない場合は by 列のみの空DataFrameを返す
+            return ReportResult(pd.DataFrame(columns=by), by)
+        
+        # 集計実行
+        agg_dict = {col: method for col in metrics}
+        grouped = df.groupby(by, as_index=False).agg(agg_dict)
+        
+        # dimensions を更新
+        new_dimensions = by
+        
+        return ReportResult(grouped, new_dimensions)
+    
+    def sort(self, by, ascending=True):
+        """
+        指定した列でソート
+        
+        Args:
+            by: ソートキーとなる列名または列名のリスト
+            ascending: 昇順（True）または降順（False）
+                      列ごとに指定する場合はリスト
+        
+        Returns:
+            ReportResult（ソート後のデータ）
+        
+        Example:
+            # sessions で降順ソート
+            result.sort(by='sessions', ascending=False)
+            
+            # 複数列でソート
+            result.sort(by=['date', 'sessions'], ascending=[True, False])
+        """
+        df = self._df.copy()
+        sorted_df = df.sort_values(by=by, ascending=ascending).reset_index(drop=True)
+        return ReportResult(sorted_df, self.dimensions)
+    
+    def fill(self, to='(not set)', dimensions=None):
+        """
+        ディメンション列の欠損値を指定した値で埋める
+        
+        Args:
+            to: 埋める値（default: '(not set)'）
+            dimensions: 対象のディメンション列名のリスト
+                       None の場合は self.dimensions のすべての列
+        
+        Returns:
+            ReportResult（欠損値を埋めたデータ）
+        
+        Example:
+            # すべてのディメンションの欠損値を '(not set)' で埋める
+            result.fill()
+            
+            # 特定のディメンションのみ埋める
+            result.fill(to='Unknown', dimensions=['sessionSource'])
+        """
+        df = self._df.copy()
+        
+        # 対象列を決定
+        if dimensions is None:
+            target_cols = [col for col in self.dimensions if col in df.columns]
+        else:
+            target_cols = dimensions
+        
+        # 欠損値を埋める
+        for col in target_cols:
+            if col in df.columns:
+                df[col] = df[col].fillna(to)
+        
+        return ReportResult(df, self.dimensions)
+    
+    def to_int(self, metrics, fill_value=0):
+        """
+        指標列を整数型に変換（欠損値は指定した値で埋める）
+        
+        Args:
+            metrics: 変換する指標列名または列名のリスト
+            fill_value: 欠損値を埋める値（default: 0）
+        
+        Returns:
+            ReportResult（整数型に変換したデータ）
+        
+        Example:
+            # sessions を整数型に変換
+            result.to_int(metrics='sessions')
+            
+            # 複数の指標を変換
+            result.to_int(metrics=['sessions', 'users'])
+        """
+        df = self._df.copy()
+        
+        # metrics を list に統一
+        if isinstance(metrics, str):
+            metrics = [metrics]
+        
+        # 型変換実行
+        for col in metrics:
+            if col in df.columns:
+                df[col] = df[col].fillna(fill_value).astype(int)
+        
+        return ReportResult(df, self.dimensions)
+    
+    def replace(self, dimension, by):
+        """
+        ディメンション列の値を辞書マッピングで置換
+        
+        Args:
+            dimension: 置換対象のディメンション列名
+            by: 置換マッピング辞書 {old_value: new_value}
+        
+        Returns:
+            ReportResult（値を置換したデータ）
+        
+        Example:
+            # sessionSource の値を置換
+            result.replace(
+                dimension='sessionSource',
+                by={'google': 'Google', 'yahoo': 'Yahoo'}
+            )
+        """
+        df = self._df.copy()
+        
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+        
+        # 置換実行
+        df[dimension] = df[dimension].replace(by)
+        
+        return ReportResult(df, self.dimensions)
 
 
 class Megaton:
@@ -1923,7 +2242,7 @@ class Megaton:
                 item_filter=None,
                 verbose: bool = True,
                 **run_kwargs,
-            ) -> pd.DataFrame:
+            ) -> 'ReportResult':
                 """Run GA4 report for multiple items and combine results.
 
                 Args:
@@ -1944,7 +2263,7 @@ class Megaton:
                         (e.g., filter_d, filter_m, sort, limit).
 
                 Returns:
-                    Combined DataFrame from all items with item_key column added.
+                    ReportResult: Object wrapping the combined DataFrame with method chaining support.
 
                 Examples:
                     >>> # Basic usage with shorthand
@@ -1990,6 +2309,32 @@ class Megaton:
                         opts = dim[2]
                         if isinstance(opts, dict) and opts.get("absolute"):
                             dimension_options[out_col] = opts
+
+                def _dimension_columns(dim_defs):
+                    cols = []
+                    for dim in dim_defs:
+                        if isinstance(dim, tuple):
+                            if len(dim) >= 2:
+                                cols.append(dim[1])
+                            else:
+                                cols.append(dim[0])
+                        else:
+                            cols.append(dim)
+                    return cols
+
+                def _extend_unique(target, items):
+                    for item in items:
+                        if item not in target:
+                            target.append(item)
+
+                # 明示指定の次元を保持（site.* は後で解決される）
+                explicit_dims = []
+                explicit_dims_fallback = _dimension_columns(d) if d else []
+                # site. プレフィックスを除去（全サイトスキップ時の空結果用fallback）
+                explicit_dims_fallback = [
+                    col.replace('site.', '', 1) if isinstance(col, str) and col.startswith('site.') else col
+                    for col in explicit_dims_fallback
+                ]
 
                 def _raise_missing_site_key(item, key):
                     item_label = (
@@ -2167,6 +2512,8 @@ class Megaton:
                         
                         # 次元を解決
                         resolved_d = _resolve_dimensions(item, d)
+                        resolved_dim_cols = _dimension_columns(resolved_d)
+                        _extend_unique(explicit_dims, resolved_dim_cols)
                         
                         # メトリクスを解決
                         resolved_m = _resolve_metrics(item, m)
@@ -2202,8 +2549,8 @@ class Megaton:
                         if len(dfs_for_item) == 1:
                             df = dfs_for_item[0].copy()
                         else:
-                            # ディメンション列でmerge
-                            dim_cols = [dim[1] if isinstance(dim, tuple) else dim for dim in d]
+                            # ディメンション列でmerge（解決済みのresolved_dから列名を取得）
+                            dim_cols = [dim[1] if isinstance(dim, tuple) else dim for dim in resolved_d]
                             df = dfs_for_item[0].copy()
                             for df_next in dfs_for_item[1:]:
                                 df = pd.merge(df, df_next, on=dim_cols, how='outer')
@@ -2230,10 +2577,34 @@ class Megaton:
                             print(f" ❌ {e}")
                         continue
 
+                if not explicit_dims:
+                    explicit_dims = explicit_dims_fallback
+
                 if not dfs:
-                    return pd.DataFrame()
+                    empty_df = pd.DataFrame(columns=explicit_dims)
+                    return ReportResult(empty_df, explicit_dims)
                 
-                return pd.concat([df for df in dfs if not df.empty], ignore_index=True)
+                combined_df = pd.concat([df for df in dfs if not df.empty], ignore_index=True)
+                
+                # ディメンション列を推定（item_key とメトリクス列以外）
+                # 数値型の列も除外（カスタムメトリクスの自動検出）
+                # ただし既知のディメンション（month/yearMonth等）は保護
+                numeric_cols = set(combined_df.select_dtypes(include=['number']).columns)
+                numeric_cols -= KNOWN_GA4_DIMENSIONS  # 既知ディメンションは除外
+                metric_cols = KNOWN_GA4_METRICS | numeric_cols
+                metric_cols -= set(explicit_dims)  # 明示指定の次元は除外しない
+
+                dimensions = []
+                _extend_unique(dimensions, explicit_dims)
+                for col in combined_df.columns:
+                    if col == item_key:
+                        continue
+                    if col in metric_cols:
+                        continue
+                    if col not in dimensions:
+                        dimensions.append(col)
+                
+                return ReportResult(combined_df, dimensions)
 
         def show(self):
             """Displays dataframe"""
