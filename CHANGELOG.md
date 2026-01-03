@@ -17,14 +17,12 @@
 - **keep_clicked パラメータ**: `clicks >= 1` の行を無条件に残すオプション。`filter_clicks()` では default=False、他のフィルターでは default=True です。
 - **group パラメータ**: URL 処理・分類メソッドで `group=True`（default）の場合、dimensions に基づいて自動集計します。大量データでは `group=False` にして最後だけ集計することでパフォーマンスを向上できます。
 
-
-## 0.7.4 – 2026‑01‑02
-
 ### 修正 / 追加
 
 - **ドキュメント調整**: `run.all` の説明を整理しました。
 - **Search Console クエリ整理**: `GSCService.query()` の dimensions を `date/hour/country/device/page/query` に限定し、`month` 指定時は内部的に `date` で取得して月単位で集計します。
 - **Search Console フィルタ追加**: `mg.search.run()` に `dimension_filter` を追加し、`contains` / 正規表現（RE2）での絞り込みに対応しました（AND 条件のみ）。
+
 
 ## 0.7.3 – 2026‑01‑02
 
