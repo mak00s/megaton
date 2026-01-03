@@ -2027,6 +2027,49 @@ class Megaton:
                             resolved.append(metric_def)
                     return resolved
 
+                def _group_metrics_by_filter(resolved_metrics, global_filter_d):
+                    """
+                    メトリクスをfilter_dでグループ化
+                    
+                    Args:
+                        resolved_metrics: 解決済みメトリクス定義リスト
+                        global_filter_d: グローバルfilter_d値（メトリクス個別指定がない場合に使用）
+                    
+                    Returns:
+                        dict: {filter_d_value: [metric_defs]}
+                              filter_d_valueは文字列またはNone。同じfilter_d値を持つメトリクスは
+                              グローバル/明示的の区別なく同一グループにまとめられる（最適化）。
+                    """
+                    groups = {}
+                    
+                    for metric_def in resolved_metrics:
+                        # filter_dを抽出
+                        if isinstance(metric_def, tuple) and len(metric_def) >= 3 and isinstance(metric_def[2], dict):
+                            opts = metric_def[2]
+                            filter_d = opts.get('filter_d')
+                            
+                            # 未対応オプションの検出
+                            unsupported = set(opts.keys()) - {'filter_d'}
+                            if unsupported:
+                                raise ValueError(f"Unsupported metric options: {unsupported}")
+                            
+                            # オプションからfilter_dを除去した純粋なメトリクス定義
+                            clean_metric = (metric_def[0], metric_def[1]) if len(metric_def) >= 2 else metric_def[0]
+                        else:
+                            filter_d = None
+                            clean_metric = metric_def
+                        
+                        # グループキー決定（Noneの場合はグローバルfilter_dを使用）
+                        # filter_d値そのものをキーとすることで、グローバル/明示的の区別なく
+                        # 同じfilter_d値は自動的に1つのグループにまとめられる（最適化）
+                        group_key = filter_d if filter_d is not None else global_filter_d
+                        
+                        if group_key not in groups:
+                            groups[group_key] = []
+                        groups[group_key].append(clean_metric)
+                    
+                    return groups
+
                 # Filter items
                 if item_filter is None:
                     selected_items = items
@@ -2079,20 +2122,49 @@ class Megaton:
                         # Switch to the property
                         self.parent.parent.ga['4'].property.id = property_id
                         
-                        # Run the report
+                        # メトリクスを解決
                         resolved_m = _resolve_metrics(item, m)
-                        self(d=d, m=resolved_m, **run_kwargs)
-                        df = self.parent.data
                         
-                        if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                        # filter_dでグループ化
+                        global_filter_d = run_kwargs.get('filter_d')
+                        metric_groups = _group_metrics_by_filter(resolved_m, global_filter_d)
+                        
+                        # グループごとにAPIコールして結果を収集
+                        dfs_for_item = []
+                        for filter_d_value, metrics in metric_groups.items():
+                            # グループのfilter_dを使用（filter_d値そのもの）
+                            current_filter_d = filter_d_value
+                            
+                            # APIコール用のkwargsを準備（filter_dを上書き）
+                            call_kwargs = {k: v for k, v in run_kwargs.items() if k != 'filter_d'}
+                            if current_filter_d:
+                                call_kwargs['filter_d'] = current_filter_d
+                            
+                            # APIコール
+                            self(d=d, m=metrics, **call_kwargs)
+                            df = self.parent.data
+                            
+                            if df is not None and not (isinstance(df, pd.DataFrame) and df.empty):
+                                dfs_for_item.append(df)
+                        
+                        # 同一サイト内のデータを統合
+                        if not dfs_for_item:
                             if verbose:
                                 print(" empty")
                             continue
                         
+                        if len(dfs_for_item) == 1:
+                            df = dfs_for_item[0].copy()
+                        else:
+                            # ディメンション列でmerge
+                            dim_cols = [dim[1] if isinstance(dim, tuple) else dim for dim in d]
+                            df = dfs_for_item[0].copy()
+                            for df_next in dfs_for_item[1:]:
+                                df = pd.merge(df, df_next, on=dim_cols, how='outer')
+                        
                         if verbose:
                             print(" ✓")
                         
-                        df = df.copy()
                         df[item_key] = item_id
                         if dimension_options:
                             base_url = _normalize_base_url(item.get("url"))
@@ -2103,8 +2175,11 @@ class Megaton:
                         dfs.append(df)
                     
                     except Exception as e:
-                        if isinstance(e, ValueError) and str(e).startswith("Site key"):
-                            raise
+                        # site. プレフィックスエラーと未サポートオプションエラーは re-raise
+                        if isinstance(e, ValueError):
+                            err_msg = str(e)
+                            if err_msg.startswith("Site key") or "Unsupported metric options" in err_msg:
+                                raise
                         if verbose:
                             print(f" ❌ {e}")
                         continue

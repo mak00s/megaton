@@ -483,3 +483,200 @@ def test_search_run_all_handles_searchresult():
     # メソッドチェーンで site が保持されることを確認
     decoded = result.decode(group=True)
     assert 'site' in decoded.df.columns
+
+
+def test_report_run_all_unsupported_metric_option():
+    """未サポートのメトリクスオプションでエラー"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+    
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+    
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        # このモックは呼ばれないはず（エラーが先に起きる）
+        self.parent.data = pd.DataFrame({'page': ['/']})
+    
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        # filter_m はまだサポートされていない
+        with pytest.raises(ValueError, match="Unsupported metric options"):
+            app.report.run.all(
+                [{'clinic': 'test', 'ga4_property_id': '12345'}],
+                d=['page'],
+                m=[('activeUsers', 'users', {'filter_m': 'some_filter'})],
+                item_key='clinic',
+                verbose=False
+            )
+
+
+def test_report_run_all_metric_specific_filter_d():
+    """メトリクスごとに異なるfilter_dを指定"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    call_count = 0
+    filters_used = []
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        filters_used.append(filter_d)
+        
+        # filter_dに応じて異なるデータを返す
+        if filter_d == 'sessionDefaultChannelGroup==Organic Search':
+            self.parent.data = pd.DataFrame({'page': ['/'], 'users': [100]})
+        elif filter_d == 'defaultChannelGroup==Organic Search':
+            self.parent.data = pd.DataFrame({'page': ['/'], 'cv': [10]})
+        else:
+            self.parent.data = pd.DataFrame({'page': ['/']})
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'page')],
+            m=[
+                ('activeUsers', 'users', {'filter_d': 'sessionDefaultChannelGroup==Organic Search'}),
+                ('totalPurchasers', 'cv', {'filter_d': 'defaultChannelGroup==Organic Search'}),
+            ],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # 2つの異なるfilter_dで2回呼ばれる
+    assert call_count == 2
+    assert 'sessionDefaultChannelGroup==Organic Search' in filters_used
+    assert 'defaultChannelGroup==Organic Search' in filters_used
+    
+    # 結果が統合されている
+    assert len(result) == 1
+    assert 'users' in result.columns
+    assert 'cv' in result.columns
+    assert result['users'].iloc[0] == 100
+    assert result['cv'].iloc[0] == 10
+    assert result['clinic'].iloc[0] == '札幌'
+
+
+def test_report_run_all_mixed_filter_d():
+    """グローバルfilter_dとメトリクス個別filter_dの混在"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    filters_used = []
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        filters_used.append(filter_d)
+        if filter_d == 'sessionDefaultChannelGroup==Organic Search':
+            self.parent.data = pd.DataFrame({'page': ['/'], 'users': [50]})
+        elif filter_d == 'defaultChannelGroup==Organic Search':
+            self.parent.data = pd.DataFrame({'page': ['/'], 'cv': [5]})
+        else:
+            self.parent.data = pd.DataFrame({'page': ['/']})
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '仙台', 'ga4_property_id': '67890'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'page')],
+            m=[
+                ('activeUsers', 'users'),  # グローバルfilter_dを使用
+                ('totalPurchasers', 'cv', {'filter_d': 'defaultChannelGroup==Organic Search'}),
+            ],
+            filter_d='sessionDefaultChannelGroup==Organic Search',  # グローバル
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # users: sessionDefaultChannelGroup, cv: defaultChannelGroup
+    assert 'sessionDefaultChannelGroup==Organic Search' in filters_used
+    assert 'defaultChannelGroup==Organic Search' in filters_used
+    assert result['users'].iloc[0] == 50
+    assert result['cv'].iloc[0] == 5
+
+
+def test_report_run_all_same_filter_d_optimization():
+    """同じfilter_dのメトリクスは1回のAPIコールにまとめる"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    call_count = 0
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        # 複数メトリクスを同時に返す
+        self.parent.data = pd.DataFrame({'page': ['/'], 'users': [100], 'sessions': [150]})
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'page')],
+            m=[
+                ('activeUsers', 'users', {'filter_d': 'sessionDefaultChannelGroup==Organic Search'}),
+                ('sessions', 'sessions', {'filter_d': 'sessionDefaultChannelGroup==Organic Search'}),
+            ],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # 同じfilter_dなので1回のAPIコールのみ
+    assert call_count == 1
+    assert 'users' in result.columns
+    assert 'sessions' in result.columns
+
+def test_report_run_all_global_explicit_same_filter_optimization():
+    """グローバルfilter_dと明示的filter_dが同じ値の場合、1回のAPIコールにまとめる"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+
+    call_count = 0
+    filters_used = []
+
+    def mock_call(self, d, m, filter_d=None, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        filters_used.append(filter_d)
+        # 複数メトリクスを同時に返す
+        self.parent.data = pd.DataFrame({'page': ['/'], 'users': [100], 'cv': [10]})
+
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [{'clinic': '札幌', 'ga4_property_id': '12345'}]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('landingPage', 'page')],
+            m=[
+                ('activeUsers', 'users'),  # グローバルfilter_dを使用
+                ('totalPurchasers', 'cv', {'filter_d': 'sessionDefaultChannelGroup==Organic Search'}),  # 明示的に同じ値
+            ],
+            filter_d='sessionDefaultChannelGroup==Organic Search',  # グローバル
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # グローバルと明示的が同じ値なので1回のAPIコールのみ（最適化）
+    assert call_count == 1
+    assert filters_used == ['sessionDefaultChannelGroup==Organic Search']
+    assert result['users'].iloc[0] == 100
+    assert result['cv'].iloc[0] == 10

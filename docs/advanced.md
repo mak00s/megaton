@@ -137,6 +137,30 @@ df = mg.report.run.all(
 )
 ```
 
+#### メトリクス別 filter_d 指定（v0.8.0+）
+
+メトリクスごとに異なる `filter_d` を指定できます。タプル形式の3番目の要素にオプション辞書を渡します：
+
+```python
+df = mg.report.run.all(
+    sites,
+    d=[("yearMonth", "month"), ("landingPage", "page")],
+    m=[
+        ("activeUsers", "users", {"filter_d": "sessionDefaultChannelGroup==Organic Search"}),
+        ("totalPurchasers", "cv", {"filter_d": "defaultChannelGroup==Organic Search"}),
+    ],
+    item_key="clinic",
+)
+```
+
+これにより、同じディメンションで異なるフィルタ条件のメトリクスを1回の呼び出しで取得できます。  
+内部では filter_d ごとにグループ化して API コールを行い、ディメンション列で自動結合します。  
+同一の filter_d を持つメトリクスは1回の API コールにまとめられるため効率的です。
+
+**注意点:**
+- 現在サポートされているオプションは `filter_d` のみです（`filter_m` 等は未サポート）
+- グローバル `filter_d` と併用可能（メトリクス別設定が優先されます）
+
 ### データ前処理
 
 `report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換など簡易的な前処理を行えます。
