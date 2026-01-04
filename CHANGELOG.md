@@ -16,6 +16,10 @@
   - `regex=True` がデフォルト: 辞書の key を正規表現として扱う
   - `regex=False`: 固定文字列での置換
   - 例: `.replace(dimension='campaign', by={r'\([^)]*\)': ''})` で括弧内を削除
+- **text.infer_site_from_url()**: URLからサイト識別子を推測する関数を追加（マルチサイト企業対応）。
+  - sites 設定から domain/url を抽出してドメインマッチング
+  - クエリパラメータ `id=` による特殊IDマッチング（dentamap など）
+  - 例: `text.infer_site_from_url(url, sites, site_key='clinic', id_key='dentamap_id')`
 
 ## 0.8.0 – 2026‑01‑04
 

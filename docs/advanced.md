@@ -6,6 +6,50 @@ README の補足として、設計思想・認証・使い分け・詳細な機�
 
 ---
 
+## Transform モジュール
+
+### text.infer_site_from_url()
+
+マルチサイト企業向けに、URLから所属サイトを推測する関数です。
+
+**使い方:**
+
+```python
+from megaton.transform import text
+
+# サイト設定（通常は cfg.sites から取得）
+sites = [
+    {'clinic': '札幌', 'domain': 'sapporo.example.com'},
+    {'clinic': '東京', 'domain': 'tokyo.example.com'},
+    {'clinic': 'dentamap', 'domain': 'plus.dentamap.jp', 'dentamap_id': '123'},
+]
+
+# URLからサイトを推測
+df['clinic'] = df['lp'].apply(
+    lambda url: text.infer_site_from_url(url, sites, site_key='clinic', id_key='dentamap_id')
+)
+```
+
+**パラメータ:**
+- `url_val` (str): 判定対象のURL
+- `sites` (list[dict]): サイト設定リスト（各要素は `site_key` と `domain`/`url` を含む）
+- `site_key` (str): 返り値として使うキー名（例: `'clinic'`, `'brand'`, `'site'`）
+- `id_key` (str | None): 特殊IDのキー名（例: `'dentamap_id'`）。Noneなら無視
+
+**判定ロジック:**
+
+1. **特殊IDチェック**: `id_key` が指定されている場合、URLの `?id=XXX` パラメータと sites の `id_key` 値を比較
+2. **ドメインマッチング**: sites の `domain`/`url` からドメインリストを生成し、長い順にマッチング（サブドメイン優先）
+3. **フォールバック**: マッチしない場合は `"不明"` を返す
+
+**利点:**
+
+- **自己完結**: sites 設定のみで動作し、外部の domain_pairs 定義が不要
+- **安全な比較**: `parse_qs()` で `id=12` が `id=123` に誤マッチすることを防止
+- **フィルタ連携**: 返り値 `"不明"` で後段フィルタ（`df[df['clinic'] != '不明']`）が機能
+
+---
+
 ## 設計思想
 
 - Notebook 上で **最小の操作でデータ取得〜可視化に進める** ことを最優先にしています。
