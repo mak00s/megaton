@@ -143,8 +143,28 @@ df = mg.report.run.all(
 
 - **メトリクス:** `("site.cv", "cv")` → 各サイトの `cv` キーの値を使用
 - **次元:** `("site.lp_dim", "lp")` → 各サイトの `lp_dim` キーの値を使用
+- **フィルタ (v0.8.1+):** `'site.filter_d'` → 各サイトの `filter_d` キーの値を使用
 - **オプション対応:** `("site.lp_dim", "lp", {"absolute": True})` のように次元オプションも利用可能
 - **エラー処理:** 指定したキーがサイト情報に存在しない場合は `ValueError` が発生
+
+**site.filter_d の使用例:**
+
+```python
+sites = [
+    {"clinic": "札幌", "ga4_property_id": "12345", "filter_d": "country==JP"},
+    {"clinic": "仙台", "ga4_property_id": "67890", "filter_d": "deviceCategory==mobile;country==US"},
+]
+
+df = mg.report.run.all(
+    sites,
+    d=[("yearMonth", "month"), ("sessionSource", "source")],
+    m=[("activeUsers", "users")],
+    filter_d="site.filter_d",  # 各サイトのfilter_dを適用
+    item_key="clinic",
+)
+```
+
+これにより、サイトごとに異なるフィルタ条件（国、デバイスなど）を一括処理で適用できます。
 
 #### メトリクス別 filter_d 指定（v0.8.0+）
 
@@ -350,13 +370,21 @@ result.to_int(metrics='sessions')
 result.to_int(metrics=['sessions', 'users'], fill_value=0)
 ```
 
-**replace(dimension, by)**  
+**replace(dimension, by, *, regex=True)**  
 ディメンション列の値を辞書マッピングで置換します。
 
 ```python
+# 固定文字列での置換
 result.replace(
     dimension='sessionSource',
-    by={'google': 'Google', 'yahoo': 'Yahoo!', 'direct': 'Direct'}
+    by={'google': 'Google', 'yahoo': 'Yahoo!', 'direct': 'Direct'},
+    regex=False
+)
+
+# 正規表現パターンでの置換（デフォルト）
+result.replace(
+    dimension='campaign',
+    by={r'\([^)]*\)': ''}  # 括弧内を削除
 )
 ```
 

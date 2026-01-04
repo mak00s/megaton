@@ -135,6 +135,19 @@ result = (mg.search
     .filter_position(max=20, keep_clicked=True))  # clicks >= 1 は max=20 をバイパス
 ```
 
+## 条件付きメソッドチェーン
+
+```python
+# 設定によって正規化の有無を切り替える
+result = (mg.search
+    .run(dimensions=['query', 'page'], clean=True)
+    .apply_if(cfg.normalize_queries, 'normalize_queries')
+    .classify(query=cfg.query_map, page=cfg.page_map))
+
+# cfg.normalize_queries が True の場合のみ normalize_queries() を実行
+# False の場合は .classify() に直接進む（if文でのチェーン分岐が不要）
+```
+
 ## SearchResult メソッド一覧
 
 ### URL 処理
@@ -168,6 +181,10 @@ result = (mg.search
 ### 集約
 - `.aggregate(by=None)` – 指定列または dimensions による手動集約
   - `by` を指定した場合、チェーンのために dimensions を更新
+- `.apply_if(condition, method_name, *args, **kwargs)` – 条件付きメソッドチェーン
+  - `condition` が True の場合のみ `method_name` のメソッドを実行
+  - False の場合は元の SearchResult をそのまま返す
+  - 例: `result.apply_if(cfg.normalize, 'normalize_queries')`
 
 ### DataFrame アクセス
 - `.df` – DataFrame にアクセスするプロパティ

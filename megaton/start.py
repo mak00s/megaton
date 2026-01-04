@@ -484,6 +484,59 @@ class SearchResult:
             new_dimensions = self.dimensions
         
         return SearchResult(df, self.parent, new_dimensions)
+    
+    def apply_if(self, condition, method_name, *args, **kwargs):
+        """
+        条件が真の場合のみメソッドを適用
+        
+        メソッドチェーン内で条件分岐を実現し、if/else による重複を排除します。
+        
+        Args:
+            condition: bool または callable(SearchResult) -> bool
+                      - bool: 静的な条件（例: TARGET_MONTHS_AGO > 0）
+                      - callable: 動的な条件（例: lambda sr: len(sr.df) > 100）
+            method_name: str - 適用するメソッド名（例: 'filter_impressions'）
+            *args, **kwargs: メソッドの引数
+        
+        Returns:
+            SearchResult: チェーン継続可能
+        
+        Raises:
+            AttributeError: method_name が存在しない場合
+        
+        Example:
+            # 過去月のみフィルタを適用
+            gsc_df_filtered = (
+                gsc_result_mapped
+                .normalize_queries(mode='remove_all', prefer_by='impressions', group=True)
+                .classify(page=page_map, group=True)
+                .apply_if(TARGET_MONTHS_AGO > 0, 'filter_impressions', 
+                          sites=selected_sites, site_key='clinic', keep_clicked=True)
+                .apply_if(TARGET_MONTHS_AGO > 0, 'filter_position',
+                          sites=selected_sites, site_key='clinic', keep_clicked=True)
+                .df
+            )
+            
+            # 動的条件の例：データ量に応じて処理を変更
+            result = (
+                gsc_result
+                .apply_if(lambda sr: len(sr.df) > 1000, 'filter_impressions', min=10)
+                .apply_if(lambda sr: 'device' in sr.df.columns, 'aggregate', by='device')
+            )
+        """
+        # 条件評価
+        if callable(condition):
+            should_apply = condition(self)
+        else:
+            should_apply = bool(condition)
+        
+        # 条件が真の場合のみメソッド適用
+        if should_apply:
+            method = getattr(self, method_name)
+            return method(*args, **kwargs)
+        
+        # 条件が偽の場合はそのまま返す（チェーン継続）
+        return self
 
 
 class ReportResult:
@@ -753,22 +806,31 @@ class ReportResult:
         
         return ReportResult(df, self.dimensions)
     
-    def replace(self, dimension, by):
+    def replace(self, dimension, by, *, regex=True):
         """
         ディメンション列の値を辞書マッピングで置換
         
         Args:
             dimension: 置換対象のディメンション列名
             by: 置換マッピング辞書 {old_value: new_value}
+                regex=True の場合、キーは正規表現として扱われる
+            regex: True の場合、辞書のキーを正規表現として扱う（default: True）
         
         Returns:
             ReportResult（値を置換したデータ）
         
         Example:
-            # sessionSource の値を置換
+            # 正規表現での置換（default）
+            result.replace(
+                dimension='campaign',
+                by={r'\\([^)]*\\)': ''}
+            )
+            
+            # 固定文字列での置換
             result.replace(
                 dimension='sessionSource',
-                by={'google': 'Google', 'yahoo': 'Yahoo'}
+                by={'google': 'Google', 'yahoo': 'Yahoo'},
+                regex=False
             )
         """
         df = self._df.copy()
@@ -777,7 +839,7 @@ class ReportResult:
             raise ValueError(f"Column '{dimension}' not found in DataFrame")
         
         # 置換実行
-        df[dimension] = df[dimension].replace(by)
+        df[dimension] = df[dimension].replace(by, regex=regex)
         
         return ReportResult(df, self.dimensions)
 
@@ -2434,12 +2496,16 @@ class Megaton:
                         # filter_dを抽出
                         if isinstance(metric_def, tuple) and len(metric_def) >= 3 and isinstance(metric_def[2], dict):
                             opts = metric_def[2]
-                            filter_d = opts.get('filter_d')
+                            raw_filter_d = opts.get('filter_d')
                             
                             # 未対応オプションの検出
                             unsupported = set(opts.keys()) - {'filter_d'}
                             if unsupported:
                                 raise ValueError(f"Unsupported metric options: {unsupported}")
+                            
+                            # ⚠️ ここでは解決しない（アイテムごとのループ外なので item がない）
+                            # site.<key> パターンの解決はアイテムループ内で行う
+                            filter_d = raw_filter_d
                             
                             # オプションからfilter_dを除去した純粋なメトリクス定義
                             clean_metric = (metric_def[0], metric_def[1]) if len(metric_def) >= 2 else metric_def[0]
@@ -2494,6 +2560,34 @@ class Megaton:
                     df.loc[is_relative, col] = base + df.loc[is_relative, col]
                     return df
 
+                def _resolve_site_filter_d(filter_d_value, item, item_id=None):
+                    """
+                    filter_d に site.filter_d パターンがあれば item から解決
+                    
+                    Args:
+                        filter_d_value: filter_d値（'site.xxx'の可能性あり）
+                        item: サイト情報dict
+                        item_id: アイテムID（警告表示用、オプション）
+                    
+                    Returns:
+                        str or None: 解決済みfilter_d値。空文字列の場合はNone（フィルタなし）
+                    
+                    Raises:
+                        ValueError: site.<key> のキーが存在しない場合
+                    """
+                    if isinstance(filter_d_value, str) and filter_d_value.startswith('site.'):
+                        key = filter_d_value[5:]  # 'site.' を除去
+                        
+                        # キーが存在しない場合はエラー（次元・メトリクスと同じ）
+                        if key not in item:
+                            _raise_missing_site_key(item, key)
+                        
+                        actual_filter_d = item[key]
+                        
+                        # 空文字列やNoneの場合はfilter_dなしとして扱う（フィルタはオプション）
+                        return actual_filter_d if actual_filter_d else None
+                    return filter_d_value
+
                 for item in selected_items:
                     item_id = item.get(item_key, 'unknown')
                     property_id = item.get(property_key)
@@ -2518,9 +2612,38 @@ class Megaton:
                         # メトリクスを解決
                         resolved_m = _resolve_metrics(item, m)
                         
-                        # filter_dでグループ化
+                        # filter_dでグループ化（site.filter_d対応）
+                        # 1. グローバルfilter_dを解決
                         global_filter_d = run_kwargs.get('filter_d')
-                        metric_groups = _group_metrics_by_filter(resolved_m, global_filter_d)
+                        resolved_global_filter_d = _resolve_site_filter_d(global_filter_d, item, item_id)
+                        
+                        # 2. メトリクス個別filter_dも解決してからグループ化
+                        resolved_m_with_filter = []
+                        for metric_def in resolved_m:
+                            if isinstance(metric_def, tuple) and len(metric_def) >= 3 and isinstance(metric_def[2], dict):
+                                opts = metric_def[2]
+                                raw_filter_d = opts.get('filter_d')
+                                
+                                # 未対応オプションの検出（_group_metrics_by_filterと同じ）
+                                unsupported = set(opts.keys()) - {'filter_d'}
+                                if unsupported:
+                                    raise ValueError(f"Unsupported metric options: {unsupported}")
+                                
+                                # site.<key> パターンを解決
+                                resolved_filter_d_value = _resolve_site_filter_d(raw_filter_d, item, item_id)
+                                
+                                # 解決済みfilter_dで新しいoptsを作成
+                                new_opts = {'filter_d': resolved_filter_d_value}
+                                clean_metric = (metric_def[0], metric_def[1]) if len(metric_def) >= 2 else metric_def[0]
+                                resolved_m_with_filter.append((
+                                    clean_metric[0] if isinstance(clean_metric, tuple) else clean_metric,
+                                    clean_metric[1] if isinstance(clean_metric, tuple) and len(clean_metric) >= 2 else clean_metric,
+                                    new_opts
+                                ))
+                            else:
+                                resolved_m_with_filter.append(metric_def)
+                        
+                        metric_groups = _group_metrics_by_filter(resolved_m_with_filter, resolved_global_filter_d)
                         
                         # グループごとにAPIコールして結果を収集
                         dfs_for_item = []
@@ -2571,7 +2694,9 @@ class Megaton:
                         # site. プレフィックスエラーと未サポートオプションエラーは re-raise
                         if isinstance(e, ValueError):
                             err_msg = str(e)
-                            if err_msg.startswith("Site key") or "Unsupported metric options" in err_msg:
+                            if (err_msg.startswith("Site key") or 
+                                "Unsupported metric options" in err_msg or
+                                "filter_d 'site." in err_msg):  # filter_d キー不存在エラー
                                 raise
                         if verbose:
                             print(f" ❌ {e}")
