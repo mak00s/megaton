@@ -3,6 +3,8 @@
 
 このファイルは、Jupyter/Colab ノートブックから利用するための **Megaton の API 一覧** です。`?` は引数が任意であることを示します。`df?` を省略すると `mg.report.data` が既定値として使われます。
 
+**詳細な説明（パラメータ、戻り値、例）は [API リファレンス](api-reference.md) を参照してください。**
+
 ## コア / フロー
 
 - `mg = start.Megaton(creds)` – 認証情報を渡して Megaton オブジェクトを作成します。
@@ -19,12 +21,13 @@
   - `min_ymd` – 開始日の最小制約（YYYYMMDD形式）
 - `mg.report.set.dates(date_from, date_to)` – 日付範囲を直接設定します。
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, **kwargs)` – レポートを実行します。
-- `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?, add_month?, verbose?, **kwargs)` – 複数アイテムのレポートを一括実行して結合します。
+- `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?, verbose?, **kwargs)` – 複数アイテムのレポートを一括実行して結合します。
   - `items` – アイテム設定のリスト（dict の list）
   - `item_key='site'` – アイテム識別子キー（デフォルト: 'site'）
   - `property_key='ga4_property_id'` – GA4プロパティIDキー
   - `item_filter=None` – アイテムフィルタ（リスト or 関数）
-  - `add_month=None` – 月ラベル追加（str or DateWindow）
+  - `d` の3要素タプルに `{'absolute': True}` を指定すると、`item['url']` のドメインで相対パスを絶対URLに変換します。
+  - `m` に `site.<key>` を指定すると、`item[<key>]` をメトリクスとして使用します。
 - `mg.report.start_date` / `mg.report.end_date` – 設定された開始日・終了日。
 - `mg.report.data` – 直近のレポート結果。
 - `mg.report.prep(conf, df?)` – 列名変更や値置換などの前処理を行います。
@@ -45,7 +48,6 @@
 - `mg.sheets.delete(name)` – シートを削除します。
 - `mg.sheet.clear()` – 現在のシートをクリアします。
 - `mg.sheet.data` – 現在のシートのデータ（list of dict）。
-- `mg.sheet.df()` – `pandas.DataFrame` としてシートを取得します。
 - `mg.sheet.cell.set(cell, value)` – 単一セルに値を書き込みます。
 - `mg.sheet.range.set(a1_range, values)` – 範囲に対して配列を書き込みます。
 - `mg.sheet.save(df?)` – 現在のシートに DataFrame を保存します。
@@ -59,13 +61,17 @@
 - `mg.search.use(site_url)` – 指定したサイトを選択します。
 - `mg.search.set.dates(date_from, date_to)` – 日付範囲を設定します。
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)` – 月単位のウィンドウを設定し、`DateWindow` を返します。
-- `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行します。
-- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, add_month?, verbose?, **kwargs)` – 複数アイテムのクエリを一括実行して結合します。
+- `mg.search.run(dimensions, metrics?, limit?, **kwargs)` – クエリを実行し、`SearchResult` を返します（`.df` で DataFrame にアクセス）。
+  - `dimensions` は `date/hour/country/device/page/query` から選択できます。`month` を指定すると月単位に集計されます。
+  - `clean=True` を指定すると URL 正規化と集計を自動実行します。
+  - `dimension_filter="page=~^/blog/;query=@ortho"` のように指定すると AND 条件で絞り込みできます（`=~`/`!~` は RE2 正規表現、`=@`/`!@` は部分一致）。
+  - **メソッドチェーン:** `.decode()`, `.classify()`, `.filter_*()` などで処理を連鎖できます。詳しくは `docs/searchresult-api.md` を参照。
+- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, verbose?, **kwargs)` – 複数アイテムのクエリを一括実行して結合し、`SearchResult` を返します。
   - `items` – アイテム設定のリスト（dict の list）
-  - `item_key='site'` – アイテム識別子キー（デフォルト: 'site'）
+  - `item_key='site'` – アイテム識別子キー（デフォルト: 'site'）。**自動的に dimensions に追加されます。**
   - `site_url_key='gsc_site_url'` – GSCサイトURLキー（空の場合はスキップ）
   - `item_filter=None` – アイテムフィルタ（リスト or 関数）
-  - `add_month=None` – 月ラベル追加（str or DateWindow）
+  - `dimension_filter` – `mg.search.run()` と同様のフィルタを指定できます（AND 条件のみ）。
 - `mg.search.data` – 直近の Search Console 結果。
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only=False)` – サイト設定の閾値を適用してフィルタリングします。
   - `clicks_zero_only=True` を指定すると、クリック数 > 0 の行は無条件に保持し、クリック数 = 0 の行のみ閾値でフィルタリングします。

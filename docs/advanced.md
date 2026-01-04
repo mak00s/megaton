@@ -2,6 +2,88 @@
 
 README の補足として、設計思想・認証・使い分け・詳細な機能をまとめます。基本的なワークフローや環境構築は README を参照してください。
 
+**API の詳細は [API リファレンス](api-reference.md) を参照してください。**
+
+---
+
+## Transform モジュール
+
+### text.infer_site_from_url()
+
+マルチサイト企業向けに、URLから所属サイトを推測する関数です。
+
+**使い方:**
+
+```python
+from megaton.transform import text
+
+# サイト設定（通常は cfg.sites から取得）
+sites = [
+    {'clinic': '札幌', 'domain': 'sapporo.example.com'},
+    {'clinic': '東京', 'domain': 'tokyo.example.com'},
+    {'clinic': 'dentamap', 'domain': 'plus.dentamap.jp', 'dentamap_id': '123'},
+]
+
+# URLからサイトを推測
+df['clinic'] = df['lp'].apply(
+    lambda url: text.infer_site_from_url(url, sites, site_key='clinic', id_key='dentamap_id')
+)
+```
+
+**パラメータ:**
+- `url_val` (str): 判定対象のURL
+- `sites` (list[dict]): サイト設定リスト（各要素は `site_key` と `domain`/`url` を含む）
+- `site_key` (str): 返り値として使うキー名（例: `'clinic'`, `'brand'`, `'site'`）
+- `id_key` (str | None): 特殊IDのキー名（例: `'dentamap_id'`）。Noneなら無視
+
+**判定ロジック:**
+
+1. **特殊IDチェック**: `id_key` が指定されている場合、URLの `?id=XXX` パラメータと sites の `id_key` 値を比較
+2. **ドメインマッチング**: sites の `domain`/`url` からドメインリストを生成し、長い順にマッチング（サブドメイン優先）
+3. **フォールバック**: マッチしない場合は `"不明"` を返す
+
+**利点:**
+
+- **自己完結**: sites 設定のみで動作し、外部の domain_pairs 定義が不要
+- **安全な比較**: `parse_qs()` で `id=12` が `id=123` に誤マッチすることを防止
+- **フィルタ連携**: 返り値 `"不明"` で後段フィルタ（`df[df['clinic'] != '不明']`）が機能
+
+---
+
+## Search Console API
+
+### SearchResult.classify() の output パラメータ
+
+クエリ正規化とカテゴリ分類の出力を制御できます。
+
+**使い方:**
+
+```python
+# デフォルトモード: query_normalized と query_category を作成
+result = (
+    mg.search.run.all(sites, dimensions=['month', 'query', 'page'])
+    .classify(query=query_map, group=True)  # output='default'
+)
+# 結果: 'query', 'query_normalized', 'query_category' の3列
+
+# 上書きモード: query 列を直接置き換え（category 列なし）
+result = (
+    mg.search.run.all(sites, dimensions=['month', 'query', 'page'])
+    .classify(query=query_map, output=None)
+    .normalize_queries(mode='remove_all', prefer_by='impressions', group=True)
+    .classify(page=page_map, group=True)
+)
+# 結果: 'query' は正規化済み、'page_category' のみ追加
+```
+
+**パラメータ:**
+- `output='default'`: query_normalized/query_category または page_category を作成（後方互換）
+- `output=None`: 元の列（query/page）を上書き。category 列は作成しない
+
+**使い分け:**
+- **デフォルトモード**: カテゴリ分類が必要な場合（例: クエリタイプ別集計）
+- **上書きモード**: 正規化のみ必要で、category 列が不要な場合（例: チェーンの中間処理）
+
 ---
 
 ## 設計思想
@@ -100,41 +182,112 @@ ga4.property.select(ga4.account.properties[0]["id"])
 
 ### レポートの実行
 
-`report.run()` では次元 (`d` または `dimensions`) や指標 (`m` または `metrics`) を列挙し、必要に応じてフィルタやソートを指定します。
+`report.run()` では次元 (`d`) や指標 (`m`) を列挙し、必要に応じてフィルタやソートを指定します。
 
 ```python
-df = mg.report.run(
+mg.report.run(
     d=[("date", "日付"), ("eventName", "イベント名")],
     m=[("eventCount", "イベント数")],
     filter_d="eventName==page_view;country==Japan",
     sort="-eventCount",
-    limit=1000,
 )
 ```
 
 - `d` / `m` には GA4 API の **api_name** あるいは表示名を指定できます。タプル形式 `(元の名前, 新しい列名)` を使うと DataFrame の列名を変更しながら取得できます。
 - `filter_d` や `filter_m` は `;` 区切りで AND 条件を指定するシンプルな文字列フィルタです。
 - `sort` は `-eventCount` のようにマイナス記号で降順を表します。先頭に `+` を付けるか省略すると昇順になります。
-- データフレームは戻り値として受け取れるほか `mg.report.data` にも保存されます。
+- 結果は `mg.report.data` に保存されます。
+
+### 複数サイトの一括取得（run.all）
+
+`report.run.all()` を使うと、複数の GA4 プロパティを一括取得して結合できます。  
+サイトごとにメトリクス名や次元名が異なる場合は `site.<key>` を使って動的に指定できます。
+
+```python
+sites = [
+    {"clinic": "札幌", "ga4_property_id": "12345", "cv": "totalPurchasers", "lp_dim": "landingPage"},
+    {"clinic": "仙台", "ga4_property_id": "67890", "cv": "keyEvents", "lp_dim": "landingPagePlusQueryString"},
+]
+
+df = mg.report.run.all(
+    sites,
+    d=[("yearMonth", "month"), ("site.lp_dim", "lp")],  # 次元も動的指定可能
+    m=[("activeUsers", "users"), ("site.cv", "cv")],
+    item_key="clinic",
+)
+```
+
+**注:** 次元名（`landingPage`, `landingPagePlusQueryString` など）は GA4 の標準次元名を使用します。利用可能な次元の一覧は `mg.show.ga.dimensions` で確認できます。
+
+#### 動的指定の仕様（v0.8.0+）
+
+- **メトリクス:** `("site.cv", "cv")` → 各サイトの `cv` キーの値を使用
+- **次元:** `("site.lp_dim", "lp")` → 各サイトの `lp_dim` キーの値を使用
+- **フィルタ (v0.8.1+):** `'site.filter_d'` → 各サイトの `filter_d` キーの値を使用
+- **オプション対応:** `("site.lp_dim", "lp", {"absolute": True})` のように次元オプションも利用可能
+- **エラー処理:** 指定したキーがサイト情報に存在しない場合は `ValueError` が発生
+
+**site.filter_d の使用例:**
+
+```python
+sites = [
+    {"clinic": "札幌", "ga4_property_id": "12345", "filter_d": "country==JP"},
+    {"clinic": "仙台", "ga4_property_id": "67890", "filter_d": "deviceCategory==mobile;country==US"},
+]
+
+df = mg.report.run.all(
+    sites,
+    d=[("yearMonth", "month"), ("sessionSource", "source")],
+    m=[("activeUsers", "users")],
+    filter_d="site.filter_d",  # 各サイトのfilter_dを適用
+    item_key="clinic",
+)
+```
+
+これにより、サイトごとに異なるフィルタ条件（国、デバイスなど）を一括処理で適用できます。
+
+#### メトリクス別 filter_d 指定（v0.8.0+）
+
+メトリクスごとに異なる `filter_d` を指定できます。タプル形式の3番目の要素にオプション辞書を渡します：
+
+```python
+df = mg.report.run.all(
+    sites,
+    d=[("yearMonth", "month"), ("landingPage", "page")],
+    m=[
+        ("activeUsers", "users", {"filter_d": "sessionDefaultChannelGroup==Organic Search"}),
+        ("totalPurchasers", "cv", {"filter_d": "defaultChannelGroup==Organic Search"}),
+    ],
+    item_key="clinic",
+)
+```
+
+これにより、同じディメンションで異なるフィルタ条件のメトリクスを1回の呼び出しで取得できます。  
+内部では filter_d ごとにグループ化して API コールを行い、ディメンション列で自動結合します。  
+同一の filter_d を持つメトリクスは1回の API コールにまとめられるため効率的です。
+
+**注意点:**
+- 現在サポートされているオプションは `filter_d` のみです（`filter_m` 等は未サポート）
+- グローバル `filter_d` と併用可能（メトリクス別設定が優先されます）
 
 ### データ前処理
 
-`report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換、欠損値処理など簡易的な前処理を行えます。
+`report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換など簡易的な前処理を行えます。
 
 ```python
 # 日付列を文字列に変換し、イベント数を整数に変換する例
 conf = {
-    "rename": {"eventCount": "イベント数"},
-    "convert": {"date": str, "eventCount": int},
+    "eventCount": {"name": "イベント数", "type": int},
+    "date": {"type": str},
 }
-df_clean = mg.report.prep(conf)
+mg.report.prep(conf)
 ```
 
-前処理結果は戻り値として受け取れるほか、`mg.report.data` も更新されます。
+前処理結果は `mg.report.data` に反映されます。
 
 ### レポート期間の書き出し
 
-`mg.report.dates.to.sheet(sheet_name, start_cell, end_cell)` を使うと、設定済みの開始日と終了日を Google Sheets に書き出せます。複数レポートの期間管理やドキュメント作成に便利です。
+`mg.report.dates.to.sheet(sheet, start_cell, end_cell)` を使うと、設定済みの開始日と終了日を Google Sheets に書き出せます。複数レポートの期間管理やドキュメント作成に便利です。
 
 ```python
 mg.open.sheet("https://docs.google.com/spreadsheets/d/xxxxx")
@@ -142,7 +295,193 @@ mg.report.set.dates("2024-01-01", "2024-01-31")
 # "A1" に開始日を、"B1" に終了日を書き込み
 mg.report.dates.to.sheet("_meta", "A1", "B1")
 ```
+### ReportResult のメソッドチェーン
 
+`mg.report.run.all()` は `ReportResult` オブジェクトを返します。これは GA4 レポートデータをラップし、メソッドチェーンでデータ処理を行えるクラスです（Search Console の `SearchResult` と同様のパターンです）。
+
+#### ReportResult の基本的な使い方
+
+```python
+# run.all() の結果は ReportResult オブジェクト
+result = mg.report.run.all(
+    sites,
+    d=[('yearMonth', 'month'), ('sessionSource', 'source')],
+    m=[('activeUsers', 'users')],
+    item_key='clinic',
+)
+
+# DataFrame として取得
+df = result.df
+
+# メソッドチェーンで処理
+processed = (result
+    .fill(to='(not set)')  # 欠損値を埋める
+    .classify(
+        dimension='source',
+        by={'.*google.*': 'Search', '.*yahoo.*': 'Search'},
+        output='source_category'
+    )
+    .group(by=['month', 'source_category'], metrics=['users'])
+    .to_int(metrics='users')
+    .sort(by='users', ascending=False)
+)
+
+df_processed = processed.df
+```
+
+#### ディメンションの自動推定
+
+`ReportResult` はデータフレームの列を自動的にディメンションとメトリクスに分類します。これにより `fill()` や `classify(group=True)` などのメソッドが正しく動作します。
+
+**自動推定の仕組み:**
+1. **明示的な指定が最優先**: `ReportResult(df, dimensions=['date', 'source'])` のように指定された場合は、それを使用
+2. **既知のディメンションを保護**: `month`, `yearMonth`, `date` などの数値型ディメンションは保護
+3. **既知のメトリクスを除外**: `sessions`, `users`, `cv`, `ad_cost` などを除外
+4. **数値型列を自動検出**: 残りの数値型列をカスタムメトリクスとして扱う
+5. **非数値列をディメンションとする**: 最終的にメトリクスでない列がディメンションになる
+
+```python
+# 例: カスタムメトリクス (cv, ad_cost) を含むデータ
+df = pd.DataFrame({
+    'month': [202401, 202402],      # 数値型だが既知のディメンション → dimensions
+    'sessionSource': ['google', 'yahoo'],  # 文字列型 → dimensions
+    'sessions': [100, 50],          # 既知のメトリクス → metrics
+    'cv': [10, 5],                  # 数値型（カスタム） → metrics（自動検出）
+    'ad_cost': [1000, 500],         # 数値型（カスタム） → metrics（自動検出）
+})
+
+result = ReportResult(df)
+# result.dimensions = ['month', 'sessionSource']
+# メトリクス = ['sessions', 'cv', 'ad_cost']
+
+# classify() で正しく集計される
+result.classify(
+    dimension='sessionSource',
+    by={'google': 'Search', 'yahoo': 'Search'},
+    group=True  # sessions, cv, ad_cost がすべて合算される
+)
+```
+
+**注意点:**
+- **数値型ディメンションを使う場合**: `month`/`yearMonth` などは `KNOWN_GA4_DIMENSIONS` に含まれているため自動的に保護されます
+- **独自の数値型ディメンションを使う場合**: 明示的に `dimensions` パラメータを指定してください
+
+```python
+# 独自の数値型ディメンション（例: 年齢層を数値で表現）
+df = pd.DataFrame({
+    'age_group': [20, 30, 40],  # カスタムな数値型ディメンション
+    'sessions': [100, 150, 80]
+})
+
+# 明示的に指定（推奨）
+result = ReportResult(df, dimensions=['age_group'])
+
+# または、自動推定を使う場合は文字列型に変換
+df['age_group'] = df['age_group'].astype(str)
+result = ReportResult(df)
+```
+
+#### 利用可能なメソッド
+
+**classify(dimension, by, output=None, default=None, group=True)**  
+ディメンション列の値を正規表現パターンで分類します。
+
+```python
+# デフォルト: 分類後に集計（元のdimensionは除外）
+result.classify(
+    dimension='sessionSource',
+    by={'.*google.*': 'Search', '.*yahoo.*': 'Search', '.*facebook.*': 'Social'},
+    output='source_type',  # 省略時は '{dimension}_category'
+    default='Other'  # 省略時は '(other)'
+)
+
+# 集計せず生データを保持
+result.classify(
+    dimension='sessionSource',
+    by={'.*google.*': 'Search'},
+    group=False  # 元のsessionSource列も保持
+)
+```
+
+**group(by, metrics=None, method='sum')**  
+指定したディメンションで集計します。
+
+```python
+# 単一ディメンションで集計
+result.group(by='sessionSource', metrics=['sessions', 'users'])
+
+# 複数ディメンションで集計
+result.group(by=['date', 'sessionSource'])
+
+# 集計方法を指定（sum, mean, count, min, max）
+result.group(by='date', metrics=['sessions'], method='mean')
+```
+
+**sort(by, ascending=True)**  
+指定した列でソートします。
+
+```python
+# 降順ソート
+result.sort(by='sessions', ascending=False)
+
+# 複数列でソート
+result.sort(by=['date', 'sessions'], ascending=[True, False])
+```
+
+**fill(to='(not set)', dimensions=None)**  
+ディメンション列の欠損値を指定した値で埋めます。
+
+```python
+# すべてのディメンションを埋める
+result.fill()
+
+# 特定のディメンションのみ埋める
+result.fill(to='Unknown', dimensions=['sessionSource'])
+```
+
+**to_int(metrics, fill_value=0)**  
+指標列を整数型に変換します（欠損値は fill_value で埋められます）。
+
+```python
+# 単一指標を変換
+result.to_int(metrics='sessions')
+
+# 複数指標を変換
+result.to_int(metrics=['sessions', 'users'], fill_value=0)
+```
+
+**replace(dimension, by, *, regex=True)**  
+ディメンション列の値を辞書マッピングで置換します。
+
+```python
+# 固定文字列での置換
+result.replace(
+    dimension='sessionSource',
+    by={'google': 'Google', 'yahoo': 'Yahoo!', 'direct': 'Direct'},
+    regex=False
+)
+
+# 正規表現パターンでの置換（デフォルト）
+result.replace(
+    dimension='campaign',
+    by={r'\([^)]*\)': ''}  # 括弧内を削除
+)
+```
+
+#### 後方互換性
+
+ReportResult は DataFrame と同様の操作をサポートしています。
+
+```python
+result = mg.report.run.all(sites, d=['date'], m=['sessions'])
+
+# DataFrame的な操作
+len(result)  # 行数を取得
+result['sessions']  # 列にアクセス
+result.df  # DataFrame として取得
+result.columns  # 列名のリスト
+result.empty  # 空かどうか
+```
 ### DataFrame の保存・ダウンロード
 
 Megaton はローカルやノートブック環境への保存にも対応しています。
@@ -184,15 +523,56 @@ mg.search.set.months(ago=0, window_months=3, tz="Asia/Tokyo")
 
 ### クエリの実行
 
-`mg.search.run(dimensions, metrics, limit=5000, **kwargs)` でパフォーマンスデータを取得します。結果は `mg.search.data` に格納され、DataFrame としても返されます。
+`mg.search.run(dimensions, metrics, limit=5000, **kwargs)` でパフォーマンスデータを取得します。結果は `mg.search.data` に格納され、`SearchResult` を返します（DataFrame は `.df` で取得できます）。
 
 ```python
-df_sc = mg.search.run(
+result = mg.search.run(
     dimensions=["date", "query", "page"],
     metrics=["clicks", "impressions", "ctr", "position"],
     limit=10000,
     sort="-clicks",
 )
+df_sc = result.df
+```
+
+`dimension_filter` を指定すると Search Console 側で絞り込みできます（AND 条件のみ）。
+
+```python
+df_sc = mg.search.run(
+    dimensions=["query", "page"],
+    metrics=["clicks", "impressions"],
+    dimension_filter="page=~^/blog/;query=@ortho",  # RE2 正規表現 + 部分一致
+)
+```
+
+`clean=True` を指定すると URL 正規化（decode + ? 削除 + # 削除 + 小文字化）を実行し、正規化後の値で集計します。
+
+```python
+result = mg.search.run(
+    dimensions=["query", "page"],
+    metrics=["clicks", "impressions", "position"],
+    clean=True,
+)
+df_sc = result.df
+```
+
+### SearchResult のメソッドチェーン
+
+`SearchResult` は URL 正規化や分類、フィルタをチェーンできます。
+
+```python
+result = mg.search.run(
+    dimensions=["query", "page"],
+    metrics=["clicks", "impressions", "position"],
+)
+
+df_sc = (
+    result
+    .decode(group=False)
+    .remove_params(group=False)
+    .remove_fragment(group=False)
+    .lower(group=True)
+).df
 ```
 
 ### 設定シート（Config）の拡張
@@ -218,6 +598,7 @@ filtered = mg.search.filter_by_thresholds(df, site, clicks_zero_only=True)
 `thresholds_df` は非推奨となり、閾値は各 `site` レコード内で管理してください。
 
 - `dimensions` は最大 5 つまで指定できます。
+- `dimensions` は `date/hour/country/device/page/query` から選択できます。`month` を指定すると内部的に `date` で取得し、結果は月単位に集計されます。
 - `metrics` を省略するとデフォルトで `["clicks", "impressions", "ctr", "position"]` が使用されます。
 - `limit` は API の既定上限を変更しますが、大きくすると応答時間が長くなることがあります。
 
@@ -277,7 +658,8 @@ mg.sheet.cell.set("A1", "Hello World")
 mg.sheet.range.set("B2:D4", [[1, 2, 3], [4, 5, 6], [7, 8, 9]])
 
 # 現在のシートのデータを DataFrame として取得
-df_sheet = mg.sheet.df()
+import pandas as pd
+df_sheet = pd.DataFrame(mg.sheet.data)
 ```
 
 ### 補助機能
@@ -355,4 +737,3 @@ Megaton にはデータの確認やファイル操作を補助する機能が用
   pandas の DataFrame は真偽値を持たないため `df.empty` を使って空判定を行います。
 - **Colab で依存関係が足りない**  
   `MEGATON_AUTO_INSTALL=1` を設定すると不足している依存ライブラリを自動インストールします。
-

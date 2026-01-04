@@ -576,14 +576,9 @@ class MegatonGA4(object):
                     return Filter.NumericFilter.Operation.LESS_THAN_OR_EQUAL
                 return Filter.NumericFilter.Operation.OPERATION_UNSPECIFIED
 
-        def _parse_filter_condition(self, condition: str):
+        def _parse_filter_condition(self, field: str, op: str, value: str):
             """Convert a single legacy filter format from Core Reporting API v3 to FilterExpression object"""
-            m = re.search(r'^([\w_\+\/\(\) ]+)(==|!=|=@|!@|=~|!~|>|>=|<|<=)(.+)$', condition)
-            if not m:
-                raise errors.BadRequest(f"Invalid Filter: '{condition}'")
-            field, type = self._format_name(m.groups()[0])
-            value = m.groups()[2]
-            op = m.groups()[1]
+            field, type = self._format_name(field)
             is_not = True if op.startswith('!') else False
             operator = self._parse_operator(op, type)
 
@@ -621,7 +616,16 @@ class MegatonGA4(object):
             if not conditions:
                 return
 
-            expressions = [self._parse_filter_condition(i) for i in conditions.split(';')]
+            parsed = utils.parse_filter_conditions(
+                conditions,
+                allowed_ops=utils.DEFAULT_FILTER_OPERATORS,
+                error_class=errors.BadRequest,
+                allowed_ops_label="== != =@ !@ =~ !~ > >= < <=",
+            )
+            expressions = [
+                self._parse_filter_condition(item["field"], item["operator"], item["value"])
+                for item in parsed
+            ]
             if len(expressions) == 1:
                 return expressions[0]
             else:

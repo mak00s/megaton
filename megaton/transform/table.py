@@ -42,7 +42,7 @@ def normalize_key_cols(
     return result
 
 
-def dedup_by_key(df, key_cols, prefer_by=None, keep="first"):
+def dedup_by_key(df, key_cols, prefer_by=None, prefer_ascending=False, keep="first"):
     missing = [col for col in key_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing key columns: {missing}")
@@ -54,7 +54,8 @@ def dedup_by_key(df, key_cols, prefer_by=None, keep="first"):
         if missing_prefer:
             raise ValueError(f"Missing prefer_by columns: {missing_prefer}")
         sort_cols = list(key_cols) + prefer_cols
-        ascending = [True] * len(key_cols) + [False] * len(prefer_cols)
+        # prefer_ascending=True: 最小値を選択（position等）, False: 最大値を選択（default）
+        ascending = [True] * len(key_cols) + [prefer_ascending] * len(prefer_cols)
         result = result.sort_values(by=sort_cols, ascending=ascending)
 
     return result.drop_duplicates(subset=key_cols, keep=keep)

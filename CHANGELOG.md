@@ -2,6 +2,51 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
+## 0.8.1 – 2026‑01‑04
+
+### 追加
+
+- **site.filter_d**: `mg.report.run.all()` の `filter_d` パラメータで `site.<key>` を指定すると、各アイテム設定の `<key>` から動的にフィルタを解決できるようになりました（`site.lp_dim` / `site.cv_metric` と同様）。
+  - 例: `filter_d='site.filter_d'` で各サイトの `filter_d` 列を使用
+  - サイトごとに異なるフィルタ条件（国、デバイスなど）を一括処理で適用可能
+- **SearchResult.apply_if()**: 条件付きメソッドチェーンをサポート。条件が True の場合のみメソッドを適用します。
+  - 例: `result.apply_if(config.normalize, 'normalize_queries')`
+  - if文でのチェーン分岐を排除し、fluent interface を維持
+- **ReportResult.replace(regex=True)**: 正規表現パターンによる置換をサポート（pandas の `.replace()` と同様）。
+  - `regex=True` がデフォルト: 辞書の key を正規表現として扱う
+  - `regex=False`: 固定文字列での置換
+  - 例: `.replace(dimension='campaign', by={r'\([^)]*\)': ''})` で括弧内を削除
+- **SearchResult.classify() の output パラメータ**: 出力列の動作を制御できるようになりました。
+  - `output='default'`: query_normalized/query_category を作成（従来の動作）
+  - `output=None`: 元の列（query/page）を上書き。category 列は作成せず、正規化のみ実行
+  - 例: `.classify(query=query_map, output=None)` でクエリ正規化のみ実行し、チェーンを簡潔に
+- **text.infer_site_from_url()**: URLからサイト識別子を推測する関数を追加（マルチサイト企業対応）。
+  - sites 設定から domain/url を抽出してドメインマッチング
+  - クエリパラメータ `id=` による特殊IDマッチング（dentamap など）
+  - 例: `text.infer_site_from_url(url, sites, site_key='clinic', id_key='dentamap_id')`
+
+## 0.8.0 – 2026‑01‑04
+
+### 追加
+
+- **SearchResult メソッドチェーン**: `mg.search.run()` と `mg.search.run.all()` でメソッドチェーンによる段階的な処理が可能になりました。
+  - **URL 処理**: `.decode()` – URL デコード、`.remove_params()` – クエリパラメータ削除、`.remove_fragment()` – フラグメント削除、`.lower()` – 小文字化
+  - **分類**: `.classify()` – クエリ・ページの正規化とカテゴリ分類
+  - **フィルター**: `.filter_clicks()`, `.filter_impressions()`, `.filter_ctr()`, `.filter_position()` – 指標ごとのフィルタリング
+  - **集計**: `.aggregate(by=None)` – ディメンションの組み合わせを一意にする集計
+  - **DataFrame アクセス**: `.df` プロパティ
+- **clean パラメータ**: `mg.search.run(clean=True)` で自動的に URL 正規化（decode + ? 削除 + # 削除 + 小文字化）を実行します。
+- **sites パラメータ**: フィルターメソッドで行ごとに異なる閾値を適用可能。DataFrame の `site_key` 列（default: 'site'）で各行に対応するサイト設定を検索します。
+- **keep_clicked パラメータ**: `clicks >= 1` の行を無条件に残すオプション。すべてのフィルターで default=False です（明示的に True を指定すると有効化）。
+- **group パラメータ**: URL 処理・分類メソッドで `group=True`（default）の場合、dimensions に基づいて自動集計します。大量データでは `group=False` にして最後だけ集計することでパフォーマンスを向上できます。
+
+### 修正 / 追加
+
+- **ドキュメント調整**: `run.all` の説明を整理しました。
+- **Search Console クエリ整理**: `GSCService.query()` の dimensions を `date/hour/country/device/page/query` に限定し、`month` 指定時は内部的に `date` で取得して月単位で集計します。
+- **Search Console フィルタ追加**: `mg.search.run()` に `dimension_filter` を追加し、`contains` / 正規表現（RE2）での絞り込みに対応しました（AND 条件のみ）。
+
+
 ## 0.7.3 – 2026‑01‑02
 
 ### 修正 / 追加
@@ -10,10 +55,9 @@
   - `items` パラメータで設定リスト（dict の list）を渡し、各要素に対してクエリを実行して結合します
   - `item_key` (default: `'site'`) で識別子列名を指定します
   - `item_filter` でフィルタリング（リスト or 関数）をサポートします
-  - `add_month` (str or DateWindow) で月ラベルを自動追加できます
   - Search Console 用に `site_url_key` (default: `'gsc_site_url'`)、GA4用に `property_key` (default: `'ga4_property_id'`) を指定できます
   - **注意:** `site_url_key` が空の場合、そのアイテムはスキップされます
-- **ドキュメント更新**: CHEATSHEET に `run.all()` の使い方を追記しました。
+- **ドキュメント更新**: `docs/cheatsheet.md` に `run.all()` の使い方を追記しました。
 - **Report 表示/保存の修正**: `mg.report.show()` / `mg.report.download()` が `self.data` を参照するように修正しました。
 
 ## 0.7.2 – 2026‑01‑02
