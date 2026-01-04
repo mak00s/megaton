@@ -47,6 +47,13 @@ def test_infer_site_from_url_domain_match():
     assert text.infer_site_from_url("https://unknown.example.com/page", sites, site_key="clinic") == "不明"
 
 
+def test_infer_site_from_url_url_with_path():
+    sites = [
+        {"clinic": "path_site", "url": "example.com/path/to"},
+    ]
+    assert text.infer_site_from_url("https://example.com/page", sites, site_key="clinic") == "path_site"
+
+
 def test_infer_site_from_url_id_key_match():
     sites = [
         {"clinic": "札幌", "domain": "sapporo.example.com", "dentamap_id": "123"},

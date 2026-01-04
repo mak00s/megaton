@@ -16,6 +16,10 @@
   - `regex=True` がデフォルト: 辞書の key を正規表現として扱う
   - `regex=False`: 固定文字列での置換
   - 例: `.replace(dimension='campaign', by={r'\([^)]*\)': ''})` で括弧内を削除
+- **SearchResult.classify() の output パラメータ**: 出力列の動作を制御できるようになりました。
+  - `output='default'`: query_normalized/query_category を作成（従来の動作）
+  - `output=None`: 元の列（query/page）を上書き。category 列は作成せず、正規化のみ実行
+  - 例: `.classify(query=query_map, output=None)` でクエリ正規化のみ実行し、チェーンを簡潔に
 - **text.infer_site_from_url()**: URLからサイト識別子を推測する関数を追加（マルチサイト企業対応）。
   - sites 設定から domain/url を抽出してドメインマッチング
   - クエリパラメータ `id=` による特殊IDマッチング（dentamap など）

@@ -168,9 +168,10 @@ result = (mg.search
   - `group=False`: `query_key` 列のみ追加（集約なし、`prefer_by` は不要）
 
 ### 分類
-- `.classify(query=None, page=None, group=True)` – クエリ/ページの正規化と分類
-  - `query_category` と `page_category` 列を追加
-  - `group=True` の場合、カテゴリ列を dimensions に追加
+- `.classify(query=None, page=None, output='default', group=True)` – クエリ/ページの正規化と分類
+  - `output='default'`: `query_normalized` / `query_category` / `page_category` を追加
+  - `output=None`: `query`/`page` を上書き（category 列は作成しない）
+  - `group=True` の場合、カテゴリ列が存在すれば dimensions に追加
 
 ### フィルタリング
 - `.filter_clicks(min, max, sites, site_key='site')` – クリック数でフィルタ

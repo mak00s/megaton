@@ -216,13 +216,16 @@ class SearchResult:
         
         return SearchResult(df, self.parent, self.dimensions)
     
-    def classify(self, query=None, page=None, group=True):
+    def classify(self, query=None, page=None, output='default', group=True):
         """
         クエリ・ページの正規化とカテゴリ分類
         
         Args:
             query: クエリ分類マップ {pattern: category} の辞書
             page: ページ分類マップ {pattern: category} の辞書
+            output: 出力列の動作を指定（default: 'default'）
+                - 'default': query_normalized/query_category または page_category を作成（後方互換）
+                - None: 元の列（query/page）を上書き。category 列は作成しない
             group: True の場合、分類列で集計（default: True）
         
         Returns:
@@ -235,12 +238,22 @@ class SearchResult:
         
         # クエリの正規化と分類
         if query and 'query' in df.columns:
-            df['query_normalized'] = map_by_regex(df['query'], query)
-            df = classify_by_regex(df, 'query_normalized', query, 'query_category')
+            if output is None:
+                # 上書きモード: query 列を直接置き換え（category 列は作成しない）
+                df['query'] = map_by_regex(df['query'], query)
+            else:
+                # デフォルトモード: query_normalized/query_category を作成
+                df['query_normalized'] = map_by_regex(df['query'], query)
+                df = classify_by_regex(df, 'query_normalized', query, 'query_category')
         
         # ページの分類
         if page and 'page' in df.columns:
-            df = classify_by_regex(df, 'page', page, 'page_category')
+            if output is None:
+                # 上書きモード: page 列を直接置き換え（category 列は作成しない）
+                df['page'] = map_by_regex(df['page'], page)
+            else:
+                # デフォルトモード: page_category を作成
+                df = classify_by_regex(df, 'page', page, 'page_category')
         
         if group:
             # 分類列を含めて集計
