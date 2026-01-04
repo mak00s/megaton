@@ -352,3 +352,24 @@ def test_classify_updates_dimensions():
     # 後続の group=True 呼び出しで category 列が保持される
     decoded = classified.decode(group=True)
     assert 'query_category' in decoded.df.columns
+
+
+def test_classify_output_none_overwrites_and_no_categories():
+    """classify(output=None) は query/page を上書きし、category 列を作成しない"""
+    df = pd.DataFrame({
+        'query': ['Test Tokyo', 'Sample Osaka'],
+        'page': ['/Foo', '/Bar'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    query_map = {r'test': 'test_norm', r'sample': 'sample_norm'}
+    page_map = {r'/foo': '/foo_norm', r'/bar': '/bar_norm'}
+    result = SearchResult(df, None, ['query', 'page'])
+
+    classified = result.classify(query=query_map, page=page_map, output=None, group=True)
+
+    assert 'query_normalized' not in classified.df.columns
+    assert 'query_category' not in classified.df.columns
+    assert 'page_category' not in classified.df.columns
+    assert set(classified.df['query'].tolist()) == {'test_norm', 'sample_norm'}
+    assert set(classified.df['page'].tolist()) == {'/foo_norm', '/bar_norm'}

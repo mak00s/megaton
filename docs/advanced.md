@@ -50,6 +50,42 @@ df['clinic'] = df['lp'].apply(
 
 ---
 
+## Search Console API
+
+### SearchResult.classify() の output パラメータ
+
+クエリ正規化とカテゴリ分類の出力を制御できます。
+
+**使い方:**
+
+```python
+# デフォルトモード: query_normalized と query_category を作成
+result = (
+    mg.search.run.all(sites, dimensions=['month', 'query', 'page'])
+    .classify(query=query_map, group=True)  # output='default'
+)
+# 結果: 'query', 'query_normalized', 'query_category' の3列
+
+# 上書きモード: query 列を直接置き換え（category 列なし）
+result = (
+    mg.search.run.all(sites, dimensions=['month', 'query', 'page'])
+    .classify(query=query_map, output=None)
+    .normalize_queries(mode='remove_all', prefer_by='impressions', group=True)
+    .classify(page=page_map, group=True)
+)
+# 結果: 'query' は正規化済み、'page_category' のみ追加
+```
+
+**パラメータ:**
+- `output='default'`: query_normalized/query_category または page_category を作成（後方互換）
+- `output=None`: 元の列（query/page）を上書き。category 列は作成しない
+
+**使い分け:**
+- **デフォルトモード**: カテゴリ分類が必要な場合（例: クエリタイプ別集計）
+- **上書きモード**: 正規化のみ必要で、category 列が不要な場合（例: チェーンの中間処理）
+
+---
+
 ## 設計思想
 
 - Notebook 上で **最小の操作でデータ取得〜可視化に進める** ことを最優先にしています。

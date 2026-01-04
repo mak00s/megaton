@@ -128,11 +128,11 @@ def infer_site_from_url(url_val, sites, site_key='site', id_key=None):
         if raw_domain:
             candidates.append(raw_domain.lower())
         if raw_url:
-            parsed = urlparse(str(raw_url))
+            raw_url = str(raw_url).strip()
+            url_with_scheme = raw_url if raw_url.startswith(("http://", "https://")) else f"http://{raw_url}"
+            parsed = urlparse(url_with_scheme)
             if parsed.netloc:
                 candidates.append(parsed.netloc.lower())
-            else:
-                candidates.append(str(raw_url).lower())
         # 重複ドメインは先勝ち（最初に見つかったサイトを使用）
         for domain in candidates:
             if domain not in seen_domains:
