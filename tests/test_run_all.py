@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 from megaton import dates
-from megaton.start import Megaton
+from megaton.start import Megaton, ReportResult
 
 
 def test_search_run_all_basic():
@@ -104,7 +104,6 @@ def test_report_run_all_basic():
     app.report.end_date = "2025-01-31"
     
     from types import SimpleNamespace
-    from megaton.start import ReportResult
     app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
     
     # Mock the __call__ method - run.allから呼ばれる
@@ -1205,5 +1204,4 @@ def test_report_run_all_metric_level_site_filter_d():
     assert len(result) > 0
     assert 'users' in result.df.columns
     assert 'sessions' in result.df.columns
-
 
