@@ -442,7 +442,7 @@ def test_report_result_to_int_with_nan():
 
 
 def test_report_result_replace():
-    """replace() メソッドのテスト"""
+    """replace() メソッドのテスト（固定文字列）"""
     df = pd.DataFrame({
         'sessionSource': ['google', 'yahoo', 'direct'],
         'sessions': [100, 50, 30]
@@ -451,12 +451,53 @@ def test_report_result_replace():
     result = ReportResult(df)
     replaced = result.replace(
         dimension='sessionSource',
-        by={'google': 'Google', 'yahoo': 'Yahoo!'}
+        by={'google': 'Google', 'yahoo': 'Yahoo!'},
+        regex=False  # 固定文字列として扱う
     )
     
     assert replaced.df['sessionSource'].values[0] == 'Google'
     assert replaced.df['sessionSource'].values[1] == 'Yahoo!'
     assert replaced.df['sessionSource'].values[2] == 'direct'
+
+
+def test_report_result_replace_regex():
+    """replace() メソッドのテスト（正規表現、default）"""
+    df = pd.DataFrame({
+        'campaign': ['test(123)', 'hello(world)', 'plain'],
+        'sessions': [100, 50, 30]
+    })
+    
+    result = ReportResult(df)
+    
+    # 正規表現で括弧内を削除（regex=True がデフォルト）
+    replaced = result.replace(
+        dimension='campaign',
+        by={r'\([^)]*\)': ''}
+    )
+    
+    assert replaced.df['campaign'].values[0] == 'test'
+    assert replaced.df['campaign'].values[1] == 'hello'
+    assert replaced.df['campaign'].values[2] == 'plain'
+
+
+def test_report_result_replace_regex_multiple():
+    """replace() メソッドで複数の正規表現パターンを適用"""
+    df = pd.DataFrame({
+        'campaign': ['Sale(2024)', 'New(Launch)', 'plain'],
+        'sessions': [100, 50, 30]
+    })
+    
+    result = ReportResult(df)
+    
+    # 括弧内を削除する正規表現
+    replaced = result.replace(
+        dimension='campaign',
+        by={r'\(.*?\)': ''}
+    )
+    
+    assert replaced.df['campaign'].values[0] == 'Sale'
+    assert replaced.df['campaign'].values[1] == 'New'
+    assert replaced.df['campaign'].values[2] == 'plain'
 
 
 def test_report_result_method_chaining():

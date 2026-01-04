@@ -2,6 +2,21 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
+## 0.8.1 – 2026‑01‑04
+
+### 追加
+
+- **site.filter_d**: `mg.report.run.all()` の `filter_d` パラメータで `site.<key>` を指定すると、各アイテム設定の `<key>` から動的にフィルタを解決できるようになりました（`site.lp_dim` / `site.cv_metric` と同様）。
+  - 例: `filter_d='site.filter_d'` で各サイトの `filter_d` 列を使用
+  - サイトごとに異なるフィルタ条件（国、デバイスなど）を一括処理で適用可能
+- **SearchResult.apply_if()**: 条件付きメソッドチェーンをサポート。条件が True の場合のみメソッドを適用します。
+  - 例: `result.apply_if(config.normalize, 'normalize_queries')`
+  - if文でのチェーン分岐を排除し、fluent interface を維持
+- **ReportResult.replace(regex=True)**: 正規表現パターンによる置換をサポート（pandas の `.replace()` と同様）。
+  - `regex=True` がデフォルト: 辞書の key を正規表現として扱う
+  - `regex=False`: 固定文字列での置換
+  - 例: `.replace(dimension='campaign', by={r'\([^)]*\)': ''})` で括弧内を削除
+
 ## 0.8.0 – 2026‑01‑04
 
 ### 追加

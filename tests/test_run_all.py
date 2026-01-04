@@ -103,16 +103,15 @@ def test_report_run_all_basic():
     app.report.start_date = "2025-01-01"
     app.report.end_date = "2025-01-31"
     
-    # Mock GA4 structure
     from types import SimpleNamespace
+    from megaton.start import ReportResult
     app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
     
-    mock_df = pd.DataFrame({'date': ['2025-01-01'], 'users': [100]})
+    # Mock the __call__ method - run.allから呼ばれる
+    def mock_call(self, d, m, **kwargs):
+        self.parent.data = pd.DataFrame({'date': ['2025-01-01'], 'users': [100]})
     
-    # Mock the __call__ method and report.data
-    with patch.object(app.report.run.__class__, '__call__'):
-        app.report.data = mock_df
-        
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
         sites = [
             {'site': 'siteA', 'ga4_property_id': '123456'},
             {'site': 'siteB', 'ga4_property_id': '789012'},
@@ -126,7 +125,6 @@ def test_report_run_all_basic():
         )
     
     # ReportResult インスタンスであることを確認
-    from megaton.start import ReportResult
     assert isinstance(result, ReportResult)
     assert len(result) == 2
     assert 'site' in result.columns
@@ -1026,3 +1024,186 @@ def test_report_run_all_empty_no_site_prefix_in_dimensions():
     assert 'site.lp_dim' not in result.dimensions
     assert 'lp_dim' in result.dimensions  # site. が除去された列名
     assert 'month' in result.dimensions
+
+
+def test_report_run_all_site_filter_d():
+    """site.filter_d パターンでサイト別にfilter_dを動的解決"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+    
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+    
+    filter_d_values = []
+    
+    def mock_call(self, d, m, **kwargs):
+        filter_d_values.append(kwargs.get('filter_d'))
+        self.parent.data = pd.DataFrame({'yearMonth': ['202501'], 'sessions': [100]})
+    
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': 'dentamap', 'ga4_property_id': '111', 'filter_d': 'sessionDefaultChannelGroup==Organic Social'},
+            {'clinic': '札幌', 'ga4_property_id': '222', 'filter_d': ''},  # filter_d は空文字列
+        ]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month')],
+            m=[('sessions', 'sessions')],
+            filter_d='site.filter_d',  # site.filter_d パターン
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    assert len(result) == 2
+    assert set(result.df['clinic']) == {'dentamap', '札幌'}
+    # filter_dが正しく解決された
+    assert 'sessionDefaultChannelGroup==Organic Social' in filter_d_values
+    assert None in filter_d_values  # 空文字列は None に変換される
+
+
+def test_report_run_all_site_filter_d_missing_key():
+    """site.filter_d でキーが存在しない場合はエラー（次元・メトリクスと同じ動作）"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+    
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+    
+    def mock_call(self, d, m, **kwargs):
+        self.parent.data = pd.DataFrame({'yearMonth': ['202501'], 'sessions': [100]})
+    
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': '札幌', 'ga4_property_id': '222'},  # filter_d キーが存在しない
+        ]
+        
+        with pytest.raises(ValueError, match="Site key 'filter_d' not found in site '札幌'"):
+            app.report.run.all(
+                sites,
+                d=[('yearMonth', 'month')],
+                m=[('sessions', 'sessions')],
+                filter_d='site.filter_d',
+                item_key='clinic',
+                verbose=False,
+            )
+
+
+def test_report_run_all_site_filter_d_empty_value():
+    """site.filter_d で値が空文字列の場合はfilter_dなしとして扱う"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+    
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+    
+    call_count = [0]
+    filter_d_values = []
+    
+    def mock_call(self, d, m, **kwargs):
+        call_count[0] += 1
+        filter_d_values.append(kwargs.get('filter_d'))
+        self.parent.data = pd.DataFrame({'yearMonth': ['202501'], 'sessions': [100]})
+    
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': 'A', 'ga4_property_id': '111', 'filter_d': ''},  # 空文字列
+            {'clinic': 'B', 'ga4_property_id': '222', 'filter_d': None},  # None
+        ]
+        
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month')],
+            m=[('sessions', 'sessions')],
+            filter_d='site.filter_d',
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    assert len(result) == 2
+    # 両方ともfilter_dがNoneで呼ばれることを確認
+    assert all(fd is None for fd in filter_d_values)
+
+
+def test_report_run_all_metric_level_site_filter_d():
+    """メトリクス個別 filter_d での site.<key> 解決をテスト"""
+    app = Megaton(None, headless=True)
+    app.report.start_date = "2025-01-01"
+    app.report.end_date = "2025-01-31"
+    
+    from types import SimpleNamespace
+    app.ga['4'] = SimpleNamespace(property=SimpleNamespace(id=None))
+    
+    call_count = [0]
+    filter_d_values = []
+    metric_names_per_call = []
+    
+    def mock_call(self, d, m, **kwargs):
+        call_count[0] += 1
+        filter_d_values.append(kwargs.get('filter_d'))
+        
+        # メトリクス名を記録（どのメトリクスがどのfilter_dで呼ばれたか）
+        m_names = []
+        m_aliases = []
+        for metric in m:
+            if isinstance(metric, tuple):
+                m_names.append(metric[0])
+                m_aliases.append(metric[1] if len(metric) >= 2 else metric[0])
+            else:
+                m_names.append(metric)
+                m_aliases.append(metric)
+        metric_names_per_call.append(m_names)
+        
+        # 次元のエイリアス名を使用
+        d_aliases = []
+        for dim in d:
+            if isinstance(dim, tuple):
+                d_aliases.append(dim[1] if len(dim) >= 2 else dim[0])
+            else:
+                d_aliases.append(dim)
+        
+        # モックデータを返す（次元はエイリアス名を使用）
+        data = {}
+        for alias in d_aliases:
+            data[alias] = ['202501']
+        for alias in m_aliases:
+            data[alias] = [100]
+        self.parent.data = pd.DataFrame(data)
+    
+    with patch.object(app.report.run.__class__, '__call__', mock_call):
+        sites = [
+            {'clinic': 'A', 'ga4_property_id': '111', 'sns_filter': 'channel==Organic Social'},
+            {'clinic': 'B', 'ga4_property_id': '222', 'sns_filter': 'channel==Paid Social'},
+        ]
+        
+        # メトリクス個別に site.<key> を使用
+        result = app.report.run.all(
+            sites,
+            d=[('yearMonth', 'month')],
+            m=[
+                ('activeUsers', 'users'),
+                ('sessions', 'sessions', {'filter_d': 'site.sns_filter'}),  # メトリクス個別
+            ],
+            item_key='clinic',
+            verbose=False,
+        )
+    
+    # APIコール回数の確認
+    # A: users (no filter), sessions (channel==Organic Social)
+    # B: users (no filter), sessions (channel==Paid Social)
+    assert call_count[0] == 4  # 2サイト × 2グループ
+    
+    # filter_dの値を確認
+    assert 'channel==Organic Social' in filter_d_values
+    assert 'channel==Paid Social' in filter_d_values
+    assert filter_d_values.count(None) == 2  # filter_dなしのメトリクス(users)が2回
+    
+    # 結果の確認
+    assert len(result) > 0
+    assert 'users' in result.df.columns
+    assert 'sessions' in result.df.columns
+
+
