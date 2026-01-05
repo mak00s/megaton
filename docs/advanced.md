@@ -119,18 +119,30 @@ df = mg.report.run(
 
 ### データ前処理
 
-`report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換、欠損値処理など簡易的な前処理を行えます。
+`report.prep(conf, df?)` を使うと取得した DataFrame の列名変更や型変換、置換、列削除など簡易的な前処理を行えます。
 
 ```python
-# 日付列を文字列に変換し、イベント数を整数に変換する例
+# 列名変更・置換・型変換・削除の例
 conf = {
-    "rename": {"eventCount": "イベント数"},
-    "convert": {"date": str, "eventCount": int},
+    "eventCount": {"name": "イベント数", "type": "int32"},
+    "eventName": {"cut": "page_view"},  # 文字列を削除（正規表現）
+    "source": {"replace": (r"\\([^)]*\\)", "")},  # 正規表現で置換
+    "unused_col": {"delete": True},
 }
-df_clean = mg.report.prep(conf)
+mg.report.prep(conf)
 ```
 
-前処理結果は戻り値として受け取れるほか、`mg.report.data` も更新されます。
+`df` を省略した場合は `mg.report.data` が処理対象になります。結果は `mg.report.data` が更新され、戻り値は `mg.report.show()` の表示結果です。
+
+#### conf の構造
+
+`conf` は「列名 -> 操作」の辞書です。操作は以下を組み合わせます。
+
+- `name`: 列名の変更（正規表現で置換）
+- `cut`: 指定文字列（正規表現）を削除
+- `replace`: `(before, after)` で置換（正規表現）
+- `type`: `astype` 用の型名
+- `delete`: `True` なら列削除
 
 ### レポート期間の書き出し
 
@@ -355,4 +367,3 @@ Megaton にはデータの確認やファイル操作を補助する機能が用
   pandas の DataFrame は真偽値を持たないため `df.empty` を使って空判定を行います。
 - **Colab で依存関係が足りない**  
   `MEGATON_AUTO_INSTALL=1` を設定すると不足している依存ライブラリを自動インストールします。
-
