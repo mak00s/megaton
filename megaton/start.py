@@ -2791,7 +2791,7 @@ class Megaton:
                             type_columns[col] = v
 
             df = utils.prep_df(df, delete_columns, type_columns, rename_columns)
-            self.parent.data = df
+            self.data = df
             # return df
             return self.show()
 
