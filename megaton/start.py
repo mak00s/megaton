@@ -1570,7 +1570,7 @@ class Megaton:
                 processed dataframe
             """
             if not isinstance(df, pd.DataFrame):
-                df = self.parent.data
+                df = self.data
 
             rename_columns = {}
             delete_columns = []
