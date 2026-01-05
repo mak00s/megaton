@@ -130,7 +130,7 @@ Megaton の GA4 インタフェースでは、期間の設定からレポート�
         item_key='clinic',
     )
     ```
-- **前処理:** `mg.report.prep(conf)` を使えば列名の変更や型変換など簡易的なデータ整形が可能です。
+- **前処理:** `mg.report.prep(conf, df?)` で列名変更・置換・型変換・列削除などの簡易前処理が可能です。`df` を省略すると `mg.report.data` を処理し、結果は `mg.report.data` に保存されます。
 
 ## Google Sheets の使い方
 

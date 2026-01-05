@@ -30,7 +30,7 @@
   - `m` に `site.<key>` を指定すると、`item[<key>]` をメトリクスとして使用します。
 - `mg.report.start_date` / `mg.report.end_date` – 設定された開始日・終了日。
 - `mg.report.data` – 直近のレポート結果。
-- `mg.report.prep(conf, df?)` – 列名変更や値置換などの前処理を行います。
+- `mg.report.prep(conf, df?)` – 列名変更・置換・型変換・列削除などの前処理。`df` 省略時は `mg.report.data` を更新します。
 - `mg.report.window["ym"]` – 月のウィンドウ情報（`YYYYMM`）。
 - `mg.report.dates` – 設定された日付範囲オブジェクト。
 - `mg.report.dates.to.sheet(sheet, start_cell, end_cell)` – レポート期間をシートに書き込みます。
