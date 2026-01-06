@@ -94,3 +94,8 @@
 
 - `mg.launch_bigquery(project)` – BigQuery サービスを起動します。
 - `bq.run(sql, to_dataframe=True)` – SQL クエリを実行して DataFrame として返します。
+
+## Transform
+
+- `ga4.convert_filter_to_event_scope(filter_d)` – session系フィルタをevent系に変換します。
+- `ga4.classify_channel(df, group_domains?, ...)` – チャンネル分類をカスタマイズします。

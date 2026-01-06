@@ -14,6 +14,7 @@
 - [Config 管理](#config-管理)
 - [DateWindow](#datewindow)
 - [SearchResult メソッドチェーン](#searchresult-メソッドチェーン)
+- [Transform モジュール](#transform-モジュール)
 - [ユーティリティ](#ユーティリティ)
 
 ---
@@ -811,6 +812,56 @@ Notebook からファイルをダウンロードします。
 **例:**
 ```python
 mg.download(df, 'results.csv')
+```
+
+---
+
+## Transform モジュール
+
+### `ga4.convert_filter_to_event_scope(filter_d)`
+
+session系フィルタディメンションをevent系に変換します。
+
+GA4 APIでは、session系ディメンション（`sessionDefaultChannelGroup`など）とevent系ディメンション（`defaultChannelGroup`など）でフィルタの互換性がありません。この関数は、session系ディメンションを使った`filter_d`をevent系クエリで使用できるように変換します。
+
+**パラメータ:**
+- `filter_d` (str) - フィルタ文字列（例: `"sessionDefaultChannelGroup==Organic Social"`）
+
+**戻り値:** str - event系に変換されたフィルタ文字列
+
+**変換マッピング:**
+- `sessionDefaultChannelGroup` → `defaultChannelGroup`
+- `sessionSourceMedium` → `sourceMedium`
+- `sessionMedium` → `medium`
+- `sessionSource` → `source`
+- `sessionCampaignId` → `campaignId`
+- `sessionCampaignName` → `campaignName`
+- `sessionManualTerm` → `manualTerm`
+- `sessionManualSource` → `manualSource`
+- `sessionManualMedium` → `manualMedium`
+- `sessionManualSourceMedium` → `manualSourceMedium`
+- `sessionManualCampaignId` → `manualCampaignId`
+- `sessionManualCampaignName` → `manualCampaignName`
+- `sessionManualAdContent` → `manualAdContent`
+
+**例:**
+```python
+from megaton.transform import ga4
+
+# session系フィルタをevent系に変換
+filter_session = "sessionDefaultChannelGroup==Organic Social;sessionMedium==social"
+filter_event = ga4.convert_filter_to_event_scope(filter_session)
+# => "defaultChannelGroup==Organic Social;medium==social"
+
+# sitesのfilter_dを変換して使用
+sites_for_cv = []
+for s in sites:
+    s_copy = s.copy()
+    if s.get('filter_d'):
+        s_copy['filter_d'] = ga4.convert_filter_to_event_scope(s['filter_d'])
+    sites_for_cv.append(s_copy)
+
+df_cv = mg.report.run.all(sites_for_cv, d=[...], filter_d="site.filter_d", ...)
 ```
 
 ---
