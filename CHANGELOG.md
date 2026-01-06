@@ -6,6 +6,7 @@
 
 ### 追加
 
+- **ga4.convert_filter_to_event_scope()**: session系フィルタディメンションをevent系に変換する関数を追加。GA4 APIでsession系（`sessionDefaultChannelGroup`など）とevent系（`defaultChannelGroup`など）のディメンション互換性を保つための変換を提供します。
 - **site.filter_d**: `mg.report.run.all()` の `filter_d` パラメータで `site.<key>` を指定すると、各アイテム設定の `<key>` から動的にフィルタを解決できるようになりました（`site.lp_dim` / `site.cv_metric` と同様）。
   - 例: `filter_d='site.filter_d'` で各サイトの `filter_d` 列を使用
   - サイトごとに異なるフィルタ条件（国、デバイスなど）を一括処理で適用可能
