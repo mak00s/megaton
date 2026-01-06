@@ -638,6 +638,17 @@ mg.sheets.create("集計結果")
 mg.sheets.delete("旧データ")
 ```
 
+### 接続タイムアウトの調整
+
+接続が不安定で `mg.open.sheet()` が固まる場合は、環境変数でタイムアウトを設定できます。
+
+```bash
+export MEGATON_GS_TIMEOUT=180
+```
+
+- 既定は 180 秒です。
+- 0 以下を指定するとタイムアウトを無効化します。
+
 ### データの保存方法
 
 - **上書き保存:** `mg.save.to.sheet(sheet_name, df)` – 指定したシートを DataFrame で丸ごと上書きします。
