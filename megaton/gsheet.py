@@ -4,7 +4,10 @@ Functions for Google Sheets
 
 from typing import Optional, Union
 import logging
+import os
+
 import pandas as pd
+import requests
 
 from google.oauth2.credentials import Credentials
 from google.oauth2 import service_account
@@ -25,12 +28,13 @@ class MegatonGS(object):
         'https://www.googleapis.com/auth/drive',
     ]
 
-    def __init__(self, credentials: Credentials, url: Optional[str] = None):
+    def __init__(self, credentials: Credentials, url: Optional[str] = None, timeout: Optional[float] = None):
         """constructor"""
         self.credentials = credentials
         self._client: gspread.client.Client = None
         self._driver: gspread.spreadsheet.Spreadsheet = None
         self.sheet = self.Sheet(self)
+        self.timeout = self._resolve_timeout(timeout)
 
         self._authorize()
         if url:
@@ -46,6 +50,22 @@ class MegatonGS(object):
                 self.credentials = None
                 raise errors.BadCredentialScope(self.required_scopes)
         self._client = gspread.authorize(self.credentials)
+        if self.timeout is not None:
+            self._client.http_client.timeout = self.timeout
+
+    def _resolve_timeout(self, timeout: Optional[float]) -> Optional[float]:
+        if timeout is None:
+            env = os.getenv("MEGATON_GS_TIMEOUT")
+            if env is not None:
+                try:
+                    timeout = float(env)
+                except ValueError:
+                    timeout = 180.0
+            else:
+                timeout = 180.0
+        if timeout is not None and timeout <= 0:
+            return None
+        return timeout
 
     @property
     def sheets(self):
@@ -74,6 +94,10 @@ class MegatonGS(object):
             self._driver = self._client.open_by_url(url)
         except gspread.exceptions.NoValidUrlKeyFound:
             raise errors.BadUrlFormat
+        except requests.exceptions.Timeout as exc:
+            raise errors.Timeout from exc
+        except requests.exceptions.RequestException as exc:
+            raise errors.RequestError(str(exc)) from exc
 
         try:
             title = self._driver.title
