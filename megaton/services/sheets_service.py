@@ -36,6 +36,10 @@ class SheetsService:
             print("URLが見つかりません。")
         except errors.BadPermission:
             print("該当スプレッドシートを読み込む権限がありません。")
+        except errors.Timeout:
+            print("Google Sheetsの接続がタイムアウトしました。")
+        except errors.RequestError as exc:
+            print(f"Google Sheetsへの接続でエラーが発生しました: {exc}")
         except Exception as exc:
             raise exc
         else:
