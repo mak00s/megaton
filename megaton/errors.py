@@ -60,6 +60,20 @@ class UrlNotFound(Error):
         self.message = message or "The URL requested is not found."
 
 
+class Timeout(Error):
+    """Request timed out"""
+
+    def __init__(self, message=None):
+        self.message = message or "The request timed out."
+
+
+class RequestError(Error):
+    """Request failed due to a network or transport error."""
+
+    def __init__(self, message=None):
+        self.message = message or "The request failed due to a network error."
+
+
 class NoDataReturned(Error):
     """No data was returned from API."""
     pass
