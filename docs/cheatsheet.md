@@ -8,7 +8,7 @@
 ## コア / フロー
 
 - `mg = start.Megaton(creds)` – 認証情報を渡して Megaton オブジェクトを作成します。
-- `mg.open.sheet(url)` – スプレッドシートを開きます。
+- `mg.open.sheet(url)` – スプレッドシートを開きます（`MEGATON_GS_TIMEOUT` で接続タイムアウト秒を指定）。
 - `mg.launch_bigquery(project)` – BigQuery サービスを起動します。
 
 ## レポート（GA4）
