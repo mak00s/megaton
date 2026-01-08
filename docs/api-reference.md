@@ -1067,43 +1067,114 @@ for s in sites:
 df_cv = mg.report.run.all(sites_for_cv, d=[...], filter_d="site.filter_d", ...)
 ```
 
-#### `ga4.classify_channel(df, group_domains=None, channel_col='channel', medium_col='medium', source_col='source', ai_keywords=...)`
+#### `ga4.classify_source_channel(df, channel_col='channel', medium_col='medium', source_col='source', custom_channels=None)`
 
-GA4のデフォルトチャネルグループを独自ルールで再分類します。
+source正規化とchannel分類を統合して実行します。sourceとchannelの両列を含むDataFrameを返します。
 
 **パラメータ:**
 - `df` (pd.DataFrame) - データフレーム
-- `group_domains` (set | None) - 自社ドメインのセット（これらからの流入は "Group" に分類）
 - `channel_col` (str) - チャネル列名（default: 'channel'）
 - `medium_col` (str) - メディア列名（default: 'medium'）
 - `source_col` (str) - ソース列名（default: 'source'）
-- `ai_keywords` (tuple) - AIサービスのキーワードタプル（default: ('bard', 'chatgpt', 'claude', 'copilot', 'gemini', 'perplexity')）
+- `custom_channels` (dict | None) - プロジェクト固有のチャネル定義
+  - **簡易形式（正規表現リスト）**: `{"Group": [r"example\.com", r"test\.com"]}` - detectのみ、正規表現として扱われる
+  - **完全形式（normalize + detect）**: `{"Channel Name": {"normalize": {}, "detect": [patterns]}}`
+
+**戻り値:** pd.DataFrame - 2列のDataFrame。列名は`source_col`と`channel_col`パラメータに従います。
+
+**構造化パターン定義:**
+
+関数内部でchannelごとに以下の構造でパターンを定義：
+
+1. **AI**: AIサービスからの流入
+   - **normalize**: ChatGPT, Gemini, Claude, Copilot, Perplexity
+   - **detect**: bing.com/chat（限定）, aistudio.google.com, makersuite.google.com
+
+2. **Organic Search**: 検索エンジンからの流入
+   - **normalize**: docomo, bing, auone
+   - **detect**: service.smt.docomo.ne.jp（完全パターン）, \bsearch\b（単語境界）等
+
+3. **Organic Social**: SNSからの流入
+   - **normalize**: Facebook, X (Twitter), Instagram, YouTube, TikTok, Threads
+   - **detect**: 正規化済み名での判定（誤検出防止）
+
+**custom_channelsの使い方:**
+
+```python
+from megaton.transform import ga4
+
+# 簡易形式：正規表現リスト（detectのみ）
+result = ga4.classify_source_channel(
+    df,
+    custom_channels={"Group": [r"example\.com", r"sub\.example\.com"]}
+)
+
+# 完全形式：normalize + detectパターン
+result = ga4.classify_source_channel(
+    df,
+    custom_channels={
+        "Shiseido Internal": {
+            "normalize": {},
+            "detect": [
+                r"extra\.shiseido\.co\.jp",
+                r"(spark|international|intra)\.shiseido\.co\.jp",
+                r"office\.net", r"sharepoint", r"teams",
+                r"basement\.jp", r"yammer",
+            ]
+        }
+    }
+)
+
+# 結果の使用（デフォルト列名）
+df["source"] = result["source"]
+df["channel"] = result["channel"]
+
+# または一括代入
+df[["source", "channel"]] = result
+
+# 非デフォルト列名の場合
+result = ga4.classify_source_channel(
+    df,
+    source_col="my_source",
+    channel_col="my_channel"
+)
+df[["my_source", "my_channel"]] = result
+```
+
+**メリット:**
+- source_map辞書の管理が不要（パターン定義がga4.py内で完結）
+- 誤判定の防止（正規表現の精密化、単語境界考慮、正規化後の名前チェック）
+- 処理の簡潔化（2段階処理→1ステップ）
+- 統一インターフェース（プロジェクト間でのパターン共有が容易）
+
+#### `ga4.classify_channel(df, channel_col='channel', medium_col='medium', source_col='source', custom_channels=None)`
+
+GA4のデフォルトチャネルグループを独自ルールで再分類します。内部でclassify_source_channel()を呼び出すラッパー関数です。
+
+**パラメータ:**
+- `df` (pd.DataFrame) - データフレーム
+- `channel_col` (str) - チャネル列名（default: 'channel'）
+- `medium_col` (str) - メディア列名（default: 'medium'）
+- `source_col` (str) - ソース列名（default: 'source'）
+- `custom_channels` (dict | None) - プロジェクト固有のチャネル定義（classify_source_channel()と同じ形式）
 
 **戻り値:** pd.Series - 再分類されたチャネル
-
-**分類ルール:**
-1. **AI**: AIサービス（ChatGPT、Gemini、Perplexityなど）からの流入
-2. **Map**: Google Maps からの流入
-3. **Organic Search**: 検索エンジン（docomo.ne.jp、jword.jp など）
-4. **Organic Social**: SNS（threads.net など）
-5. **Group**: 自社ドメイン間の遷移
-
-6. その他はGA4のデフォルトチャネルをそのまま使用
 
 **例:**
 ```python
 from megaton.transform import ga4
 
-# 自社ドメインを指定して分類
-GROUP_DOMAINS = {'example.com', 'sub.example.com'}
-df['channel'] = ga4.classify_channel(df, group_domains=GROUP_DOMAINS)
+# 基本的な使い方
+df['channel'] = ga4.classify_channel(df)
 
-# カスタムAIキーワード
+# custom_channelsで自社ドメインを指定
 df['channel'] = ga4.classify_channel(
     df,
-    ai_keywords=('chatgpt', 'gemini', 'claude', 'copilot', 'perplexity', 'bard', 'metaai')
+    custom_channels={"Group": [r"example\.com", r"sub\.example\.com"]}
 )
 ```
+
+**注意:** source列の正規化も必要な場合は、classify_source_channel()を直接使用してください。
 
 ### Text 処理関数
 

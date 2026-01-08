@@ -98,4 +98,5 @@
 ## Transform
 
 - `ga4.convert_filter_to_event_scope(filter_d)` – session系フィルタをevent系に変換します。
-- `ga4.classify_channel(df, group_domains?, ...)` – チャンネル分類をカスタマイズします。
+- `ga4.classify_source_channel(df, channel_col?, medium_col?, source_col?, custom_channels?)` – source正規化とchannel分類を統合して実行し、両列を含むDataFrameを返します。
+- `ga4.classify_channel(df, channel_col?, medium_col?, source_col?, custom_channels?)` – チャネル分類を実行してSeriesを返します（内部でclassify_source_channel()を使用）。
