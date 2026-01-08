@@ -2,6 +2,20 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
+## 0.8.2 – 2026‑01‑08
+
+### 追加
+
+- **ga4.classify_source_channel()**: source正規化とchannel分類を統合した新関数を追加。sourceとchannelの両列を含むDataFrameを返します。
+  - channelごとに構造化されたパターン定義（AI、Organic Search、Organic Social）
+  - source自動正規化機能（ChatGPT、Gemini、Claude、Facebook、X、Instagram、YouTube、TikTok、Threads、docomo、bing、auone等）
+  - custom_channelsパラメータでプロジェクト固有チャネル（Group、client_x Internal等）を拡張可能
+  - 誤判定防止の強化：AI判定はbing.com/chat限定、SNS判定は正規化後の名前でチェック、Search判定は単語境界を考慮
+
+### 変更
+
+- **ga4.classify_channel()**: 内部でclassify_source_channel()を呼び出すラッパー関数に変更。custom_channelsパラメータを追加し、group_domainsパラメータは非推奨（後方互換性のため残存）。
+
 ## 0.8.1 – 2026‑01‑04
 
 ### 追加
