@@ -1,5 +1,5 @@
 from .classify import classify_by_regex, infer_label_by_domain
-from .ga4 import classify_channel
+from .ga4 import classify_channel, convert_filter_to_event_scope
 from .table import (
     dedup_by_key,
     ensure_columns,
@@ -22,6 +22,7 @@ __all__ = [
     "group_sum",
     "weighted_avg",
     "classify_channel",
+    "convert_filter_to_event_scope",
     "classify_by_regex",
     "infer_label_by_domain",
 ]
