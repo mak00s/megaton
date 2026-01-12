@@ -11,6 +11,48 @@ import pytz
 from dateutil.relativedelta import relativedelta
 
 DEFAULT_TIMEZONE = "UTC"
+DEFAULT_FILTER_OPERATORS = ("==", "!=", "=@", "!@", "=~", "!~", ">", ">=", "<", "<=")
+
+
+def parse_filter_conditions(
+    conditions: str,
+    allowed_ops: tuple | list | None = None,
+    *,
+    error_class=ValueError,
+    allowed_ops_label: str | None = None,
+):
+    """Parse legacy filter string into a list of conditions.
+
+    Returns a list of dicts: {"field": str, "operator": str, "value": str}.
+    """
+    if not conditions:
+        return []
+
+    ops = tuple(allowed_ops) if allowed_ops is not None else DEFAULT_FILTER_OPERATORS
+    op_pattern = "|".join(re.escape(op) for op in sorted(ops, key=len, reverse=True))
+    pattern = re.compile(rf"^([\w_\+\/\(\) ]+)({op_pattern})(.+)$")
+    allowed = allowed_ops_label or " ".join(ops)
+
+    parsed = []
+    for raw in conditions.split(";"):
+        cond = raw.strip()
+        if not cond:
+            continue
+        match = pattern.search(cond)
+        if not match:
+            raise error_class(
+                f"Invalid filter: '{cond}'. Expected <dimension><op><expression>. "
+                f"Allowed operators: {allowed}"
+            )
+        field, operator, value = match.groups()
+        parsed.append(
+            {
+                "field": field.strip(),
+                "operator": operator,
+                "value": value.strip(),
+            }
+        )
+    return parsed
 
 
 def is_integer(n):

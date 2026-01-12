@@ -2,6 +2,7 @@ from datetime import datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 import pytest
 
 from megaton import dates
@@ -90,19 +91,20 @@ def test_search_run_uses_report_dates_and_metrics(monkeypatch):
 
     def fake_query(**kwargs):
         called["kwargs"] = kwargs
-        return "ok"
+        return pd.DataFrame({"page": ["test"], "clicks": [10]})
 
     monkeypatch.setattr(app._gsc_service, "query", fake_query)
 
     result = app.search.run(dimensions=["page"], metrics=["clicks", "ctr"], limit=123)
 
-    assert result == "ok"
+    assert result is not None
+    assert hasattr(result, 'df')
     assert called["kwargs"]["site_url"] == "https://example.com"
     assert called["kwargs"]["start_date"] == "2024-01-01"
     assert called["kwargs"]["end_date"] == "2024-01-31"
     assert called["kwargs"]["row_limit"] == 123
     assert called["kwargs"]["metrics"] == ["clicks", "ctr"]
-    assert app.search.data == "ok"
+    assert app.search.data is not None
 
 
 def test_search_set_months_overrides_report_dates():

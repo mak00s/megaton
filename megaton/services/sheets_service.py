@@ -78,9 +78,92 @@ class SheetsService:
         except errors.SheetNotFound:
             print(f"{sheet_name} シートが存在しません。")
 
-    def save_sheet(self, sheet_name: str, df):
+    def _calc_pixel_size(self, value, single_byte_multiplier: int, multi_byte_multiplier: int) -> int:
+        total_width = 0
+        for char in str(value):
+            total_width += single_byte_multiplier if ord(char) < 128 else multi_byte_multiplier
+        return total_width
+
+    def _sort_df(self, df: pd.DataFrame, sort_by, sort_desc: bool) -> pd.DataFrame:
+        if not sort_by:
+            return df
+        if isinstance(sort_by, str):
+            sort_by = [sort_by]
+        return df.sort_values(by=sort_by, ascending=not sort_desc)
+
+    def _apply_column_widths(
+        self,
+        df: pd.DataFrame,
+        *,
+        width_min: int,
+        width_max: int,
+        single_byte_multiplier: int,
+        multi_byte_multiplier: int,
+    ) -> None:
+        if df is None or len(df.columns) == 0:
+            return
+        sheet = self.app.gs.sheet
+        sheet_id = sheet.id
+        if not sheet_id:
+            return
+
+        requests = []
+        for idx, col_name in enumerate(df.columns):
+            series = df[col_name].astype(str)
+            try:
+                max_len = series.map(
+                    lambda x: self._calc_pixel_size(x, single_byte_multiplier, multi_byte_multiplier)
+                ).max()
+            except ValueError:
+                max_len = 0
+            if pd.isna(max_len):
+                max_len = 0
+            header_len = self._calc_pixel_size(col_name, single_byte_multiplier, multi_byte_multiplier)
+            pixel_size = max(min(max(max_len, header_len), width_max), width_min)
+            requests.append(
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "COLUMNS",
+                            "startIndex": idx,
+                            "endIndex": idx + 1,
+                        },
+                        "properties": {"pixelSize": int(pixel_size)},
+                        "fields": "pixelSize",
+                    }
+                }
+            )
+        if requests:
+            self.app.gs._driver.batch_update({"requests": requests})
+
+    def save_sheet(
+        self,
+        sheet_name: str,
+        df,
+        *,
+        sort_by=None,
+        sort_desc: bool = True,
+        auto_width: bool = False,
+        freeze_header: bool = False,
+        width_min: int = 50,
+        width_max: int = 500,
+        single_byte_multiplier: int = 7,
+        multi_byte_multiplier: int = 14,
+    ):
         if self.select_sheet(sheet_name):
+            df = self._sort_df(df, sort_by, sort_desc)
             if self.app.gs.sheet.overwrite_data(df, include_index=False):
+                if auto_width:
+                    self._apply_column_widths(
+                        df,
+                        width_min=width_min,
+                        width_max=width_max,
+                        single_byte_multiplier=single_byte_multiplier,
+                        multi_byte_multiplier=multi_byte_multiplier,
+                    )
+                if freeze_header:
+                    self.app.gs.sheet.freeze(rows=1)
                 print(f"データを「{sheet_name}」シートへ反映しました。")
 
     def append_sheet(self, sheet_name: str, df):
