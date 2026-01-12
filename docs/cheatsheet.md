@@ -44,6 +44,10 @@
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
 - `SearchResult: .decode() -> .clean_url() -> .remove_params() -> .remove_fragment() -> .lower()`
 - `SearchResult: .normalize() -> .categorize(into=...) -> .classify() -> .aggregate()`
+- `result.filter_impressions(min=100)`
+- `result.filter_impressions(sites=cfg.sites, site_key="clinic")`
+- `result.filter_ctr(min=0.02)`
+- `result.filter_impressions(min=200, keep_clicked=True)`
 
 ## Result
 
