@@ -215,6 +215,19 @@ def test_clean_url_with_group():
     assert cleaned.df['position'].iloc[0] == 7.0
 
 
+def test_clean_url_missing_column_raises():
+    """clean_url() 存在しない列はエラー"""
+    df = pd.DataFrame({
+        'query': ['a'],
+        'clicks': [1],
+        'impressions': [10],
+    })
+    result = SearchResult(df, None, ['query'])
+
+    with pytest.raises(ValueError):
+        result.clean_url('page')
+
+
 def test_normalize_overwrites_no_aggregate():
     """normalize() は上書きのみで集約しない"""
     df = pd.DataFrame({
