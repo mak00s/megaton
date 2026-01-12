@@ -192,7 +192,49 @@ class SearchResult:
             df = self._aggregate(df)
         
         return SearchResult(df, self.parent, self.dimensions)
-    
+
+    def clean_url(
+        self,
+        dimension='page',
+        *,
+        unquote=True,
+        drop_query=True,
+        drop_hash=True,
+        lower=True,
+        group=True,
+    ):
+        """
+        URL列を正規化（クエリ/フラグメント削除など）
+
+        Args:
+            dimension: 対象ディメンション列名（default: 'page'）
+            unquote: URLデコードするか（default: True）
+            drop_query: クエリパラメータを削除（default: True）
+            drop_hash: フラグメントを削除（default: True）
+            lower: 小文字化（default: True）
+            group: True の場合、dimensions で集計（default: True）
+
+        Returns:
+            SearchResult
+        """
+        from megaton.transform.text import clean_url
+
+        df = self._df.copy()
+
+        if dimension in df.columns:
+            df[dimension] = clean_url(
+                df[dimension],
+                unquote=unquote,
+                drop_query=drop_query,
+                drop_hash=drop_hash,
+                lower=lower,
+            )
+
+        if group:
+            df = self._aggregate(df)
+
+        return SearchResult(df, self.parent, self.dimensions)
+
     def lower(self, columns=None, group=True):
         """
         指定列を小文字化
@@ -908,6 +950,45 @@ class ReportResult:
         # 置換実行
         df[dimension] = df[dimension].replace(by, regex=regex)
         
+        return ReportResult(df, self.dimensions)
+
+    def clean_url(self, dimension, *, unquote=True, drop_query=True, drop_hash=True, lower=True):
+        """
+        URL列を正規化（クエリ/フラグメント削除など）
+
+        Args:
+            dimension: 対象ディメンション列名
+            unquote: URLデコードするか（default: True）
+            drop_query: クエリパラメータを削除（default: True）
+            drop_hash: フラグメントを削除（default: True）
+            lower: 小文字化（default: True）
+
+        Returns:
+            ReportResult（URLを正規化したデータ）
+
+        Example:
+            result.clean_url(
+                dimension='page',
+                drop_query=True,
+                drop_hash=True,
+                lower=True
+            )
+        """
+        from megaton.transform.text import clean_url
+
+        df = self._df.copy()
+
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        df[dimension] = clean_url(
+            df[dimension],
+            unquote=unquote,
+            drop_query=drop_query,
+            drop_hash=drop_hash,
+            lower=lower,
+        )
+
         return ReportResult(df, self.dimensions)
 
 

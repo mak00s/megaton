@@ -2,7 +2,7 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
-## next (0.8.0)
+## next (0.8.1)
 
 ### 追加
 
@@ -22,6 +22,8 @@
   - `regex=True`（デフォルト）: 辞書の key を正規表現として扱う
   - `regex=False`: 固定文字列での置換
   - 例: `.replace(dimension='campaign', by={r'\([^)]*\)': ''})` で括弧内を削除
+- **ReportResult.clean_url()**: URL列の正規化（クエリ/フラグメント削除、lower化など）をサポート。
+- **SearchResult.clean_url()**: URL列の正規化を追加（クエリ/フラグメント削除、lower化など）。
 - **text.infer_site_from_url()**: URLからサイト識別子を推測する関数（マルチサイト企業対応）。
   - sites 設定から domain/url を抽出してドメインマッチング
   - クエリパラメータ `id=` による特殊IDマッチング（dentamap など）

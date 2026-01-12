@@ -457,6 +457,7 @@ SQL クエリを実行します。
 - `.decode(group=True)` - URL デコード
 - `.remove_params(keep=None, group=True)` - クエリパラメータ削除
 - `.remove_fragment(group=True)` - フラグメント削除
+- `.clean_url(dimension='page', unquote=True, drop_query=True, drop_hash=True, lower=True, group=True)` - URL 正規化
 - `.lower(columns=None, group=True)` - 小文字化
 - `.normalize(dimension, by, lower=True, strip=True)` - 正規化（上書き、集約なし）
 - `.categorize(dimension, by, into=None, default='(other)')` - カテゴリ列追加（集約なし）
@@ -588,6 +589,19 @@ result.to_int(['sessions'], fill_value=99)
 - `dimension` (str) - 置換対象のディメンション列名
 - `by` (dict) - 置換マッピング辞書 `{old_value: new_value}`
 - `regex` (bool) - True の場合、キーを正規表現として扱う（default: True）
+
+**戻り値:** ReportResult
+
+#### `.clean_url(dimension, *, unquote=True, drop_query=True, drop_hash=True, lower=True)`
+
+URL 列を正規化します（クエリ/フラグメント削除など、集約しません）。
+
+**パラメータ:**
+- `dimension` (str) - 対象ディメンション列名
+- `unquote` (bool) - URL デコード（default: True）
+- `drop_query` (bool) - クエリパラメータを削除（default: True）
+- `drop_hash` (bool) - フラグメントを削除（default: True）
+- `lower` (bool) - 小文字化（default: True）
 
 **戻り値:** ReportResult
 

@@ -507,6 +507,23 @@ def test_report_result_replace_regex_multiple():
     assert replaced.df['campaign'].values[2] == 'plain'
 
 
+def test_report_result_clean_url():
+    """clean_url() のテスト"""
+    df = pd.DataFrame({
+        'page': [
+            'https://Example.com/Path/?a=1#top',
+            '/deilab/?q=1',
+        ],
+        'sessions': [100, 50]
+    })
+
+    result = ReportResult(df)
+    cleaned = result.clean_url('page')
+
+    assert cleaned.df['page'].values[0] == 'https://example.com/path/'
+    assert cleaned.df['page'].values[1] == '/deilab/'
+
+
 def test_report_result_method_chaining():
     """メソッドチェーンのテスト"""
     df = pd.DataFrame({

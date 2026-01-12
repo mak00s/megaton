@@ -42,7 +42,7 @@
 - `mg.search.run(dimensions, metrics?, limit?, clean?, dimension_filter?)`
 - `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, dimension_filter?)`
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
-- `SearchResult: .decode() -> .remove_params() -> .remove_fragment() -> .lower()`
+- `SearchResult: .decode() -> .clean_url() -> .remove_params() -> .remove_fragment() -> .lower()`
 - `SearchResult: .normalize() -> .categorize(into=...) -> .classify() -> .aggregate()`
 
 ## Result
@@ -51,6 +51,7 @@
 - `result.fill(to?, dimensions?)`
 - `result.group(by, metrics?, method?)`
 - `result.to_int(metrics?, *, fill_value=0)`
+- `result.clean_url(dimension, unquote?, drop_query?, drop_hash?, lower?)`
 
 ## Transform
 
