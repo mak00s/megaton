@@ -1697,7 +1697,11 @@ class Megaton:
 
                 sheet_url = self.parent.parent.state.gs_url
                 if not sheet_url:
-                    raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+                    raise ValueError(
+                        "Google Sheetsが開かれていません。\n"
+                        "先に mg.open.sheet(url) でスプレッドシートを開いてください。\n"
+                        "例: mg.open.sheet('https://docs.google.com/spreadsheets/d/...')"
+                    ) from None
 
                 return self.parent.parent._sheets.upsert_df(
                     sheet_url,
@@ -2103,7 +2107,11 @@ class Megaton:
 
         def _ensure_spreadsheet(self):
             if not self.parent.gs or not self.parent.state.gs_url:
-                raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+                raise ValueError(
+                    "Google Sheetsが開かれていません。\n"
+                    "先に mg.open.sheet(url) でスプレッドシートを開いてください。\n"
+                    "例: mg.open.sheet('https://docs.google.com/spreadsheets/d/...')"
+                ) from None
 
         def select(self, name: str):
             self._ensure_spreadsheet()
@@ -2136,7 +2144,11 @@ class Megaton:
 
         def _ensure_spreadsheet(self):
             if not self.parent.gs or not self.parent.state.gs_url:
-                raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+                raise ValueError(
+                    "Google Sheetsが開かれていません。\n"
+                    "先に mg.open.sheet(url) でスプレッドシートを開いてください。\n"
+                    "例: mg.open.sheet('https://docs.google.com/spreadsheets/d/...')"
+                ) from None
 
         def _current_sheet_name(self):
             name = self.parent.state.gs_sheet_name
@@ -3241,7 +3253,11 @@ class Megaton:
 
                     sheet_url = app.state.gs_url
                     if not sheet_url:
-                        raise ValueError("No active spreadsheet. Call mg.open.sheet(url) first.")
+                        raise ValueError(
+                            "Google Sheetsが開かれていません。\n"
+                            "先に mg.open.sheet(url) でスプレッドシートを開いてください。\n"
+                            "例: mg.open.sheet('https://docs.google.com/spreadsheets/d/...')"
+                        ) from None
 
                     updates = {
                         start_cell: report.start_date,
