@@ -136,25 +136,26 @@ def test_normalize_queries_chaining():
     })
     result = SearchResult(df, None, ['query'])
     
-    # チェーン: normalize → classify
+    # チェーン: normalize → classify（上書き + 集約）
     query_map = {r'test': 'test_cat', r'sample': 'sample_cat'}
     final = (result
         .normalize_queries(mode='remove_all', prefer_by='impressions', group=True)
-        .classify(query=query_map, group=True))
+        .classify('query', by=query_map))
     
     # test tokyo バリエーションが統一されて1行、sample が1行、合計2行
     assert len(final.df) == 2
     
-    # query_category が追加されている
-    assert 'query_category' in final.df.columns
+    # classify() は query を上書きし、カテゴリ列は追加しない
+    assert 'query_category' not in final.df.columns
+    assert set(final.df['query']) == {'test_cat', 'sample_cat'}
     
     # test カテゴリ
-    test_row = final.df[final.df['query_category'] == 'test_cat'].iloc[0]
+    test_row = final.df[final.df['query'] == 'test_cat'].iloc[0]
     assert test_row['clicks'] == 15
     assert test_row['impressions'] == 150
     
     # sample カテゴリ
-    sample_row = final.df[final.df['query_category'] == 'sample_cat'].iloc[0]
+    sample_row = final.df[final.df['query'] == 'sample_cat'].iloc[0]
     assert sample_row['clicks'] == 20
     assert sample_row['impressions'] == 200
 

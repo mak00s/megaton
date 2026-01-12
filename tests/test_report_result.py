@@ -100,85 +100,55 @@ def test_report_result_backward_compatibility():
     pd.testing.assert_frame_equal(result.df, df)
 
 
-def test_report_result_classify():
-    """classify() メソッドのテスト"""
+def test_report_result_normalize_no_aggregate():
+    """normalize() は上書きのみで集約しない"""
     df = pd.DataFrame({
-        'sessionSource': ['google search', 'yahoo', 'direct'],
-        'sessions': [100, 50, 30]
+        'sessionSource': [' Google ', 'Yahoo'],
+        'sessions': [100, 50],
     })
-    
     result = ReportResult(df)
-    classified = result.classify(
+    normalized = result.normalize(
         dimension='sessionSource',
-        by={'.*google.*': 'Search', '.*yahoo.*': 'Search'},
-        output='source_type'
+        by={r'google': 'Search'},
     )
-    
-    assert 'source_type' in classified.columns
-    assert 'source_type' in classified.dimensions
-    # group=True（デフォルト）なので集計されている
-    assert len(classified) == 2  # Search と (other)
-    search_row = classified.df[classified.df['source_type'] == 'Search']
-    assert search_row['sessions'].values[0] == 150  # 100 + 50
+
+    assert len(normalized) == 2
+    assert normalized.df['sessionSource'].tolist() == ['Search', 'yahoo']
 
 
-def test_report_result_classify_no_group():
-    """classify() group=False のテスト"""
-    df = pd.DataFrame({
-        'sessionSource': ['google search', 'yahoo', 'direct'],
-        'sessions': [100, 50, 30]
-    })
-    
-    result = ReportResult(df)
-    classified = result.classify(
-        dimension='sessionSource',
-        by={'.*google.*': 'Search', '.*yahoo.*': 'Search'},
-        output='source_type',
-        group=False
-    )
-    
-    assert 'source_type' in classified.columns
-    assert 'source_type' in classified.dimensions
-    # group=False なので元の行数を保持
-    assert len(classified) == 3
-    assert classified['source_type'][0] == 'Search'
-    assert classified['source_type'][1] == 'Search'
-    assert classified['source_type'][2] == '(other)'
-
-
-def test_report_result_classify_default_output():
-    """classify() デフォルト出力列名のテスト"""
-    df = pd.DataFrame({
-        'sessionSource': ['google', 'yahoo'],
-        'sessions': [100, 50]
-    })
-    
-    result = ReportResult(df)
-    classified = result.classify(
-        dimension='sessionSource',
-        by={'google': 'Google'},
-        group=False  # 集計なしで出力列名のみ確認
-    )
-    
-    assert 'sessionSource_category' in classified.columns
-
-
-def test_report_result_classify_custom_default():
-    """classify() カスタムデフォルト値のテスト"""
+def test_report_result_categorize_adds_column():
+    """categorize() はカテゴリ列を追加し集約しない"""
     df = pd.DataFrame({
         'sessionSource': ['google', 'unknown'],
-        'sessions': [100, 50]
+        'sessions': [100, 50],
     })
-    
     result = ReportResult(df)
-    classified = result.classify(
+    categorized = result.categorize(
         dimension='sessionSource',
         by={'google': 'Google'},
         default='Others',
-        group=False  # 集計なしでデフォルト値のみ確認
     )
-    
-    assert classified['sessionSource_category'][1] == 'Others'
+
+    assert 'sessionSource_category' in categorized.columns
+    assert categorized.df['sessionSource_category'].tolist() == ['Google', 'Others']
+    assert len(categorized) == 2
+
+
+def test_report_result_classify_aggregates():
+    """classify() は正規化して必ず集約する"""
+    df = pd.DataFrame({
+        'sessionSource': [' Google ', 'google'],
+        'sessions': [100, 50],
+    })
+    result = ReportResult(df)
+    classified = result.classify(
+        dimension='sessionSource',
+        by={r'google': 'Search'},
+    )
+
+    assert len(classified) == 1
+    assert classified.df['sessionSource'].iloc[0] == 'Search'
+    assert classified.df['sessions'].iloc[0] == 150
 
 
 def test_report_result_group():
@@ -429,6 +399,43 @@ def test_report_result_to_int_multiple_metrics():
     assert int_result.df['users'].dtype == 'int64'
 
 
+def test_report_result_to_int_auto_infer():
+    """to_int() metrics=None で数値列の自動推論"""
+    df = pd.DataFrame({
+        'date': ['2024-01'],
+        'sessions': [100.5],
+        'users': [80.9],
+        'channel': ['Organic Search']
+    })
+    
+    result = ReportResult(df)
+    int_result = result.to_int()  # metrics=None
+    
+    # 数値列は整数型に変換される
+    assert int_result.df['sessions'].dtype == 'int64'
+    assert int_result.df['users'].dtype == 'int64'
+    assert int_result.df['sessions'].values[0] == 100
+    assert int_result.df['users'].values[0] == 80
+    
+    # 非数値列は変換されない
+    assert int_result.df['date'].dtype == 'object'
+    assert int_result.df['channel'].dtype == 'object'
+
+
+def test_report_result_to_int_with_fill_value():
+    """to_int() でfill_valueのキーワード専用引数"""
+    df = pd.DataFrame({
+        'sessions': [100.5, None],
+        'users': [80.9, None]
+    })
+    
+    result = ReportResult(df)
+    int_result = result.to_int(metrics=['sessions'], fill_value=99)
+    
+    assert int_result.df['sessions'].values[1] == 99
+    assert pd.isna(int_result.df['users'].values[1])  # 変換されていない
+
+
 def test_report_result_to_int_with_nan():
     """to_int() 欠損値のテスト"""
     df = pd.DataFrame({
@@ -510,11 +517,10 @@ def test_report_result_method_chaining():
     
     result = (ReportResult(df)
         .fill(to='(no date)', dimensions=['date'])
-        .classify(
+        .categorize(
             dimension='sessionSource',
             by={'.*google.*': 'Search', '.*yahoo.*': 'Search'},
-            output='source_type',
-            group=False  # まだ集計しない
+            into='source_type',
         )
         .group(by=['date', 'source_type'], metrics=['sessions'])
         .to_int(metrics='sessions')
@@ -597,17 +603,15 @@ def test_report_result_custom_metrics_not_in_dimensions():
     assert result.dimensions == ['date', 'sessionSource']
     
     # classify() で正しく集計されることを確認
-    classified = result.classify(dimension='sessionSource', by={
-        'google': 'Search',
-        'yahoo': 'Search'
-    }, group=True)
+    classified = result.classify(
+        dimension='sessionSource',
+        by={'google': 'Search', 'yahoo': 'Search'},
+    )
     
-    # group=True なので1行に集計され、カテゴリ列が作成される
+    # 1行に集計される
     assert len(classified) == 1
-    assert classified['sessionSource_category'].iloc[0] == 'Search'
+    assert classified['sessionSource'].iloc[0] == 'Search'
     assert classified['sessions'].iloc[0] == 150  # 100 + 50
     assert classified['cv'].iloc[0] == 15  # 10 + 5
     assert classified['ad_cost'].iloc[0] == 1500.75  # 1000.5 + 500.25
     assert classified['totalPurchasers'].iloc[0] == 12  # 8 + 4
-
-

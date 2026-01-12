@@ -152,9 +152,12 @@ def test_classify_source_channel_sns_normalization():
     df = pd.DataFrame(
         [
             {"channel": "Referral", "medium": "referral", "source": "facebook.com"},
+            {"channel": "Referral", "medium": "referral", "source": "facebook"},
             {"channel": "Referral", "medium": "referral", "source": "t.co"},
+            {"channel": "Referral", "medium": "referral", "source": "x.com"},
             {"channel": "Referral", "medium": "referral", "source": "instagram.com"},
             {"channel": "Referral", "medium": "referral", "source": "youtube.com"},
+            {"channel": "Referral", "medium": "referral", "source": "youtu.be"},
             {"channel": "Referral", "medium": "referral", "source": "tiktok.com"},
             {"channel": "Referral", "medium": "referral", "source": "threads.net"},
         ]
@@ -162,7 +165,17 @@ def test_classify_source_channel_sns_normalization():
 
     result = classify_source_channel(df)
     
-    assert result["source"].tolist() == ["Facebook", "X", "Instagram", "YouTube", "TikTok", "Threads"]
+    assert result["source"].tolist() == [
+        "Facebook",
+        "Facebook",
+        "X",
+        "X",
+        "Instagram",
+        "YouTube",
+        "YouTube",
+        "TikTok",
+        "Threads",
+    ]
     assert all(ch == "Organic Social" for ch in result["channel"].tolist())
 
 
@@ -172,11 +185,13 @@ def test_classify_source_channel_search_normalization():
         [
             {"channel": "Referral", "medium": "referral", "source": "service.smt.docomo.ne.jp"},
             {"channel": "Referral", "medium": "referral", "source": "bing.com"},
+            {"channel": "Referral", "medium": "referral", "source": "cn.bing.com"},
             {"channel": "Referral", "medium": "referral", "source": "auone.jp"},
+            {"channel": "Referral", "medium": "referral", "source": "sp-web.search.auone.jp"},
         ]
     )
 
     result = classify_source_channel(df)
     
-    assert result["source"].tolist() == ["docomo.ne.jp", "bing", "auone.jp"]
+    assert result["source"].tolist() == ["docomo.ne.jp", "bing", "bing", "auone.jp", "auone.jp"]
     assert all(ch == "Organic Search" for ch in result["channel"].tolist())

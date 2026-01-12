@@ -4,7 +4,7 @@ These tests ensure that show() and download() correctly access self.data.
 """
 import pandas as pd
 from unittest.mock import MagicMock, patch
-from megaton.start import Megaton
+from megaton.start import Megaton, ReportResult
 
 
 def test_report_show_uses_self_data():
@@ -65,8 +65,8 @@ def test_report_download_uses_self_data():
         assert filename == 'test.csv'
 
 
-def test_report_run_returns_show_result():
-    """Test that Report.run() returns the result of show()"""
+def test_report_run_returns_report_result():
+    """Test that Report.run() returns ReportResult and still calls show()"""
     # Setup
     mg = Megaton()
     mg.ga = {'4': MagicMock()}
@@ -79,14 +79,14 @@ def test_report_run_returns_show_result():
     # Mock GA4 report.run to return test data
     mg.ga['4'].report.run = MagicMock(return_value=test_df)
     
-    # Mock show.table to return a specific value
-    expected_result = MagicMock()
-    with patch.object(mg.show, 'table', return_value=expected_result):
+    # Mock show.table to verify it's called
+    with patch.object(mg.show, 'table') as mock_show:
         # Call report.run
         result = mg.report.run(d=[('date', 'date')], m=['users'])
-        
-        # Verify the result is from show()
-        assert result == expected_result
+
+        assert isinstance(result, ReportResult)
+        pd.testing.assert_frame_equal(result.df, test_df)
+        mock_show.assert_called_once()
 
 
 def test_report_show_with_no_data():

@@ -194,43 +194,56 @@ def test_decode_with_position():
     assert decoded.df['position'].iloc[0] == 7.0
 
 
-def test_classify_with_group():
-    """classify(group=True) が分類列を保持して集計する"""
+def test_normalize_overwrites_no_aggregate():
+    """normalize() は上書きのみで集約しない"""
     df = pd.DataFrame({
-        'query': ['test tokyo', 'test osaka', 'sample tokyo'],
-        'clicks': [10, 20, 30],
-        'impressions': [100, 200, 300],
-        'position': [5.0, 6.0, 7.0]
+        'query': [' Test ', 'Sample'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
     })
-    # map_by_regex は lower=True がデフォルト
-    query_map = {r'test': 'test_category', r'sample': 'sample_category'}
+    query_map = {r'test': 'test_norm'}
     result = SearchResult(df, None, ['query'])
-    
-    # query パラメータにマッピングを渡す
-    classified = result.classify(query=query_map, group=True)
-    
-    # 分類列 query_category が追加される
-    assert 'query_category' in classified.df.columns
-    
-    # group=True なので、dimensions=['query'] + query_category で集計される
-    # つまり元の query はそのまま残り、query_category も追加される
-    # 'test tokyo' と 'test osaka' は異なる query なので2行
-    # 'sample tokyo' は1行
-    # 合計3行になる
-    
-    # これは実は正しい動作 - dimensions=['query'] + ['query_category'] でグループ化
-    # query_category だけで集計したい場合は aggregate(by='query_category') を使う
-    assert len(classified.df) == 3
-    
-    # query_category のみで集計してみる
-    by_category = classified.aggregate(by='query_category')
-    assert len(by_category.df) == 2
-    
-    # test_category の合計
-    test_row = by_category.df[by_category.df['query_category'] == 'test_category']
-    assert len(test_row) == 1
-    assert test_row['clicks'].iloc[0] == 30
-    assert test_row['impressions'].iloc[0] == 300
+
+    normalized = result.normalize('query', by=query_map)
+
+    assert len(normalized.df) == 2
+    assert normalized.df['query'].tolist() == ['test_norm', 'sample']
+    assert normalized.dimensions == ['query']
+
+
+def test_categorize_adds_column_no_aggregate():
+    """categorize() はカテゴリ列を追加し集約しない"""
+    df = pd.DataFrame({
+        'query': ['test tokyo', 'sample tokyo'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    query_map = {r'test': 'test_category'}
+    result = SearchResult(df, None, ['query'])
+
+    categorized = result.categorize('query', by=query_map)
+
+    assert len(categorized.df) == 2
+    assert categorized.df['query_category'].tolist() == ['test_category', '(other)']
+    assert categorized.dimensions == ['query', 'query_category']
+
+
+def test_classify_aggregates_and_overwrites():
+    """classify() は正規化して必ず集約する"""
+    df = pd.DataFrame({
+        'query': ['Test', ' test '],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+        'position': [5.0, 7.0],
+    })
+    query_map = {r'test': 'test_norm'}
+    result = SearchResult(df, None, ['query'])
+
+    classified = result.classify('query', by=query_map)
+
+    assert len(classified.df) == 1
+    assert classified.df['query'].iloc[0] == 'test_norm'
+    assert classified.df['clicks'].iloc[0] == 30
 
 
 
@@ -332,44 +345,3 @@ def test_ctr_not_added_when_absent():
     assert len(aggregated.df) == 1
     assert 'ctr' not in aggregated.df.columns
 
-
-def test_classify_updates_dimensions():
-    """classify(group=True) が dimensions を更新する"""
-    df = pd.DataFrame({
-        'query': ['test tokyo', 'test osaka', 'sample tokyo'],
-        'clicks': [10, 20, 30],
-        'impressions': [100, 200, 300]
-    })
-    query_map = {r'test': 'test_cat', r'sample': 'sample_cat'}
-    result = SearchResult(df, None, ['query'])
-    
-    # query_category で分類・集計
-    classified = result.classify(query=query_map, group=True)
-    
-    # dimensions が更新されている
-    assert 'query_category' in classified.dimensions
-    
-    # 後続の group=True 呼び出しで category 列が保持される
-    decoded = classified.decode(group=True)
-    assert 'query_category' in decoded.df.columns
-
-
-def test_classify_output_none_overwrites_and_no_categories():
-    """classify(output=None) は query/page を上書きし、category 列を作成しない"""
-    df = pd.DataFrame({
-        'query': ['Test Tokyo', 'Sample Osaka'],
-        'page': ['/Foo', '/Bar'],
-        'clicks': [10, 20],
-        'impressions': [100, 200],
-    })
-    query_map = {r'test': 'test_norm', r'sample': 'sample_norm'}
-    page_map = {r'/foo': '/foo_norm', r'/bar': '/bar_norm'}
-    result = SearchResult(df, None, ['query', 'page'])
-
-    classified = result.classify(query=query_map, page=page_map, output=None, group=True)
-
-    assert 'query_normalized' not in classified.df.columns
-    assert 'query_category' not in classified.df.columns
-    assert 'page_category' not in classified.df.columns
-    assert set(classified.df['query'].tolist()) == {'test_norm', 'sample_norm'}
-    assert set(classified.df['page'].tolist()) == {'/foo_norm', '/bar_norm'}
