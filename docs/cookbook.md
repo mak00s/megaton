@@ -87,6 +87,46 @@ df = (result
     .df)
 ```
 
+## フィルタリングの使い方
+
+フィルタの仕様は [api-reference.md](api-reference.md) の **Filtering** を参照してください。
+
+### 固定閾値でのフィルタ
+
+```python
+result = (mg.search
+    .run(dimensions=["month", "query", "page"], clean=True)
+    .filter_impressions(min=100)
+    .filter_clicks(min=10))
+```
+
+### sites + site_key を使ったフィルタ
+
+```python
+result = (mg.search
+    .run(dimensions=["month", "query", "page"], clean=True)
+    .filter_impressions(sites=sites, site_key="clinic"))
+```
+
+### keep_clicked を使うケース
+
+```python
+result = (mg.search
+    .run(dimensions=["month", "query", "page"], clean=True)
+    .filter_impressions(sites=sites, site_key="clinic", keep_clicked=True))
+```
+
+### CTR フィルタの注意点（impressions == 0）
+
+impressions が 0 の行は CTR が 0 になりやすいため、先に impressions を絞ります。
+
+```python
+result = (mg.search
+    .run(dimensions=["month", "query", "page"], clean=True)
+    .filter_impressions(min=1)
+    .filter_ctr(min=0.02))
+```
+
 ## ReportResult: 集計と列整理
 
 ```python

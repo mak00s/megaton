@@ -470,6 +470,155 @@ SQL クエリを実行します。
 
 ---
 
+## Filtering
+
+SearchResult の `filter_*` 系メソッドに共通する仕様をまとめます。
+
+### 共通仕様
+
+- **対象メソッド**: `filter_clicks`, `filter_impressions`, `filter_ctr`, `filter_position`
+- **グローバル閾値（min / max）**:
+  - `min` / `max` は **包含的**（`>= min`, `<= max`）
+  - `None` の場合、その側の閾値は適用されません
+- **サイト別閾値（sites + site_key）**:
+  - `sites` は dict のリスト
+  - `site_key` 列の値をキーとして、各行に閾値を割り当てます
+  - 使用するキー:
+    - `clicks`: `min_clicks` / `max_clicks`
+    - `impressions`: `min_impressions` / `max_impressions`
+    - `ctr`: `min_ctr` / `max_ctr`
+    - `position`: `min_position` / `max_position`
+- **優先順位（閾値の決まり方）**:
+  - `min` / `max` が **明示されている場合はそれが最優先**
+  - `min` / `max` が `None` の場合のみ、`sites` の値が使われます
+  - `sites` がない、または `site_key` 列がない場合は **サイト別閾値は無視**されます
+- **keep_clicked（例外ルール）**:
+  - `filter_impressions` / `filter_ctr` / `filter_position` のみ対象
+  - `keep_clicked=True` かつ `clicks` 列がある場合:
+    - `clicks >= 1` は **無条件に残る**
+    - `clicks == 0` のみ閾値が適用される
+    - `clicks` が `NaN` の行は **無条件に残る**
+  - `clicks` 列がない場合は `keep_clicked` の効果はありません（通常フィルタと同じ）
+- **共通エッジケース**:
+  - 必要な列が存在しない場合は **KeyError**
+  - 閾値が適用される場合、`NaN` は比較に失敗するため **除外される**
+  - `sites` の閾値が見つからない行は、その側の閾値が **未設定扱い**になり通過します
+
+### `filter_clicks(min=None, max=None, sites=None, site_key='site')`
+
+**前提条件（必要な列）**
+- `clicks`
+- `sites` を使う場合は `site_key` 列
+
+**閾値の決まり方**
+- `min` / `max` を明示した場合は全行に適用
+- `min` / `max` が `None` の場合のみ `sites` の `min_clicks` / `max_clicks` を使用
+
+**優先順位**
+- 明示 `min` / `max` → サイト別閾値 → 未設定（フィルタなし）
+
+**挙動の説明**
+- `clicks` に対して `>= min` / `<= max` を適用（包含的）
+- `min` と `max` の両方を指定した場合は **両方の条件**を満たす行のみ残る
+
+**エッジケース**
+- `clicks` が `NaN` の行は、閾値が適用される場合に除外される
+- `sites` があるが `site_key` 列がない場合、サイト別閾値は使われない
+
+**最小例**
+```python
+result.filter_clicks(min=10)
+```
+
+### `filter_impressions(min=None, max=None, sites=None, site_key='site', keep_clicked=False)`
+
+**前提条件（必要な列）**
+- `impressions`
+- `keep_clicked=True` の場合は `clicks`
+- `sites` を使う場合は `site_key` 列
+
+**閾値の決まり方**
+- `min` / `max` を明示した場合は全行に適用
+- `min` / `max` が `None` の場合のみ `sites` の `min_impressions` / `max_impressions` を使用
+
+**優先順位**
+- `keep_clicked` が有効な場合、`clicks >= 1` は常に残る
+- 閾値の優先順位は **明示 `min` / `max` → サイト別閾値**
+
+**挙動の説明**
+- `impressions` に対して `>= min` / `<= max` を適用（包含的）
+- `keep_clicked=True` の場合、クリック済み行は閾値を無視
+
+**エッジケース**
+- `impressions == 0` の行は `min > 0` で除外される（`keep_clicked=True` で `clicks >= 1` は例外）
+- `impressions` が `NaN` の行は、閾値が適用される場合に除外される
+- `clicks` 列がない場合、`keep_clicked` は無視される
+
+**最小例**
+```python
+result.filter_impressions(min=100, keep_clicked=True)
+```
+
+### `filter_ctr(min=None, max=None, sites=None, site_key='site', keep_clicked=False)`
+
+**前提条件（必要な列）**
+- `ctr`
+- `keep_clicked=True` の場合は `clicks`
+- `sites` を使う場合は `site_key` 列
+
+**閾値の決まり方**
+- `min` / `max` を明示した場合は全行に適用
+- `min` / `max` が `None` の場合のみ `sites` の `min_ctr` / `max_ctr` を使用
+
+**優先順位**
+- `keep_clicked` が有効な場合、`clicks >= 1` は常に残る
+- 閾値の優先順位は **明示 `min` / `max` → サイト別閾値**
+
+**挙動の説明**
+- `ctr` に対して `>= min` / `<= max` を適用（包含的）
+- `ctr` は **事前に計算済みの列**が必要（`mg.search.run(...).aggregate()` などで生成される想定）
+
+**エッジケース**
+- `impressions == 0` の行は、集計経路によって `ctr=0` または `NaN` になり得る
+  - `min > 0` を設定すると除外される
+- `ctr` が `NaN` の行は、閾値が適用される場合に除外される
+- `clicks` 列がない場合、`keep_clicked` は無視される
+
+**最小例**
+```python
+result.filter_ctr(min=0.02)
+```
+
+### `filter_position(min=None, max=None, sites=None, site_key='site', keep_clicked=False)`
+
+**前提条件（必要な列）**
+- `position`
+- `keep_clicked=True` の場合は `clicks`
+- `sites` を使う場合は `site_key` 列
+
+**閾値の決まり方**
+- `min` / `max` を明示した場合は全行に適用
+- `min` / `max` が `None` の場合のみ `sites` の `min_position` / `max_position` を使用
+
+**優先順位**
+- `keep_clicked` が有効な場合、`clicks >= 1` は常に残る
+- 閾値の優先順位は **明示 `min` / `max` → サイト別閾値**
+
+**挙動の説明**
+- `position` に対して `>= min` / `<= max` を適用（包含的）
+- `position` は **数値が小さいほど良い**（`max` を使うのが一般的）
+
+**エッジケース**
+- `position` が `NaN` の行は、閾値が適用される場合に除外される
+- `clicks` 列がない場合、`keep_clicked` は無視される
+
+**最小例**
+```python
+result.filter_position(max=10, keep_clicked=True)
+```
+
+---
+
 ## ReportResult メソッドチェーン
 
 `mg.report.run.all()` が返す ReportResult オブジェクトは、メソッドチェーンで段階的な処理が可能です。
