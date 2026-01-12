@@ -94,6 +94,8 @@ class MegatonGS(object):
             self._driver = self._client.open_by_url(url)
         except gspread.exceptions.NoValidUrlKeyFound:
             raise errors.BadUrlFormat
+        except PermissionError as exc:
+            raise errors.BadPermission from exc
         except requests.exceptions.Timeout as exc:
             raise errors.Timeout from exc
         except requests.exceptions.RequestException as exc:

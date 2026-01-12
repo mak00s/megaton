@@ -36,6 +36,10 @@ class SheetsService:
             print("URLが見つかりません。")
         except errors.BadPermission:
             print("該当スプレッドシートを読み込む権限がありません。")
+            if hasattr(self.app, 'creds') and hasattr(self.app.creds, 'service_account_email'):
+                print(f"使用中のアカウント: {self.app.creds.service_account_email}")
+                print(f"対象のスプレッドシートにこのアカウントへの閲覧権限を付与してください。")
+            print(f"URL: {url}")
         except errors.Timeout:
             print("Google Sheetsの接続がタイムアウトしました。")
         except errors.RequestError as exc:
