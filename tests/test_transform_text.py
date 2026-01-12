@@ -21,6 +21,26 @@ def test_clean_url_drops_query_and_hash_and_unquotes():
     assert result.tolist() == ["https://example.com/path", "https://example.com/~user"]
 
 
+def test_clean_url_handles_none_and_empty():
+    """clean_url() None値・空文字列・非文字列の処理"""
+    series = pd.Series(
+        [
+            "https://example.com/?a=1",
+            None,
+            "",
+            123,
+            "  ",  # 空白のみ
+        ]
+    )
+    result = text.clean_url(series)
+    
+    assert result.tolist()[0] == "https://example.com/"
+    assert pd.isna(result.tolist()[1])  # None は保持
+    assert result.tolist()[2] == ""  # 空文字列は保持
+    assert result.tolist()[3] == 123  # 数値はそのまま
+    assert result.tolist()[4] == ""  # 空白のみは空文字列に
+
+
 def test_normalize_whitespace_modes():
     series = pd.Series(["a  b", "c\t d"])
     collapsed = text.normalize_whitespace(series, mode="collapse")

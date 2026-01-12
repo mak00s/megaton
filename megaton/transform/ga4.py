@@ -129,7 +129,7 @@ def classify_source_channel(
         ...     }
         ... )
     """
-    for col in [channel_col, medium_col, source_col]:
+    for col in [channel_col, source_col]:
         if col not in df.columns:
             raise ValueError(f"Missing column: {col}")
     

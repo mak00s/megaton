@@ -524,6 +524,18 @@ def test_report_result_clean_url():
     assert cleaned.df['page'].values[1] == '/deilab/'
 
 
+def test_report_result_clean_url_missing_column_raises():
+    """clean_url() 存在しない列はエラー"""
+    df = pd.DataFrame({
+        'query': ['a'],
+        'sessions': [1],
+    })
+
+    result = ReportResult(df)
+    with pytest.raises(ValueError):
+        result.clean_url('page')
+
+
 def test_report_result_method_chaining():
     """メソッドチェーンのテスト"""
     df = pd.DataFrame({

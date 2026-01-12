@@ -204,7 +204,7 @@ class SearchResult:
         group=True,
     ):
         """
-        URL列を正規化（クエリ/フラグメント削除など）
+        URL列を正規化（URLデコード、クエリ/フラグメント削除、小文字化）
 
         Args:
             dimension: 対象ディメンション列名（default: 'page'）
@@ -221,14 +221,16 @@ class SearchResult:
 
         df = self._df.copy()
 
-        if dimension in df.columns:
-            df[dimension] = clean_url(
-                df[dimension],
-                unquote=unquote,
-                drop_query=drop_query,
-                drop_hash=drop_hash,
-                lower=lower,
-            )
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        df[dimension] = clean_url(
+            df[dimension],
+            unquote=unquote,
+            drop_query=drop_query,
+            drop_hash=drop_hash,
+            lower=lower,
+        )
 
         if group:
             df = self._aggregate(df)
@@ -954,7 +956,7 @@ class ReportResult:
 
     def clean_url(self, dimension, *, unquote=True, drop_query=True, drop_hash=True, lower=True):
         """
-        URL列を正規化（クエリ/フラグメント削除など）
+        URL列を正規化（URLデコード、クエリ/フラグメント削除、小文字化）
 
         Args:
             dimension: 対象ディメンション列名

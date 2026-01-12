@@ -67,6 +67,21 @@ def test_classify_source_channel_basic():
     assert result["channel"].tolist() == ["AI", "Organic Social", "Organic Search"]
 
 
+def test_classify_source_channel_missing_medium():
+    """medium 列がなくても動作する"""
+    df = pd.DataFrame(
+        [
+            {"channel": "Referral", "source": "chatgpt.com"},
+            {"channel": "Referral", "source": "maps.google.com"},
+        ]
+    )
+
+    result = classify_source_channel(df)
+
+    assert result["source"].tolist() == ["ChatGPT", "maps.google.com"]
+    assert result["channel"].tolist() == ["AI", "Map"]
+
+
 def test_classify_source_channel_custom_channels_simple():
     """custom_channelsの簡易形式が動作する"""
     df = pd.DataFrame(

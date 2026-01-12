@@ -11,6 +11,7 @@
   - source自動正規化機能（ChatGPT、Gemini、Claude、Facebook、X、Instagram、YouTube、TikTok、Threads、docomo、bing、auone等）
   - custom_channelsパラメータでプロジェクト固有チャネル（Group、client_x Internal等）を拡張可能
   - 誤判定防止の強化：AI判定はbing.com/chat限定、SNS判定は正規化後の名前でチェック、Search判定は単語境界を考慮
+  - `medium` 列が存在しない場合は空文字として扱う
 - **ga4.convert_filter_to_event_scope()**: session系フィルタディメンションをevent系に変換する関数。GA4 APIでsession系（`sessionDefaultChannelGroup`など）とevent系（`defaultChannelGroup`など）のディメンション互換性を保ちます。
 - **site.filter_d**: `mg.report.run.all()` の `filter_d` パラメータで `site.<key>` を指定すると、各アイテム設定の `<key>` から動的にフィルタを解決できます（`site.lp_dim` / `site.cv_metric` と同様）。
   - 例: `filter_d='site.filter_d'` で各サイトの `filter_d` 列を使用
@@ -22,8 +23,8 @@
   - `regex=True`（デフォルト）: 辞書の key を正規表現として扱う
   - `regex=False`: 固定文字列での置換
   - 例: `.replace(dimension='campaign', by={r'\([^)]*\)': ''})` で括弧内を削除
-- **ReportResult.clean_url()**: URL列の正規化（クエリ/フラグメント削除、lower化など）をサポート。
-- **SearchResult.clean_url()**: URL列の正規化を追加（クエリ/フラグメント削除、lower化など）。
+- **ReportResult.clean_url()**: URL列の正規化をサポート（transform.text.clean_url() を列指定で呼び出し可能）。
+- **SearchResult.clean_url()**: URL列の正規化をサポート（`group` で集約制御可能）。
 - **text.infer_site_from_url()**: URLからサイト識別子を推測する関数（マルチサイト企業対応）。
   - sites 設定から domain/url を抽出してドメインマッチング
   - クエリパラメータ `id=` による特殊IDマッチング（dentamap など）

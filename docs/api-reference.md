@@ -457,7 +457,7 @@ SQL クエリを実行します。
 - `.decode(group=True)` - URL デコード
 - `.remove_params(keep=None, group=True)` - クエリパラメータ削除
 - `.remove_fragment(group=True)` - フラグメント削除
-- `.clean_url(dimension='page', unquote=True, drop_query=True, drop_hash=True, lower=True, group=True)` - URL 正規化
+- `.clean_url(dimension='page', unquote=True, drop_query=True, drop_hash=True, lower=True, group=True)` - URL 正規化（GSC の position 重み付き平均などがあるため `group` で集約制御可能）
 - `.lower(columns=None, group=True)` - 小文字化
 - `.normalize(dimension, by, lower=True, strip=True)` - 正規化（上書き、集約なし）
 - `.categorize(dimension, by, into=None, default='(other)')` - カテゴリ列追加（集約なし）
@@ -594,7 +594,7 @@ result.to_int(['sessions'], fill_value=99)
 
 #### `.clean_url(dimension, *, unquote=True, drop_query=True, drop_hash=True, lower=True)`
 
-URL 列を正規化します（クエリ/フラグメント削除など、集約しません）。
+URL 列を正規化します。**ReportResult は明示的集約（`.group()` / `.classify()` / `.aggregate()`）の設計のため、このメソッドは集約しません。**
 
 **パラメータ:**
 - `dimension` (str) - 対象ディメンション列名
@@ -715,7 +715,7 @@ source正規化とchannel分類を統合して実行します。sourceとchannel
 **パラメータ:**
 - `df` (pd.DataFrame) - データフレーム
 - `channel_col` (str) - チャネル列名（default: 'channel'）
-- `medium_col` (str) - メディア列名（default: 'medium'）
+- `medium_col` (str) - メディア列名（default: 'medium'、存在しない場合は空文字として扱う）
 - `source_col` (str) - ソース列名（default: 'source'）
 - `custom_channels` (dict | None) - プロジェクト固有のチャネル定義
   - **簡易形式（正規表現リスト）**: `{"Group": [r"example\.com", r"test\.com"]}` - detectのみ、正規表現として扱われる
