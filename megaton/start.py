@@ -4,6 +4,7 @@
 import hashlib
 import logging
 import pandas as pd
+import re
 import sys
 from types import SimpleNamespace
 from typing import Optional
@@ -216,59 +217,83 @@ class SearchResult:
         
         return SearchResult(df, self.parent, self.dimensions)
     
-    def classify(self, query=None, page=None, output='default', group=True):
+    def _normalize_value(self, value, *, lower: bool, strip: bool):
+        if pd.isna(value):
+            return value
+        if not isinstance(value, str):
+            return value
+        text = value
+        if strip:
+            text = text.strip()
+        if lower:
+            text = text.lower()
+        return text
+
+    def _map_value(self, value, by, *, default=None):
+        if pd.isna(value):
+            return default if default is not None else value
+        if callable(by):
+            mapped = by(value)
+            return default if mapped is None else mapped
+        if isinstance(by, dict):
+            if isinstance(value, str):
+                for pattern, mapped in by.items():
+                    try:
+                        if re.search(pattern, value):
+                            return mapped
+                    except re.error:
+                        continue
+            return default if default is not None else value
+        raise TypeError("by must be a dict or callable.")
+
+    def normalize(self, dimension, by, *, lower: bool = True, strip: bool = True):
         """
-        クエリ・ページの正規化とカテゴリ分類
-        
-        Args:
-            query: クエリ分類マップ {pattern: category} の辞書
-            page: ページ分類マップ {pattern: category} の辞書
-            output: 出力列の動作を指定（default: 'default'）
-                - 'default': query_normalized/query_category または page_category を作成（後方互換）
-                - None: 元の列（query/page）を上書き。category 列は作成しない
-            group: True の場合、分類列で集計（default: True）
-        
-        Returns:
-            SearchResult
+        既存ディメンションの値を正規化（上書き、集約なし）
         """
-        from megaton.transform.text import map_by_regex
-        from megaton.transform.classify import classify_by_regex
-        
         df = self._df.copy()
-        
-        # クエリの正規化と分類
-        if query and 'query' in df.columns:
-            if output is None:
-                # 上書きモード: query 列を直接置き換え（category 列は作成しない）
-                df['query'] = map_by_regex(df['query'], query)
-            else:
-                # デフォルトモード: query_normalized/query_category を作成
-                df['query_normalized'] = map_by_regex(df['query'], query)
-                df = classify_by_regex(df, 'query_normalized', query, 'query_category')
-        
-        # ページの分類
-        if page and 'page' in df.columns:
-            if output is None:
-                # 上書きモード: page 列を直接置き換え（category 列は作成しない）
-                df['page'] = map_by_regex(df['page'], page)
-            else:
-                # デフォルトモード: page_category を作成
-                df = classify_by_regex(df, 'page', page, 'page_category')
-        
-        if group:
-            # 分類列を含めて集計
-            group_cols = list(self.dimensions)
-            if 'query_category' in df.columns:
-                group_cols.append('query_category')
-            if 'page_category' in df.columns:
-                group_cols.append('page_category')
-            df = self._aggregate_gsc(df, group_cols)
-            # dimensions を更新して、後続の group=True が正しく動作するようにする
-            new_dimensions = group_cols
-        else:
-            new_dimensions = self.dimensions
-        
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        def _apply(value):
+            normalized = self._normalize_value(value, lower=lower, strip=strip)
+            return self._map_value(normalized, by, default=None)
+
+        df[dimension] = df[dimension].apply(_apply)
+        return SearchResult(df, self.parent, self.dimensions)
+
+    def categorize(self, dimension, by, *, into: str | None = None, default: str = "(other)"):
+        """
+        既存ディメンションからカテゴリ列を追加（集約なし）
+        """
+        df = self._df.copy()
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        if into is None:
+            into = f"{dimension}_category"
+
+        df[into] = df[dimension].apply(lambda value: self._map_value(value, by, default=default))
+
+        new_dimensions = list(self.dimensions)
+        if into not in new_dimensions:
+            new_dimensions.append(into)
         return SearchResult(df, self.parent, new_dimensions)
+
+    def classify(self, dimension, by, *, lower: bool = True, strip: bool = True):
+        """
+        正規化 + 集約（ディメンション上書き、常に集約）
+        """
+        df = self._df.copy()
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        def _apply(value):
+            normalized = self._normalize_value(value, lower=lower, strip=strip)
+            return self._map_value(normalized, by, default=None)
+
+        df[dimension] = df[dimension].apply(_apply)
+        df = self._aggregate_gsc(df, self.dimensions)
+        return SearchResult(df, self.parent, self.dimensions)
     
     def normalize_queries(self, mode='remove_all', prefer_by='impressions', group=True):
         """
@@ -298,7 +323,7 @@ class SearchResult:
             result = (mg.search
                 .run(dimensions=['month', 'query', 'page'])
                 .normalize_queries(prefer_by='impressions')
-                .classify(query=cfg.query_map))
+                .classify('query', by=cfg.query_map))
         """
         from megaton.transform.text import normalize_whitespace
         from megaton.transform.table import dedup_by_key
@@ -522,7 +547,7 @@ class SearchResult:
             gsc_df_filtered = (
                 gsc_result_mapped
                 .normalize_queries(mode='remove_all', prefer_by='impressions', group=True)
-                .classify(page=page_map, group=True)
+                .classify('page', by=page_map)
                 .apply_if(TARGET_MONTHS_AGO > 0, 'filter_impressions', 
                           sites=selected_sites, site_key='clinic', keep_clicked=True)
                 .apply_if(TARGET_MONTHS_AGO > 0, 'filter_position',
@@ -610,64 +635,74 @@ class ReportResult:
         """df[key] として列にアクセス（後方互換性）"""
         return self._df[key]
     
-    def classify(self, dimension, by, output=None, default=None, group=True):
+    def _normalize_value(self, value, *, lower: bool, strip: bool):
+        if pd.isna(value):
+            return value
+        if not isinstance(value, str):
+            return value
+        text = value
+        if strip:
+            text = text.strip()
+        if lower:
+            text = text.lower()
+        return text
+
+    def _map_value(self, value, by, *, default=None):
+        if pd.isna(value):
+            return default if default is not None else value
+        if callable(by):
+            mapped = by(value)
+            return default if mapped is None else mapped
+        if isinstance(by, dict):
+            if isinstance(value, str):
+                for pattern, mapped in by.items():
+                    try:
+                        if re.search(pattern, value):
+                            return mapped
+                    except re.error:
+                        continue
+            return default if default is not None else value
+        raise TypeError("by must be a dict or callable.")
+
+    def normalize(self, dimension, by, *, lower: bool = True, strip: bool = True):
         """
-        ディメンションの値を分類マッピングで変換
-        
-        Args:
-            dimension: 分類対象のディメンション列名
-            by: 分類マッピング辞書 {pattern: category}
-                pattern は正規表現として解釈される
-            output: 出力列名（default: dimension + '_category'）
-            default: マッチしない場合のデフォルト値（default: '(other)'）
-            group: True の場合、分類列を含めて集計（default: True）
-        
-        Returns:
-            ReportResult（新しい分類列を追加、groupがTrueなら集計済み）
-        
-        Example:
-            result.classify(
-                dimension='sessionSource',
-                by={'.*google.*': 'Google', '.*yahoo.*': 'Yahoo'},
-                output='source_category'
-            )
+        既存ディメンションの値を正規化（上書き、集約なし）
         """
-        from megaton.transform.classify import classify_by_regex
-        
         df = self._df.copy()
-        
         if dimension not in df.columns:
             raise ValueError(f"Column '{dimension}' not found in DataFrame")
-        
-        # デフォルトの出力列名
-        if output is None:
-            output = f"{dimension}_category"
-        
-        # デフォルト値
-        if default is None:
-            default = '(other)'
-        
-        # 分類実行
-        df = classify_by_regex(df, dimension, by, output, default)
-        
-        if group:
-            # 分類列を含めて集計（元のdimensionは除外）
-            new_dimensions = [d for d in self.dimensions if d != dimension]
-            if output not in new_dimensions:
-                new_dimensions.append(output)
-            
-            metrics = [col for col in df.select_dtypes(include=['number']).columns 
-                      if col not in new_dimensions]
-            if metrics:
-                agg_dict = {col: 'sum' for col in metrics}
-                df = df.groupby(new_dimensions, as_index=False).agg(agg_dict)
-        else:
-            # 分類列を追加（元のdimensionは保持）
-            new_dimensions = self.dimensions.copy()
-            if output not in new_dimensions:
-                new_dimensions.append(output)
-        
+
+        def _apply(value):
+            normalized = self._normalize_value(value, lower=lower, strip=strip)
+            return self._map_value(normalized, by, default=None)
+
+        df[dimension] = df[dimension].apply(_apply)
+        return ReportResult(df, self.dimensions)
+
+    def categorize(self, dimension, by, *, into: str | None = None, default: str = "(other)"):
+        """
+        既存ディメンションからカテゴリ列を追加（集約なし）
+        """
+        df = self._df.copy()
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        if into is None:
+            into = f"{dimension}_category"
+
+        df[into] = df[dimension].apply(lambda value: self._map_value(value, by, default=default))
+
+        new_dimensions = list(self.dimensions)
+        if into not in new_dimensions:
+            new_dimensions.append(into)
         return ReportResult(df, new_dimensions)
+
+    def classify(self, dimension, by, *, lower: bool = True, strip: bool = True):
+        """
+        正規化 + 集約（ディメンション上書き、常に集約）
+        """
+        normalized = self.normalize(dimension, by, lower=lower, strip=strip)
+        return normalized.group(by=normalized.dimensions)
     
     def group(self, by, metrics=None, method='sum'):
         """
@@ -788,28 +823,47 @@ class ReportResult:
         
         return ReportResult(df, self.dimensions)
     
-    def to_int(self, metrics, fill_value=0):
+    def to_int(self, metrics=None, *, fill_value=0):
         """
         指標列を整数型に変換（欠損値は指定した値で埋める）
         
         Args:
-            metrics: 変換する指標列名または列名のリスト
-            fill_value: 欠損値を埋める値（default: 0）
+            metrics (str | list[str] | None): 変換する指標列名
+                - str: 単一の列名
+                - list[str]: 複数の列名
+                - None: すべての数値列（自動推論、int64/float64/Int64/Float64のみ）
+            fill_value (int): 欠損値を埋める値（default: 0、キーワード専用）
         
         Returns:
             ReportResult（整数型に変換したデータ）
         
+        Note:
+            metrics=None の場合、int64, float64, Int64, Float64 型の列のみが対象です。
+            int32, float32, UInt64 などは対象外です。
+        
         Example:
             # sessions を整数型に変換
-            result.to_int(metrics='sessions')
+            result.to_int('sessions')
             
             # 複数の指標を変換
+            result.to_int(['sessions', 'users'])
+            
+            # すべての数値列を変換
+            result.to_int()
+            
+            # 後方互換性（キーワード引数での指定）
             result.to_int(metrics=['sessions', 'users'])
+            
+            # fill_value はキーワード専用
+            result.to_int(['sessions'], fill_value=99)
         """
         df = self._df.copy()
         
+        # metrics が None の場合、すべての数値列を対象（int64/float64/Int64/Float64のみ）
+        if metrics is None:
+            metrics = df.select_dtypes(include=['int64', 'float64', 'Int64', 'Float64']).columns.tolist()
         # metrics を list に統一
-        if isinstance(metrics, str):
+        elif isinstance(metrics, str):
             metrics = [metrics]
         
         # 型変換実行
@@ -1499,17 +1553,37 @@ class Megaton:
 
                 self.parent.parent.save_df(df, filename, mode=mode, include_dates=include_dates, quiet=quiet)
 
-            def sheet(self, sheet_name: str, df: pd.DataFrame = None):
+            def sheet(
+                self,
+                sheet_name: str,
+                df: pd.DataFrame = None,
+                *,
+                sort_by=None,
+                sort_desc: bool = True,
+                auto_width: bool = False,
+                freeze_header: bool = False,
+            ):
                 """DataFrameをGoogle Sheetsへ反映する
 
                 Args:
                     sheet_name: path to a file
                     df: DataFrame. If omitted, mg.report.data will be saved.
+                    sort_by: optional sort columns
+                    sort_desc: when True, sort descending
+                    auto_width: adjust column widths to fit contents
+                    freeze_header: freeze the first row
                 """
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                self.parent.parent._sheets.save_sheet(sheet_name, df)
+                self.parent.parent._sheets.save_sheet(
+                    sheet_name,
+                    df,
+                    sort_by=sort_by,
+                    sort_desc=sort_desc,
+                    auto_width=auto_width,
+                    freeze_header=freeze_header,
+                )
 
     class Upsert:
         """DataFrameをGoogle Sheetsへupsert（dedup + overwrite）"""
@@ -2016,11 +2090,26 @@ class Megaton:
                 )
             return df
 
-        def save(self, df: pd.DataFrame = None):
+        def save(
+            self,
+            df: pd.DataFrame = None,
+            *,
+            sort_by=None,
+            sort_desc: bool = True,
+            auto_width: bool = False,
+            freeze_header: bool = False,
+        ):
             df = self._coerce_df(df)
             self._ensure_spreadsheet()
             sheet_name = self._ensure_sheet_selected()
-            return self.parent._sheets.save_sheet(sheet_name, df)
+            return self.parent._sheets.save_sheet(
+                sheet_name,
+                df,
+                sort_by=sort_by,
+                sort_desc=sort_desc,
+                auto_width=auto_width,
+                freeze_header=freeze_header,
+            )
 
         def append(self, df: pd.DataFrame = None):
             df = self._coerce_df(df)
@@ -2253,35 +2342,101 @@ class Megaton:
             def __init__(self, parent):
                 self.parent = parent
 
-            def __call__(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
-                """レポートを実行
+            def _is_metric_set_entry(self, item):
+                return (
+                    isinstance(item, (list, tuple))
+                    and len(item) == 2
+                    and isinstance(item[0], (list, tuple))
+                    and isinstance(item[1], dict)
+                )
 
-                Args:
-                    d: list of dimensions. Item can be an api_name or a display_name
-                        or a tuple of api_name and a new column name.
-                    m: list of metrics. Item can be an api_name or a display_name
-                        or a tuple of api_name and a new column name.
-                    filter_d: dimension filter
-                    filter_m: metric filter
-                    sort: dimension or metric to order by
-                    segments: segment (only for GA3)
-                """
+            def _split_defs(self, defs):
+                names = []
+                aliases = []
                 rename_columns = {}
-                dimensions = []
-                for i in d:
-                    if isinstance(i, tuple):
-                        dimensions.append(i[0])
-                        rename_columns[i[0]] = i[1]
+                alias_pairs = []
+                for item in defs:
+                    if isinstance(item, tuple):
+                        name = item[0]
+                        alias = item[1] if len(item) >= 2 else item[0]
+                        names.append(name)
+                        aliases.append(alias)
+                        if len(item) >= 2:
+                            rename_columns[name] = alias
+                        alias_pairs.append((name, alias))
                     else:
-                        dimensions.append(i)
+                        names.append(item)
+                        aliases.append(item)
+                        alias_pairs.append((item, item))
+                return names, aliases, rename_columns, alias_pairs
 
-                metrics = []
-                for i in m:
-                    if isinstance(i, tuple):
-                        metrics.append(i[0])
-                        rename_columns[i[0]] = i[1]
+            def _normalize_filter(self, value):
+                if value is None:
+                    return None
+                if isinstance(value, str):
+                    value = value.strip()
+                    return value or None
+                return value
+
+            def _combine_filters(self, global_filter, set_filter, label):
+                global_filter = self._normalize_filter(global_filter)
+                set_filter = self._normalize_filter(set_filter)
+                if global_filter is None:
+                    return set_filter
+                if set_filter is None:
+                    return global_filter
+                if not isinstance(global_filter, str) or not isinstance(set_filter, str):
+                    raise ValueError(f"filter_{label} must be str when combining filters in multi-set mode.")
+                return f"{global_filter};{set_filter}"
+
+            def _apply_sort(self, df, sort, alias_map, ambiguous):
+                if sort is None:
+                    return df
+                if isinstance(sort, str):
+                    tokens = [s.strip() for s in sort.split(",") if s.strip()]
+                elif isinstance(sort, (list, tuple)):
+                    tokens = []
+                    for item in sort:
+                        if not isinstance(item, str):
+                            raise ValueError("sort must be str or list[str] in multi-set mode.")
+                        tokens.append(item)
+                else:
+                    raise ValueError("sort must be str or list[str] in multi-set mode.")
+
+                by = []
+                ascending = []
+                for token in tokens:
+                    desc = False
+                    field = token
+                    if token.startswith("-"):
+                        desc = True
+                        field = token[1:]
+                    elif token.startswith("+"):
+                        field = token[1:]
+
+                    if field in ambiguous:
+                        raise ValueError(f"sort field '{field}' is ambiguous; use alias.")
+
+                    if field in df.columns:
+                        col = field
+                    elif field in alias_map:
+                        col = alias_map[field]
                     else:
-                        metrics.append(i)
+                        raise ValueError(f"sort field '{field}' not found in result columns.")
+
+                    by.append(col)
+                    ascending.append(not desc)
+
+                if not by:
+                    return df
+                return df.sort_values(by=by, ascending=ascending)
+
+            def _run_single(self, d, m, filter_d=None, filter_m=None, sort=None, **kwargs):
+                rename_columns = {}
+                dimensions, _, rename_d, _ = self._split_defs(d)
+                metrics, _, rename_m, _ = self._split_defs(m)
+                rename_columns.update(rename_d)
+                rename_columns.update(rename_m)
 
                 ver = self.parent.parent.ga_ver
                 try:
@@ -2296,13 +2451,129 @@ class Megaton:
                         )
                         if isinstance(self.parent.data, pd.DataFrame):
                             self.parent.data = utils.prep_df(self.parent.data, rename_columns=rename_columns)
-                            return self.parent.show()
-                    else:
-                        logger.warning("GAのアカウントを選択してください。")
+                        return self.parent.data
+                    logger.warning("GAのアカウントを選択してください。")
                 except (errors.BadRequest, ValueError) as e:
                     print("抽出条件に問題があります。", e.message)
                 except errors.ApiDisabled as e:
                     logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
+                return self.parent.data
+
+            def __call__(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
+                """レポートを実行
+
+                Args:
+                    d: list of dimensions. Item can be an api_name or a display_name
+                        or a tuple of api_name and a new column name.
+                    m: list of metrics. Item can be an api_name or a display_name
+                        or a tuple of api_name and a new column name.
+                    filter_d: dimension filter
+                    filter_m: metric filter
+                    sort: dimension or metric to order by
+                    merge: merge strategy for multi-set mode ("left" or "outer")
+                    show: when True, show the result table
+                    segments: segment (only for GA3)
+                """
+                merge = kwargs.pop("merge", "left")
+                show = kwargs.pop("show", True)
+                if not isinstance(m, list):
+                    raise ValueError("m must be a list.")
+
+                is_set_flags = [self._is_metric_set_entry(item) for item in m]
+                if any(is_set_flags) and not all(is_set_flags):
+                    raise ValueError("Mixed metric format detected. Use either list[Metric] or list[(metrics, options)].")
+
+                if all(is_set_flags):
+                    if not m:
+                        raise ValueError("m must include at least one metric set.")
+
+                    if merge is None:
+                        merge_how = "left"
+                    elif isinstance(merge, str):
+                        merge_how = merge.strip().lower()
+                    else:
+                        raise ValueError("merge must be str or None in multi-set mode.")
+
+                    if merge_how not in {"left", "outer"}:
+                        raise ValueError("merge must be 'left' or 'outer' in multi-set mode.")
+
+                    _, dim_cols, _, dim_pairs = self._split_defs(d)
+                    alias_map = {}
+                    ambiguous = set()
+
+                    def _add_alias_pair(name, alias):
+                        if name in ambiguous:
+                            return
+                        if name in alias_map and alias_map[name] != alias:
+                            ambiguous.add(name)
+                            alias_map.pop(name, None)
+                        else:
+                            alias_map[name] = alias
+
+                    for name, alias in dim_pairs:
+                        _add_alias_pair(name, alias)
+
+                    metric_cols = []
+                    set_defs = []
+                    for metrics_list, options in m:
+                        if not isinstance(options, dict):
+                            raise ValueError("Metric set options must be a dict.")
+                        unsupported = set(options.keys()) - {"filter_d", "filter_m"}
+                        if unsupported:
+                            raise ValueError(f"Unsupported metric set options: {unsupported}")
+
+                        metrics, aliases, _, metric_pairs = self._split_defs(metrics_list)
+                        for alias in aliases:
+                            if alias in metric_cols:
+                                raise ValueError(f"Duplicate metric alias detected: {alias}")
+                            metric_cols.append(alias)
+                        for name, alias in metric_pairs:
+                            _add_alias_pair(name, alias)
+
+                        set_defs.append((metrics_list, options, aliases))
+
+                    dfs = []
+                    for metrics_list, options, aliases in set_defs:
+                        combined_filter_d = self._combine_filters(filter_d, options.get("filter_d"), "d")
+                        combined_filter_m = self._combine_filters(filter_m, options.get("filter_m"), "m")
+
+                        df = self._run_single(
+                            d,
+                            metrics_list,
+                            filter_d=combined_filter_d,
+                            filter_m=combined_filter_m,
+                            sort=None,
+                            **kwargs,
+                        )
+                        if df is None:
+                            raise ValueError("Report run failed for a metric set.")
+                        if isinstance(df, pd.DataFrame) and df.empty and len(df.columns) == 0:
+                            df = pd.DataFrame(columns=dim_cols + aliases)
+                        dfs.append(df)
+
+                    merged = dfs[0].copy()
+                    for df_next in dfs[1:]:
+                        merged = pd.merge(merged, df_next, on=dim_cols, how=merge_how)
+
+                    for col in metric_cols:
+                        if col not in merged.columns:
+                            merged[col] = 0
+                    if metric_cols:
+                        merged[metric_cols] = merged[metric_cols].fillna(0)
+
+                    merged = self._apply_sort(merged, sort, alias_map, ambiguous)
+                    self.parent.data = merged
+                    if show:
+                        self.parent.show()
+                    return ReportResult(self.parent.data, dim_cols)
+
+                _, dim_cols, _, _ = self._split_defs(d)
+                df = self._run_single(d, m, filter_d=filter_d, filter_m=filter_m, sort=sort, **kwargs)
+                if show:
+                    self.parent.show()
+                if isinstance(df, pd.DataFrame):
+                    return ReportResult(df, dim_cols)
+                return None
 
             def all(
                 self,

@@ -171,8 +171,8 @@ def classify_source_channel(
         "Organic Search": {
             "normalize": {
                 "docomo.ne.jp": r"service\.smt\.docomo\.ne\.jp|docomo\.ne\.jp",
-                "bing": r"^bing\.com$",
-                "auone.jp": r"auone\.jp",
+                "bing": r"(?:^|\.)bing\.com$",
+                "auone.jp": r"(?:^|\.)auone\.jp$",
             },
             "detect": [
                 r"docomo\.ne\.jp",
@@ -184,12 +184,12 @@ def classify_source_channel(
         
         "Organic Social": {
             "normalize": {
-                "Facebook": r"facebook\.com",
-                "X": r"^t\.co$|twitter\.com",
+                "Facebook": r"facebook(\.com)?|fb\.com",
+                "X": r"^t\.co$|twitter\.com|x\.com",
                 "Instagram": r"^ig$|instagram\.com|\binstagram\b",
-                "YouTube": r"youtube\.com",
-                "TikTok": r"tiktok\.com",
-                "Threads": r"threads\.com|threads\.net",
+                "YouTube": r"youtube(\.com)?|youtu\.be",
+                "TikTok": r"tiktok(\.com)?",
+                "Threads": r"threads(\.com|\.net)?",
             },
             "detect": [],
         },

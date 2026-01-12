@@ -37,20 +37,6 @@ Megaton インスタンスを作成します。
 
 **戻り値:** Megaton インスタンス
 
-**例:**
-```python
-from megaton.start import Megaton
-
-# 環境変数から認証
-mg = Megaton()
-
-# ファイルパスで認証
-mg = Megaton('path/to/credentials.json')
-
-# headless モード
-mg = Megaton(None, headless=True)
-```
-
 ---
 
 ## Search Console API
@@ -61,22 +47,11 @@ mg = Megaton(None, headless=True)
 
 初回アクセス時に自動的に取得され、キャッシュされます。
 
-**例:**
-```python
-sites = mg.search.sites
-print(sites[0])  # 'https://example.com/'
-```
-
 ### `mg.search.get.sites()`
 
 サイト一覧を強制的に再取得します。
 
 **戻り値:** list[str]
-
-**例:**
-```python
-sites = mg.search.get.sites()
-```
 
 ### `mg.search.use(site_url)`
 
@@ -87,11 +62,6 @@ sites = mg.search.get.sites()
 
 **戻り値:** None
 
-**例:**
-```python
-mg.search.use('https://example.com/')
-```
-
 ### `mg.search.set.dates(date_from, date_to)`
 
 レポート期間を日付で設定します。
@@ -101,11 +71,6 @@ mg.search.use('https://example.com/')
 - `date_to` (str) - 終了日（YYYY-MM-DD）
 
 **戻り値:** None
-
-**例:**
-```python
-mg.search.set.dates('2025-01-01', '2025-01-31')
-```
 
 ### `mg.search.set.months(ago=0, window_months=1, tz='Asia/Tokyo', now=None, min_ymd=None)`
 
@@ -119,20 +84,6 @@ mg.search.set.dates('2025-01-01', '2025-01-31')
 - `min_ymd` (str | None) - 開始日の最小制約（YYYYMMDD形式）
 
 **戻り値:** DateWindow - 期間情報を含む namedtuple
-
-**例:**
-```python
-# 先月のデータ
-p = mg.search.set.months(ago=1)
-
-# 3ヶ月前から13ヶ月分
-p = mg.search.set.months(ago=3, window_months=13)
-
-# 戻り値の使用
-print(p.start_iso)  # '2024-12-01'
-print(p.start_ym)   # '202412'
-print(p.start_ymd)  # '20241201'
-```
 
 ### `mg.search.run(dimensions, metrics=None, limit=5000, clean=False, dimension_filter=None, **kwargs)`
 
@@ -151,33 +102,6 @@ Search Console のクエリを実行します。
   - 演算子: `=~` (RE2 正規表現)、`!~` (正規表現否定)、`=@` (部分一致)、`!@` (部分一致否定)
 
 **戻り値:** SearchResult - メソッドチェーン可能なラッパー（`.df` で DataFrame にアクセス）
-
-**例:**
-```python
-# 基本的な使い方
-result = mg.search.run(
-    dimensions=['query', 'page'],
-    metrics=['clicks', 'impressions', 'position']
-)
-df = result.df
-
-# URL 正規化を自動実行
-result = mg.search.run(dimensions=['page'], clean=True)
-
-# ディメンションフィルタ
-result = mg.search.run(
-    dimensions=['query', 'page'],
-    dimension_filter="page=~^/blog/;query=@ortho"
-)
-
-# メソッドチェーン
-result = (mg.search
-    .run(dimensions=['query', 'page'])
-    .decode()
-    .classify(query=cfg.query_map, page=cfg.page_map)
-    .filter_clicks(min=1)
-    .filter_impressions(min=100, keep_clicked=True))
-```
 
 ### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, dimension_filter=None, verbose=True, **kwargs)`
 
@@ -201,39 +125,6 @@ result = (mg.search
 
 **戻り値:** SearchResult - 結合されたデータと item_key 列
 
-**例:**
-```python
-# 基本的な使い方
-sites = [
-    {'site': 'siteA', 'gsc_site_url': 'https://a.com/'},
-    {'site': 'siteB', 'gsc_site_url': 'https://b.com/'},
-]
-
-result = mg.search.run.all(
-    sites,
-    dimensions=['query', 'page'],
-    metrics=['clicks', 'impressions'],
-    item_filter=['siteA'],
-)
-
-# 結果の使用
-df = result.df
-assert 'site' in df.columns  # item_key 列が自動追加
-
-# カスタム識別子
-clinics = [
-    {'clinic': 'A', 'gsc_site_url': 'https://a.com/'},
-    {'clinic': 'B', 'gsc_site_url': 'https://b.com/'},
-]
-
-result = mg.search.run.all(
-    clinics,
-    dimensions=['query'],
-    item_key='clinic',
-    item_filter=lambda x: x.get('active', True),
-)
-```
-
 ### `mg.search.filter_by_thresholds(df, site, clicks_zero_only=False)`
 
 サイト設定の閾値を適用してフィルタリングします。
@@ -245,20 +136,6 @@ result = mg.search.run.all(
 - `clicks_zero_only` (bool) - clicks >= 1 の行を無条件に保持（default: False）
 
 **戻り値:** pd.DataFrame
-
-**例:**
-```python
-site_config = {
-    'site': 'example',
-    'min_impressions': 100,
-    'max_position': 20,
-}
-
-filtered_df = mg.search.filter_by_thresholds(df, site_config)
-
-# clicks > 0 の行は閾値を無視
-filtered_df = mg.search.filter_by_thresholds(df, site_config, clicks_zero_only=True)
-```
 
 ### `mg.search.data`
 
@@ -278,11 +155,6 @@ filtered_df = mg.search.filter_by_thresholds(df, site_config, clicks_zero_only=T
 
 **戻り値:** None
 
-**例:**
-```python
-mg.report.set.dates('2025-01-01', '2025-01-31')
-```
-
 ### `mg.report.set.months(ago=0, window_months=1, tz='Asia/Tokyo', now=None, min_ymd=None)`
 
 月単位でレポート期間を設定します。
@@ -290,11 +162,6 @@ mg.report.set.dates('2025-01-01', '2025-01-31')
 **パラメータ:** `mg.search.set.months()` と同じ
 
 **戻り値:** DateWindow
-
-**例:**
-```python
-p = mg.report.set.months(ago=1, window_months=1)
-```
 
 ### `mg.report.run(d, m, filter_d=None, filter_m=None, sort=None, **kwargs)`
 
@@ -305,23 +172,35 @@ GA4 レポートを実行します。
   - 文字列または `(api_name, alias)` のタプルのリスト
 - `m` (list) - 指標（省略形）
   - 文字列または `(api_name, alias)` のタプルのリスト
+  - もしくは `[(metrics, options), ...]` のメトリクスセット配列（`options` は `filter_d` / `filter_m`）
 - `filter_d` (dict | None) - ディメンションフィルタ
 - `filter_m` (dict | None) - 指標フィルタ
 - `sort` (list | None) - ソート順
+- `merge` (str | None) - メトリクスセット一括モードの結合方法（`left` / `outer`）
+- `show` (bool) - 実行結果を表示するか（default: True）
 
-**戻り値:** None - 結果は `mg.report.data` に格納
+**戻り値:** ReportResult - 結果は `mg.report.data` にも格納
 
-**例:**
-```python
-# 省略形
-mg.report.run(
-    d=[('yearMonth', 'month'), ('defaultChannelGroup', 'channel')],
-    m=[('activeUsers', 'users'), 'sessions']
-)
+**m の複数セット一括取得（run）**
 
-# 結果の取得
-df = mg.report.data
-```
+`mg.report.run()` で同一ディメンションに対して複数のメトリクスセットを一括取得し、Megaton 側で自動マージします。
+
+**API 署名:**
+
+**モード判定:**
+- `m` の要素が `(metrics_list, options_dict)` 形式なら **一括モード**
+- 一括モードの場合、`m` は全てこの形式に統一（混在はエラー）
+
+**挙動:**
+- `m` は `[(metrics, options), ...]` の配列を受け付ける（`metrics` は従来の m リスト）
+- `options` は `filter_d` / `filter_m` を受け付け、**`filter_d` は省略可能**
+- グローバル `filter_d` / `filter_m` とセットのフィルタは AND 合成
+- 取得結果は `d` 列でマージし、**欠損は 0 埋め**（int/float とも 0）
+- デフォルトは **left 結合**（1セット目を基準）
+- `merge="outer"` を指定すると他セットにしかない行も保持
+- 同名メトリクスが複数セットに含まれていたらエラー
+- いずれかのセット取得が失敗したら全体を失敗扱い
+- `sort` はマージ後に適用
 
 ### `mg.report.run.all(items, d=None, m=None, dimensions=None, metrics=None, item_key='site', property_key='ga4_property_id', item_filter=None, verbose=True, **kwargs)`
 
@@ -347,41 +226,6 @@ df = mg.report.data
 
 **戻り値:** pd.DataFrame - 結合されたデータと item_key 列
 
-**例:**
-```python
-sites = [
-    {'site': 'siteA', 'ga4_property_id': '123456'},
-    {'site': 'siteB', 'ga4_property_id': '789012'},
-]
-
-df = mg.report.run.all(
-    sites,
-    d=['date', 'deviceCategory'],
-    m=['activeUsers', 'sessions'],
-    item_filter=['siteA'],
-)
-
-assert 'site' in df.columns
-```
-
-```python
-# サイト別メトリクス（site.<key>）
-df = mg.report.run.all(
-    sites,
-    d=[('yearMonth', 'month')],
-    m=[('site.cv', 'cv')],
-)
-```
-
-```python
-# 相対URLを絶対URLに変換（item['url'] のドメインを使用）
-df = mg.report.run.all(
-    sites,
-    d=[('landingPage', 'lp', {'absolute': True})],
-    m=['activeUsers'],
-)
-```
-
 ### `mg.report.prep(conf, df=None)`
 
 DataFrame の前処理（列名変更、値置換など）を行います。
@@ -392,16 +236,6 @@ DataFrame の前処理（列名変更、値置換など）を行います。
 - `df` (pd.DataFrame | None) - 対象 DataFrame（default: `mg.report.data`）
 
 **戻り値:** 表示用オブジェクト（`mg.report.data` が更新されます）
-
-**例:**
-```python
-conf = {
-    'deviceCategory': {'replace': ('desktop', 'PC')},
-    'activeUsers': {'name': 'users', 'type': int},
-}
-
-mg.report.prep(conf)
-```
 
 ### `mg.report.data`
 
@@ -417,11 +251,6 @@ mg.report.prep(conf)
 - `end_cell` (str) - 終了日を書き込むセル（A1 表記）
 
 **戻り値:** None
-
-**例:**
-```python
-mg.report.dates.to.sheet('Dashboard', 'B2', 'B3')
-```
 
 ---
 
@@ -442,11 +271,6 @@ mg.report.dates.to.sheet('Dashboard', 'B2', 'B3')
 
 **戻り値:** None
 
-**例:**
-```python
-mg.open.sheet('https://docs.google.com/spreadsheets/d/...')
-```
-
 ### `mg.sheets.select(sheet_name)`
 
 シートを選択します。
@@ -455,11 +279,6 @@ mg.open.sheet('https://docs.google.com/spreadsheets/d/...')
 - `sheet_name` (str) - シート名
 
 **戻り値:** None
-
-**例:**
-```python
-mg.sheets.select('Sheet1')
-```
 
 ### `mg.sheets.create(sheet_name)`
 
@@ -470,11 +289,6 @@ mg.sheets.select('Sheet1')
 
 **戻り値:** None
 
-**例:**
-```python
-mg.sheets.create('NewSheet')
-```
-
 ### `mg.sheets.delete(sheet_name)`
 
 シートを削除します。
@@ -484,25 +298,19 @@ mg.sheets.create('NewSheet')
 
 **戻り値:** None
 
-**例:**
-```python
-mg.sheets.delete('OldSheet')
-```
-
-### `mg.save.to.sheet(sheet_name, df=None)`
+### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, auto_width=False, freeze_header=False)`
 
 DataFrame をシートに上書き保存します。
 
 **パラメータ:**
 - `sheet_name` (str) - シート名
 - `df` (pd.DataFrame | None) - 保存する DataFrame（default: `mg.report.data`）
+- `sort_by` (list[str] | str | None) - ソート列（指定時のみソート）
+- `sort_desc` (bool) - 降順ソート（default: True）
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
 
 **戻り値:** None
-
-**例:**
-```python
-mg.save.to.sheet('Results', df)
-```
 
 ### `mg.append.to.sheet(sheet_name, df=None)`
 
@@ -513,11 +321,6 @@ DataFrame を既存データの末尾に追記します。
 - `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
 
 **戻り値:** None
-
-**例:**
-```python
-mg.append.to.sheet('Log', df)
-```
 
 ### `mg.upsert.to.sheet(sheet_name, df=None, keys=None, columns=None, sort_by=None)`
 
@@ -531,16 +334,6 @@ mg.append.to.sheet('Log', df)
 - `sort_by` (list[str] | None) - ソート列のリスト
 
 **戻り値:** None
-
-**例:**
-```python
-mg.upsert.to.sheet(
-    'Master',
-    df,
-    keys=['site', 'month'],
-    sort_by=['site', 'month']
-)
-```
 
 ### 現在のシートへの操作
 
@@ -562,11 +355,6 @@ mg.upsert.to.sheet(
 - `cell` (str) - セル（A1 表記）
 - `value` (str | int | float) - 値
 
-**例:**
-```python
-mg.sheet.cell.set('A1', 'Title')
-```
-
 #### `mg.sheet.range.set(a1_range, values)`
 
 範囲に配列を書き込みます。
@@ -575,17 +363,16 @@ mg.sheet.cell.set('A1', 'Title')
 - `a1_range` (str) - 範囲（A1 表記、例: 'A1:B2'）
 - `values` (list[list]) - 2次元配列
 
-**例:**
-```python
-mg.sheet.range.set('A1:B2', [['a', 'b'], ['c', 'd']])
-```
-
-#### `mg.sheet.save(df=None)`
+#### `mg.sheet.save(df=None, sort_by=None, sort_desc=True, auto_width=False, freeze_header=False)`
 
 現在のシートに DataFrame を保存します。
 
 **パラメータ:**
 - `df` (pd.DataFrame | None) - 保存する DataFrame（default: `mg.report.data`）
+- `sort_by` (list[str] | str | None) - ソート列（指定時のみソート）
+- `sort_desc` (bool) - 降順ソート（default: True）
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
 
 #### `mg.sheet.append(df=None)`
 
@@ -613,11 +400,6 @@ BigQuery サービスを起動します。
 
 **戻り値:** BigQuery クライアント
 
-**例:**
-```python
-bq = mg.launch_bigquery('my-project-id')
-```
-
 ### `bq.run(sql, to_dataframe=True)`
 
 SQL クエリを実行します。
@@ -627,16 +409,6 @@ SQL クエリを実行します。
 - `to_dataframe` (bool) - DataFrame として返す（default: True）
 
 **戻り値:** pd.DataFrame | QueryJob
-
-**例:**
-```python
-df = bq.run("""
-    SELECT *
-    FROM `project.dataset.table`
-    WHERE date >= '2025-01-01'
-    LIMIT 1000
-""")
-```
 
 ---
 
@@ -656,21 +428,6 @@ df = bq.run("""
 - `config.source_map` - ソース正規化マップ
 - `config.group_domains` - チャネル判定用ドメインのセット
 
-**例:**
-```python
-cfg = mg.recipes.load_config('https://docs.google.com/spreadsheets/d/...')
-
-# サイト設定の使用
-for site in cfg.sites:
-    print(site['clinic'], site.get('min_impressions', 0))
-
-# 分類マップの使用
-result = mg.search.run(dimensions=['query', 'page']).classify(
-    query=cfg.query_map,
-    page=cfg.page_map
-)
-```
-
 ---
 
 ## DateWindow
@@ -687,31 +444,13 @@ result = mg.search.run(dimensions=['query', 'page']).classify(
 - `start_ymd` (str) - 開始日（YYYYMMDD、BigQuery 用）
 - `end_ymd` (str) - 終了日（YYYYMMDD、BigQuery 用）
 
-**例:**
-```python
-p = mg.search.set.months(ago=1, window_months=1)
-
-# ISO 8601 形式
-print(f"期間: {p.start_iso} ~ {p.end_iso}")
-
-# BigQuery WHERE 句
-sql = f"""
-    SELECT *
-    FROM `project.dataset.table`
-    WHERE date BETWEEN '{p.start_ymd}' AND '{p.end_ymd}'
-"""
-
-# 月ラベル
-df['month'] = p.start_ym
-```
-
 ---
 
 ## SearchResult メソッドチェーン
 
 `mg.search.run()` が返す SearchResult オブジェクトは、メソッドチェーンで段階的な処理が可能です。
 
-詳細は [searchresult-api.md](searchresult-api.md) を参照してください。
+詳細は [cookbook.md](cookbook.md) を参照してください。
 
 **主要メソッド:**
 - `.df` - DataFrame にアクセス（プロパティ）
@@ -719,25 +458,14 @@ df['month'] = p.start_ym
 - `.remove_params(keep=None, group=True)` - クエリパラメータ削除
 - `.remove_fragment(group=True)` - フラグメント削除
 - `.lower(columns=None, group=True)` - 小文字化
-- `.classify(query=None, page=None, group=True)` - 分類
+- `.normalize(dimension, by, lower=True, strip=True)` - 正規化（上書き、集約なし）
+- `.categorize(dimension, by, into=None, default='(other)')` - カテゴリ列追加（集約なし）
+- `.classify(dimension, by, lower=True, strip=True)` - 正規化 + 集約（上書き、常に集約）
 - `.filter_clicks(min=None, max=None, sites=None, site_key='site')` - クリック数フィルタ
 - `.filter_impressions(min=None, max=None, sites=None, site_key='site', keep_clicked=False)` - インプレッション数フィルタ
 - `.filter_ctr(min=None, max=None, sites=None, site_key='site', keep_clicked=False)` - CTR フィルタ
 - `.filter_position(min=None, max=None, sites=None, site_key='site', keep_clicked=False)` - ポジションフィルタ
 - `.aggregate(by=None)` - 手動集約
-
-**簡単な例:**
-```python
-result = (mg.search
-    .run(dimensions=['query', 'page'])
-    .decode()
-    .remove_params()
-    .classify(query=cfg.query_map, page=cfg.page_map)
-    .filter_clicks(min=1)
-    .filter_impressions(min=100, keep_clicked=True))
-
-df = result.df
-```
 
 ---
 
@@ -745,76 +473,47 @@ df = result.df
 
 `mg.report.run.all()` が返す ReportResult オブジェクトは、メソッドチェーンで段階的な処理が可能です。
 
-### 基本的な使い方
-
-```python
-# run.all() の結果は ReportResult オブジェクト
-result = mg.report.run.all(
-    sites,
-    d=[('yearMonth', 'month'), ('sessionSource', 'source')],
-    m=[('activeUsers', 'users')],
-    item_key='clinic',
-)
-
-# DataFrame として取得
-df = result.df
-
-# メソッドチェーンで処理
-processed = (result
-    .fill(to='(not set)')  # 欠損値を埋める
-    .classify(
-        dimension='source',
-        by={'.*google.*': 'Search', '.*yahoo.*': 'Search'},
-        output='source_category'
-    )
-    .group(by=['month', 'source_category'], metrics=['users'])
-    .to_int(metrics='users')
-    .sort(by='users', ascending=False)
-)
-
-df_final = processed.df
-```
-
 ### 主要メソッド
 
 #### `.df`
 
 DataFrame にアクセスするプロパティ。
 
-```python
-df = result.df
-```
+#### `.normalize(dimension, by, lower=True, strip=True)`
 
-#### `.classify(dimension, by, output=None, default=None, group=True)`
-
-ディメンション列の値を正規表現パターンで分類します。
+既存ディメンションを正規化して上書きします（集約しません）。
 
 **パラメータ:**
-- `dimension` (str) - 分類対象のディメンション列名
-- `by` (dict) - 分類マッピング辞書 `{pattern: category}`（パターンは正規表現）
-- `output` (str | None) - 出力列名（default: `dimension + '_category'`）
-- `default` (str | None) - マッチしない場合のデフォルト値（default: `'(other)'`）
-- `group` (bool) - True の場合、分類列を含めて集計（default: True）
+- `dimension` (str) - 対象ディメンション列名
+- `by` (dict | callable) - 正規化マッピング
+- `lower` (bool) - 小文字化（default: True）
+- `strip` (bool) - 前後空白を削除（default: True）
 
 **戻り値:** ReportResult
 
-**例:**
-```python
-# デフォルト: 分類後に集計（元のdimensionは除外）
-result.classify(
-    dimension='sessionSource',
-    by={'.*google.*': 'Search', '.*yahoo.*': 'Search', '.*facebook.*': 'Social'},
-    output='source_type',  # 省略時は 'sessionSource_category'
-    default='Other'  # 省略時は '(other)'
-)
+#### `.categorize(dimension, by, into=None, default='(other)')`
 
-# 集計せず生データを保持
-result.classify(
-    dimension='sessionSource',
-    by={'.*google.*': 'Search'},
-    group=False  # 元のdimensionも保持
-)
-```
+既存ディメンションからカテゴリ列を追加します（集約しません）。
+
+**パラメータ:**
+- `dimension` (str) - 対象ディメンション列名
+- `by` (dict | callable) - 分類マッピング
+- `into` (str | None) - 出力列名（default: `{dimension}_category`）
+- `default` (str) - マッチしない場合のデフォルト値（default: `'(other)'`）
+
+**戻り値:** ReportResult
+
+#### `.classify(dimension, by, lower=True, strip=True)`
+
+正規化して常に集約します（ディメンションは上書き）。
+
+**パラメータ:**
+- `dimension` (str) - 対象ディメンション列名
+- `by` (dict | callable) - 正規化マッピング
+- `lower` (bool) - 小文字化（default: True）
+- `strip` (bool) - 前後空白を削除（default: True）
+
+**戻り値:** ReportResult
 
 #### `.group(by, metrics=None, method='sum')`
 
@@ -827,18 +526,6 @@ result.classify(
 
 **戻り値:** ReportResult
 
-**例:**
-```python
-# 自動的に数値列を集計
-result.group(by=['month', 'source'])
-
-# 特定の指標を指定
-result.group(by='month', metrics=['users', 'sessions'])
-
-# 平均を計算
-result.group(by='date', metrics='position', method='mean')
-```
-
 #### `.sort(by, ascending=True)`
 
 指定した列でソートします。
@@ -848,15 +535,6 @@ result.group(by='date', metrics='position', method='mean')
 - `ascending` (bool | list[bool]) - 昇順（True）または降順（False）
 
 **戻り値:** ReportResult
-
-**例:**
-```python
-# sessions で降順ソート
-result.sort(by='sessions', ascending=False)
-
-# 複数列でソート
-result.sort(by=['date', 'sessions'], ascending=[True, False])
-```
 
 #### `.fill(to='(not set)', dimensions=None)`
 
@@ -868,32 +546,38 @@ result.sort(by=['date', 'sessions'], ascending=[True, False])
 
 **戻り値:** ReportResult
 
-**例:**
-```python
-# すべてのディメンションの欠損値を '(not set)' で埋める
-result.fill()
-
-# 特定のディメンションのみ埋める
-result.fill(to='Unknown', dimensions=['sessionSource'])
-```
-
-#### `.to_int(metrics, fill_value=0)`
+#### `.to_int(metrics=None, *, fill_value=0)`
 
 指標列を整数型に変換します（欠損値は fill_value で埋められます）。
 
 **パラメータ:**
-- `metrics` (str | list[str]) - 変換する指標列名
-- `fill_value` (int) - 欠損値を埋める値（default: 0）
+- `metrics` (str | list[str] | None) - 変換する指標列名
+  - `str`: 単一の列名
+  - `list[str]`: 複数の列名
+  - `None`: すべての数値列（自動推論、int64/float64/Int64/Float64のみ、default）
+- `fill_value` (int) - 欠損値を埋める値（default: 0、キーワード専用）
 
 **戻り値:** ReportResult
 
+**注意:**
+`metrics=None` の場合、int64, float64, Int64, Float64 型の列のみが対象です。int32, float32, UInt64 などは対象外です。
+
 **例:**
 ```python
-# sessions を整数型に変換
-result.to_int(metrics='sessions')
+# sessions を整数型に変換（省略形）
+result.to_int('sessions')
 
-# 複数の指標を変換
+# 複数の指標を変換（省略形）
+result.to_int(['sessions', 'users'])
+
+# すべての数値列を変換
+result.to_int()
+
+# 後方互換性（明示形）
 result.to_int(metrics=['sessions', 'users'])
+
+# fill_value はキーワード専用
+result.to_int(['sessions'], fill_value=99)
 ```
 
 #### `.replace(dimension, by, *, regex=True)`
@@ -906,22 +590,6 @@ result.to_int(metrics=['sessions', 'users'])
 - `regex` (bool) - True の場合、キーを正規表現として扱う（default: True）
 
 **戻り値:** ReportResult
-
-**例:**
-```python
-# 正規表現での置換（default）
-result.replace(
-    dimension='campaign',
-    by={r'\([^)]*\)': ''}  # 括弧内を削除
-)
-
-# 固定文字列での置換
-result.replace(
-    dimension='sessionSource',
-    by={'google': 'Google', 'yahoo': 'Yahoo!'},
-    regex=False
-)
-```
 
 ### その他のプロパティ
 
@@ -962,11 +630,6 @@ DataFrame を表形式で表示します。
 
 **戻り値:** None（UI で表示）
 
-**例:**
-```python
-mg.show.table(df, rows=20)
-```
-
 ### `mg.load.csv(path)`
 
 CSV ファイルを読み込みます。
@@ -975,11 +638,6 @@ CSV ファイルを読み込みます。
 - `path` (str) - CSV ファイルのパス
 
 **戻り値:** pd.DataFrame
-
-**例:**
-```python
-df = mg.load.csv('data.csv')
-```
 
 ### `mg.save_df(df, filename, mode='w', include_dates=True)`
 
@@ -993,12 +651,6 @@ DataFrame をローカルファイルに保存します。
 
 **戻り値:** None
 
-**例:**
-```python
-mg.save_df(df, 'output.csv')
-mg.save_df(df, 'output.xlsx')
-```
-
 ### `mg.download(df, filename=None)`
 
 Notebook からファイルをダウンロードします。
@@ -1008,11 +660,6 @@ Notebook からファイルをダウンロードします。
 - `filename` (str | None) - ファイル名（default: 自動生成）
 
 **戻り値:** None
-
-**例:**
-```python
-mg.download(df, 'results.csv')
-```
 
 ---
 
@@ -1047,26 +694,6 @@ GA4 APIでは、session系ディメンション（`sessionDefaultChannelGroup`�
 - `sessionManualCampaignName` → `manualCampaignName`
 - `sessionManualAdContent` → `manualAdContent`
 
-**例:**
-```python
-from megaton.transform import ga4
-
-# session系フィルタをevent系に変換
-filter_session = "sessionDefaultChannelGroup==Organic Social;sessionMedium==social"
-filter_event = ga4.convert_filter_to_event_scope(filter_session)
-# => "defaultChannelGroup==Organic Social;medium==social"
-
-# sitesのfilter_dを変換して使用
-sites_for_cv = []
-for s in sites:
-    s_copy = s.copy()
-    if s.get('filter_d'):
-        s_copy['filter_d'] = ga4.convert_filter_to_event_scope(s['filter_d'])
-    sites_for_cv.append(s_copy)
-
-df_cv = mg.report.run.all(sites_for_cv, d=[...], filter_d="site.filter_d", ...)
-```
-
 #### `ga4.classify_source_channel(df, channel_col='channel', medium_col='medium', source_col='source', custom_channels=None)`
 
 source正規化とchannel分類を統合して実行します。sourceとchannelの両列を含むDataFrameを返します。
@@ -1100,47 +727,6 @@ source正規化とchannel分類を統合して実行します。sourceとchannel
 
 **custom_channelsの使い方:**
 
-```python
-from megaton.transform import ga4
-
-# 簡易形式：正規表現リスト（detectのみ）
-result = ga4.classify_source_channel(
-    df,
-    custom_channels={"Group": [r"example\.com", r"sub\.example\.com"]}
-)
-
-# 完全形式：normalize + detectパターン
-result = ga4.classify_source_channel(
-    df,
-    custom_channels={
-        "client_x Internal": {
-            "normalize": {},
-            "detect": [
-                r"extra\.client_x\.co\.jp",
-                r"(spark|international|intra)\.client_x\.co\.jp",
-                r"office\.net", r"sharepoint", r"teams",
-                r"basement\.jp", r"yammer",
-            ]
-        }
-    }
-)
-
-# 結果の使用（デフォルト列名）
-df["source"] = result["source"]
-df["channel"] = result["channel"]
-
-# または一括代入
-df[["source", "channel"]] = result
-
-# 非デフォルト列名の場合
-result = ga4.classify_source_channel(
-    df,
-    source_col="my_source",
-    channel_col="my_channel"
-)
-df[["my_source", "my_channel"]] = result
-```
-
 **メリット:**
 - source_map辞書の管理が不要（パターン定義がga4.py内で完結）
 - 誤判定の防止（正規表現の精密化、単語境界考慮、正規化後の名前チェック）
@@ -1159,20 +745,6 @@ GA4のデフォルトチャネルグループを独自ルールで再分類し�
 - `custom_channels` (dict | None) - プロジェクト固有のチャネル定義（classify_source_channel()と同じ形式）
 
 **戻り値:** pd.Series - 再分類されたチャネル
-
-**例:**
-```python
-from megaton.transform import ga4
-
-# 基本的な使い方
-df['channel'] = ga4.classify_channel(df)
-
-# custom_channelsで自社ドメインを指定
-df['channel'] = ga4.classify_channel(
-    df,
-    custom_channels={"Group": [r"example\.com", r"sub\.example\.com"]}
-)
-```
 
 **注意:** source列の正規化も必要な場合は、classify_source_channel()を直接使用してください。
 
@@ -1195,27 +767,6 @@ URLから所属サイトを推測します（マルチサイト企業向け）�
 2. **ドメインマッチング**: sites の `domain`/`url` からドメインリストを生成し、長い順にマッチング（サブドメイン優先）
 3. **フォールバック**: マッチしない場合は `"不明"` を返す
 
-**例:**
-```python
-from megaton.transform import text
-
-# サイト設定（通常は cfg.sites から取得）
-sites = [
-    {'clinic': '札幌', 'domain': 'sapporo.example.com'},
-    {'clinic': '東京', 'domain': 'tokyo.example.com'},
-    {'clinic': 'dentamap', 'domain': 'plus.dentamap.jp', 'dentamap_id': '123'},
-]
-
-# URLからサイトを推測
-df['clinic'] = df['lp'].apply(
-    lambda url: text.infer_site_from_url(url, sites, site_key='clinic', id_key='dentamap_id')
-)
-
-# 特殊IDマッチの例
-text.infer_site_from_url('?id=123', sites, site_key='clinic', id_key='dentamap_id')
-# => 'dentamap'
-```
-
 #### `text.map_by_regex(series, mapping, default=None, flags=0, lower=True, strip=True)`
 
 Seriesの値を正規表現マッピングで変換します。
@@ -1230,25 +781,6 @@ Seriesの値を正規表現マッピングで変換します。
 
 **戻り値:** pd.Series
 
-**例:**
-```python
-from megaton.transform import text
-
-# クエリの正規化
-query_map = {
-    r'矯正\s*歯科': '矯正歯科',
-    r'インビザライン': 'invisalign',
-}
-df['query'] = text.map_by_regex(df['query'], query_map)
-
-# ソースの正規化
-source_map = {
-    r'.*google.*': 'Google',
-    r'.*yahoo.*': 'Yahoo',
-}
-df['source'] = text.map_by_regex(df['source'], source_map, default='Other')
-```
-
 #### `text.clean_url(series, unquote=True, drop_query=True, drop_hash=True, lower=True)`
 
 URL Seriesをクリーンアップします。
@@ -1262,14 +794,6 @@ URL Seriesをクリーンアップします。
 
 **戻り値:** pd.Series
 
-**例:**
-```python
-from megaton.transform import text
-
-df['page'] = text.clean_url(df['page'])
-# 'https://example.com/Path?utm=1#frag' => 'https://example.com/path'
-```
-
 #### `text.normalize_whitespace(series, mode='remove_all')`
 
 Seriesの空白文字を正規化します。
@@ -1280,19 +804,6 @@ Seriesの空白文字を正規化します。
 
 **戻り値:** pd.Series
 
-**例:**
-```python
-from megaton.transform import text
-
-# 空白をすべて削除
-df['query_key'] = text.normalize_whitespace(df['query'], mode='remove_all')
-# 'foo  bar' => 'foobar'
-
-# 複数空白を1つに統一
-df['query'] = text.normalize_whitespace(df['query'], mode='collapse')
-# 'foo  bar' => 'foo bar'
-```
-
 #### `text.force_text_if_numeric(series, prefix="'")`
 
 数値のみの文字列に接頭辞を付けます（Sheets での自動数値変換を防止）。
@@ -1302,14 +813,6 @@ df['query'] = text.normalize_whitespace(df['query'], mode='collapse')
 - `prefix` (str) - 接頭辞（default: `"'"`）
 
 **戻り値:** pd.Series
-
-**例:**
-```python
-from megaton.transform import text
-
-df['zip_code'] = text.force_text_if_numeric(df['zip_code'])
-# '123' => "'123"
-```
 
 ### Classify 関数
 
@@ -1326,14 +829,6 @@ DataFrameの列を正規表現パターンで分類します。
 
 **戻り値:** pd.DataFrame
 
-**例:**
-```python
-from megaton.transform import classify
-
-page_map = {r'/blog/': 'Blog', r'/products/': 'Products'}
-df = classify.classify_by_regex(df, 'page', page_map, 'page_category', default='Other')
-```
-
 #### `classify.infer_label_by_domain(series, domain_to_label_map, default='不明')`
 
 URL Seriesからドメインを抽出してラベルを推測します。
@@ -1344,14 +839,6 @@ URL Seriesからドメインを抽出してラベルを推測します。
 - `default` (str) - マッチしない場合のデフォルト値（default: '不明'）
 
 **戻り値:** pd.Series
-
-**例:**
-```python
-from megaton.transform import classify
-
-domain_map = {'example.com': 'Site A', 'test.org': 'Site B'}
-df['site'] = classify.infer_label_by_domain(df['url'], domain_map)
-```
 
 ### Table ユーティリティ
 
@@ -1367,13 +854,6 @@ df['site'] = classify.infer_label_by_domain(df['url'], domain_map)
 
 **戻り値:** pd.DataFrame
 
-**例:**
-```python
-from megaton.transform import table
-
-df = table.ensure_columns(df, columns=['month', 'query', 'clicks'])
-```
-
 #### `table.normalize_key_cols(df, cols, to_str=True, strip=True, lower=False, remove_trailing_dot0=True)`
 
 キー列の型・表記を統一します。
@@ -1388,13 +868,6 @@ df = table.ensure_columns(df, columns=['month', 'query', 'clicks'])
 
 **戻り値:** pd.DataFrame
 
-**例:**
-```python
-from megaton.transform import table
-
-df = table.normalize_key_cols(df, cols=['month', 'clinic'])
-```
-
 #### `table.normalize_thresholds_df(df, min_default=10, max_default=50, ...)`
 
 しきい値 DataFrame を正規化します。
@@ -1405,13 +878,6 @@ df = table.normalize_key_cols(df, cols=['month', 'clinic'])
 - `max_default` (int) - 最大値のデフォルト（default: 50）
 
 **戻り値:** pd.DataFrame | None
-
-**例:**
-```python
-from megaton.transform import table
-
-df_thresholds = table.normalize_thresholds_df(df_thresholds)
-```
 
 #### `table.dedup_by_key(df, key_cols, prefer_by=None, prefer_ascending=False, keep='first')`
 
@@ -1426,17 +892,6 @@ df_thresholds = table.normalize_thresholds_df(df_thresholds)
 
 **戻り値:** pd.DataFrame
 
-**例:**
-```python
-from megaton.transform import table
-
-# impressions が最大の行を残す
-df = table.dedup_by_key(df, key_cols=['month', 'query'], prefer_by='impressions')
-
-# position が最小の行を残す
-df = table.dedup_by_key(df, key_cols=['query'], prefer_by='position', prefer_ascending=True)
-```
-
 #### `table.group_sum(df, group_cols, sum_cols)`
 
 指定列でグループ化して合計を計算します。
@@ -1447,13 +902,6 @@ df = table.dedup_by_key(df, key_cols=['query'], prefer_by='position', prefer_asc
 - `sum_cols` (list[str]) - 合計する列
 
 **戻り値:** pd.DataFrame
-
-**例:**
-```python
-from megaton.transform import table
-
-df_sum = table.group_sum(df, group_cols=['month', 'site'], sum_cols=['clicks', 'impressions'])
-```
 
 #### `table.weighted_avg(df, group_cols, value_col, weight_col, out_col=None)`
 
@@ -1468,19 +916,6 @@ df_sum = table.group_sum(df, group_cols=['month', 'site'], sum_cols=['clicks', '
 
 **戻り値:** pd.DataFrame
 
-**例:**
-```python
-from megaton.transform import table
-
-# impressionsで重み付けしたposition平均
-df_avg = table.weighted_avg(
-    df,
-    group_cols=['month', 'query'],
-    value_col='position',
-    weight_col='impressions'
-)
-```
-
 ---
 
 ## エイリアス
@@ -1489,16 +924,10 @@ df_avg = table.weighted_avg(
 
 `mg.search` のエイリアスです。
 
-**例:**
-```python
-mg.sc.run(dimensions=['query', 'page'])
-# mg.search.run(dimensions=['query', 'page']) と同じ
-```
-
 ---
 
 ## 参考資料
 
 - [cheatsheet.md](cheatsheet.md) - クイックリファレンス
-- [searchresult-api.md](searchresult-api.md) - SearchResult 詳細ガイド
-- [advanced.md](advanced.md) - 認証と設計思想
+- [cookbook.md](cookbook.md) - 実用例集
+- [design.md](design.md) - 設計思想

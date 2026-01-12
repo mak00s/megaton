@@ -119,11 +119,11 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
 
     called = {}
 
-    def fake_save(sheet_name, df_in):
-        called["save"] = (sheet_name, df_in)
+    def fake_save(sheet_name, df_in, **kwargs):
+        called["save"] = (sheet_name, df_in, kwargs)
 
-    def fake_append(sheet_name, df_in):
-        called["append"] = (sheet_name, df_in)
+    def fake_append(sheet_name, df_in, **kwargs):
+        called["append"] = (sheet_name, df_in, kwargs)
 
     def fake_upsert(sheet_url, sheet_name, df_in, keys, columns=None, sort_by=None, create_if_missing=True):
         called["upsert"] = (sheet_url, sheet_name, df_in, keys, columns, sort_by, create_if_missing)
@@ -137,8 +137,14 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
     app.sheet.append(df)
     result = app.sheet.upsert(df, keys=["a"])
 
-    assert called["save"] == ("CV", df)
-    assert called["append"] == ("CV", df)
+    assert called["save"][:2] == ("CV", df)
+    assert called["save"][2] == {
+        "sort_by": None,
+        "sort_desc": True,
+        "auto_width": False,
+        "freeze_header": False,
+    }
+    assert called["append"] == ("CV", df, {})
     assert result == "ok"
     assert called["upsert"][:3] == ("https://example.com/sheet", "CV", df)
 
