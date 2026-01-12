@@ -194,6 +194,27 @@ def test_decode_with_position():
     assert decoded.df['position'].iloc[0] == 7.0
 
 
+def test_clean_url_with_group():
+    """clean_url(group=True) が正しく集計する"""
+    df = pd.DataFrame({
+        'page': [
+            'https://Example.com/Path/?a=1#top',
+            'https://example.com/Path/?b=2',
+        ],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+        'position': [5.0, 8.0],
+    })
+    result = SearchResult(df, None, ['page'])
+    cleaned = result.clean_url()
+
+    assert len(cleaned.df) == 1
+    assert cleaned.df['page'].iloc[0] == 'https://example.com/path/'
+    assert cleaned.df['clicks'].iloc[0] == 30
+    assert cleaned.df['impressions'].iloc[0] == 300
+    assert cleaned.df['position'].iloc[0] == 7.0
+
+
 def test_normalize_overwrites_no_aggregate():
     """normalize() は上書きのみで集約しない"""
     df = pd.DataFrame({
@@ -344,4 +365,3 @@ def test_ctr_not_added_when_absent():
     # CTR 列は追加されない
     assert len(aggregated.df) == 1
     assert 'ctr' not in aggregated.df.columns
-
