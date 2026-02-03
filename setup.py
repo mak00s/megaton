@@ -17,5 +17,5 @@ setup(
         "Operating System :: OS Independent",
         "Topic :: Internet",
     ],
-    python_requires='>=3.9',
+    python_requires='>=3.11',
 )
