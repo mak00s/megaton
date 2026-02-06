@@ -8,12 +8,15 @@
 
 - **ReportResult.clean_url()**: URL列の正規化をサポート（transform.text.clean_url() を列指定で呼び出し可能）。
 - **SearchResult.clean_url()**: URL列の正規化をサポート（`group` で集約制御可能）。
+- **docs/cheatsheet**: `filter_d` / `filter_m` / `sort` の書式を追記。
+- **example-megaton.ipynb**: 使い方サンプルノートブックを追加。
 
 ### 変更
 
-- **Python 最小バージョン**: Python の最小要求バージョンを `>=3.9` から `>=3.11` に変更しました（CI 設定と一致）。
+- **Python 最小バージョン**: Python の最小要求バージョンを `>=3.9` から `>=3.11` に変更。
 - **ga4.classify_source_channel()**: `medium` 列が存在しない場合は空文字として扱う。
 - **SearchResult.clean_url()**: 対象列が存在しない場合はエラーに統一。
+- **依存関係**: `pytz>=2023.3` を追加。
 
 ### 修正
 
@@ -62,6 +65,10 @@
 - **Search フィルターヘルパー**: `mg.search.filter_by_thresholds()` でサイト設定に基づく一括フィルタリングが可能になりました。
 - **dimension_filter パラメータ**: `mg.search.run()` に追加。`contains` / 正規表現（RE2）での絞り込みに対応（AND 条件のみ）。
 - **clicks_zero_only パラメータ**: `mg.search.filter_by_thresholds()` に追加。`True` を指定すると、クリック数が 0 の行にのみ閾値を適用し、クリック数が 1 以上の行は閾値に関わらず保持されます。
+- **report.run.all 拡張**:
+  - `d` / `m` で `site.<key>` / `site.<metric>` を参照可能。
+  - `filter_d` をメトリクスごとに指定可能。
+  - `landingPage` が絶対URLでも処理可能。
 
 ### 変更
 
@@ -74,11 +81,17 @@
 - **sites パラメータ**: フィルターメソッドで行ごとに異なる閾値を適用可能。DataFrame の `site_key` 列（default: `'site'`）で各行に対応するサイト設定を検索します。
 - **keep_clicked パラメータ**: `clicks >= 1` の行を無条件に残すオプション。すべてのフィルターで default=False です（明示的に True を指定すると有効化）。
 - **group パラメータ**: URL 処理メソッドで `group=True`（default）の場合、dimensions に基づいて自動集計します。大量データでは `group=False` にして最後だけ集計することでパフォーマンスを向上できます。
+- **SearchResult.to_df()**: APIを削除（`.df` を使用）。
+- **SearchResult.normalize_queries()**: `prefer_by` の検証を厳格化（不正な列指定はエラー）。
+- **ReportResult.group()**: 空DataFrameやメトリクス欠損時の挙動を安定化。
+- **GA4 フィルタ解析**: Search/GSC と共通のフィルタパーサーに統一。
 
 ### 修正
 
 - **Search Console クエリ整理**: `GSCService.query()` の dimensions を `date/hour/country/device/page/query` に限定し、`month` 指定時は内部的に `date` で取得して月単位で集計します。
 - **Report 表示/保存**: `mg.report.show()` / `mg.report.download()` が `self.data` を参照するように修正しました。
+- **report.prep**: デフォルトの参照DFと `report.data` 更新の不整合を修正。
+- **Search Console フィルタ**: 不正なフィルタ指定時のエラーメッセージを改善。
 - **ドキュメント更新**: design.md に新しい config フィールドと運用例を追記。`docs/cheatsheet.md` に `run.all()` の使い方を追記。`run.all` の説明も整理しました。
 
 
