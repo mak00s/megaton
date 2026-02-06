@@ -152,7 +152,7 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
 def test_sheet_requires_spreadsheet_and_selection():
     app = Megaton(None, headless=True)
 
-    with pytest.raises(ValueError, match="active spreadsheet"):
+    with pytest.raises(ValueError, match="Google Sheetsが開かれていません"):
         app.sheets.select("CV")
 
     app.gs = _FakeGS()
