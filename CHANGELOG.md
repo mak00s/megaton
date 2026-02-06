@@ -11,6 +11,7 @@
 
 ### 変更
 
+- **Python 最小バージョン**: Python の最小要求バージョンを `>=3.9` から `>=3.11` に変更しました（CI 設定と一致）。
 - **ga4.classify_source_channel()**: `medium` 列が存在しない場合は空文字として扱う。
 - **SearchResult.clean_url()**: 対象列が存在しない場合はエラーに統一。
 
