@@ -17,6 +17,42 @@
 - `mg.report.prep(conf, df?)`
 - `mg.report.data`
 
+### filter_d / filter_m の書式
+
+フィルタは文字列で指定。書式: `<フィールド名><演算子><値>`
+
+```python
+# 単一フィルタ
+mg.report.run(d=["date"], m=["sessions"], filter_d="defaultChannelGroup==Organic Search")
+
+# 複数フィルタはセミコロン(;)で区切る（AND条件）
+mg.report.run(d=["date"], m=["sessions"], filter_d="country==Japan;deviceCategory==mobile")
+
+# メトリクスのフィルタは filter_m
+mg.report.run(d=["date"], m=["sessions"], filter_m="sessions>100")
+```
+
+**演算子:**
+| 演算子 | 説明 |
+|-------|------|
+| `==` | 完全一致 |
+| `!=` | 不一致 |
+| `=@` | 部分一致（contains） |
+| `!@` | 部分不一致 |
+| `=~` | 正規表現一致 |
+| `!~` | 正規表現不一致 |
+| `>`, `>=`, `<`, `<=` | 数値比較 |
+
+### sort の書式
+
+ソートは文字列で指定。降順は先頭に `-` を付ける。複数はカンマ区切り。
+
+```python
+mg.report.run(d=["date"], m=["sessions"], sort="date")        # 昇順
+mg.report.run(d=["date"], m=["sessions"], sort="-sessions")   # 降順
+mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
+```
+
 ## Sheets (by name)
 
 - `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, auto_width?, freeze_header?)`
