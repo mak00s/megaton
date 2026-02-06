@@ -11,3 +11,4 @@ gspread>=5.7
 oauthlib>=3.2
 ipywidgets>=8.0
 gspread-dataframe>=3.0
+pytz>=2023.3
