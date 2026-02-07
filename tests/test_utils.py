@@ -53,3 +53,14 @@ def test_change_column_type_converts_dates_to_datetime_and_date():
     assert str(result.loc[0, "date"]) == "2023-01-01"
     assert result.loc[0, "dateHour"].hour == 5
     assert result.loc[0, "value"] == 1
+
+
+def test_parse_filter_conditions_accepts_ga4_custom_dimension_prefix():
+    parsed = utils.parse_filter_conditions("customEvent:article_id!@not")
+    assert parsed == [
+        {
+            "field": "customEvent:article_id",
+            "operator": "!@",
+            "value": "not",
+        }
+    ]

@@ -65,6 +65,21 @@ class DummyParent:
     property = DummyProperty()
 
 
+class DummyPropertyWithCustom:
+    api_metadata = {
+        "dimensions": [
+            {"api_name": "customEvent:article_id", "display_name": "Article ID"},
+        ],
+        "metrics": [
+            {"api_name": "eventCount", "display_name": "Event count"},
+        ],
+    }
+
+
+class DummyParentWithCustom:
+    property = DummyPropertyWithCustom()
+
+
 def test_ga4_order_bys_metric_uses_metric_order_by_and_api_name():
     # Expected: metric sort should generate OrderBy.metric with api_name.
     report = ga4.MegatonGA4.Report(DummyParent())
@@ -83,6 +98,13 @@ def test_ga4_order_bys_dimension_uses_dimension_order_by():
     assert order_bys[0].desc is False
     assert order_bys[0].dimension.dimension_name == "date"
     assert order_bys[0].metric.metric_name == ""
+
+
+def test_ga4_format_filter_supports_custom_event_dimension_prefix():
+    report = ga4.MegatonGA4.Report(DummyParentWithCustom())
+    expr = report._format_filter("customEvent:article_id!@not")
+
+    assert expr.not_expression.filter.field_name == "customEvent:article_id"
 
 
 @pytest.mark.parametrize(

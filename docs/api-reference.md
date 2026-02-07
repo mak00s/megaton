@@ -245,6 +245,11 @@ GA4 レポートを実行します。
 
 **戻り値:** ReportResult - 結果は `mg.report.data` にも格納
 
+**名前解決ルール（d / m）:**
+- 文字列指定時は `api_name` または `display_name` の**完全一致**のみを受け付けます（前後空白は無視）。
+- 部分一致・あいまい一致・自動補完は行いません。
+- カスタムディメンション/メトリクスは `parameter_name` 単体では解決されません。`api_name`（例: `customEvent:xxx`, `customUser:xxx`）で指定してください。
+
 **`filter_d` / `filter_m` の演算子:**
 - `==`, `!=`, `=@`, `!@`, `=~`, `!~`, `>`, `>=`, `<`, `<=`
 
@@ -379,6 +384,19 @@ DataFrame の前処理（列名変更、値置換など）を行います。
 **前提条件・例外:**
 - `mg.report.start_date` / `mg.report.end_date` が設定済みであること（未設定時は `ValueError`）
 - 先に `mg.open.sheet(url)` でスプレッドシートを開いていること（未接続時は `ValueError`）
+
+### `mg.ga["4"].property.show(me='info')`
+
+GA4 プロパティのメタデータを表示します。
+
+**パラメータ:**
+- `me` (str) - 表示対象
+  - `info` / `dimensions` / `metrics` / `custom_dimensions` / `user_properties` / `custom_metrics`
+
+**戻り値:** pd.DataFrame
+
+**補足:**
+- `user_properties` は、カスタムディメンションのうち `scope == 'USER'` の項目のみを返します。
 
 ---
 

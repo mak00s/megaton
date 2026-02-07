@@ -27,6 +27,15 @@
 - `mg.report.to.csv(filename?, quiet?)`
 - `mg.report.to.sheet(name)`
 - `mg.report.data`
+- `mg.ga["4"].property.show("custom_dimensions")`
+- `mg.ga["4"].property.show("user_properties")`
+- `mg.ga["4"].property.show("custom_metrics")`
+
+### d / m の指定ルール
+
+- 文字列は `api_name` または `display_name` の**完全一致**のみ（部分一致・自動補完なし）。
+- カスタム項目は `parameter_name` 単体ではなく `api_name` で指定。
+- 例: `customEvent:my_param`, `customUser:my_param`
 
 ### filter_d / filter_m の書式
 

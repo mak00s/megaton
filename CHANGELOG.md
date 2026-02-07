@@ -8,6 +8,7 @@
 
 - **GA4 report の指数バックオフ再試行**: `mg.report.run()` に `max_retries`（default: `3`）と `backoff_factor`（default: `2.0`）を追加し、GA4 Data API の `ServiceUnavailable` 発生時に再試行するようになりました。
 - **回帰テスト追加**: `tests/test_ga4_report_retry.py` を追加し、一時障害後の復帰と再試行枯渇時の挙動を検証。
+- **GA4 user properties 表示**: `mg.ga["4"].property.show("user_properties")` を追加し、`scope == 'USER'` のカスタムディメンションのみ確認できるようになりました。
 
 ### 変更
 

@@ -422,7 +422,7 @@ class MegatonGA4(object):
             new = []
             for m in self.api_metadata['dimensions']:
                 if m['customized']:
-                    for c in self.api_custom_dimensions:
+                    for c in self.api_custom_dimensions or []:
                         if m['display_name'] == c['display_name']: #or m['display_name'] == c['parameter_name']:
                             new.append({
                                 'api_name': m['api_name'],
@@ -432,6 +432,11 @@ class MegatonGA4(object):
                                 'scope': c['scope'],
                             })
             return new
+
+        @property
+        def user_properties(self):
+            """Returns custom dimensions scoped to USER."""
+            return [d for d in self.custom_dimensions if d.get('scope') == 'USER']
 
         @property
         def metrics(self):
@@ -494,6 +499,9 @@ class MegatonGA4(object):
             elif me == 'custom_dimensions':
                 index_col = 'api_name'
                 res = self.custom_dimensions
+            elif me == 'user_properties':
+                index_col = 'api_name'
+                res = self.user_properties
             elif me == 'custom_metrics':
                 index_col = 'api_name'
                 res = self.custom_metrics

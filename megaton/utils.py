@@ -30,7 +30,9 @@ def parse_filter_conditions(
 
     ops = tuple(allowed_ops) if allowed_ops is not None else DEFAULT_FILTER_OPERATORS
     op_pattern = "|".join(re.escape(op) for op in sorted(ops, key=len, reverse=True))
-    pattern = re.compile(rf"^([\w_\+\/\(\) ]+)({op_pattern})(.+)$")
+    # Field names may include GA4 custom prefixes such as "customEvent:..."
+    # and "customUser:..." in addition to legacy symbols.
+    pattern = re.compile(rf"^([\w_\+\/\(\)\.\-: ]+)({op_pattern})(.+)$")
     allowed = allowed_ops_label or " ".join(ops)
 
     parsed = []
