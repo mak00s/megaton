@@ -57,6 +57,7 @@ pip install git+https://github.com/mak00s/megaton.git
 ## 変更履歴
 
 - [CHANGELOG.md](CHANGELOG.md)
+- [docs/changelog-archive.md](docs/changelog-archive.md) - 0.x 系の履歴
 
 ## ライセンス
 
