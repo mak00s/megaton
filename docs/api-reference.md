@@ -23,7 +23,7 @@
 
 ## 初期化
 
-### `Megaton(credential=None, headless=False)`
+### `Megaton(credential=None, use_ga3=False, cache_key=None, headless=False)`
 
 Megaton インスタンスを作成します。
 
@@ -32,15 +32,63 @@ Megaton インスタンスを作成します。
   - `None`: 環境変数 `MEGATON_CREDS_JSON` を使用
   - `str`: JSON 文字列、ファイルパス、またはディレクトリパス
   - `dict`: 認証情報の辞書
+- `use_ga3` (bool) - UA (GA3) クライアントも初期化するか（default: False）
+- `cache_key` (str | None) - OAuth 資格情報キャッシュキー（default: None）
 - `headless` (bool) - UI なしモード（default: False）
   - `True`: ウィジェット UI を表示せず、コードで明示的に指定
   - `False`: UI で対話的に選択可能
 
 **戻り値:** Megaton インスタンス
 
+### `mg.auth(credential=None, cache_key=None)`
+
+認証情報を読み込み、利用可能なクライアントを初期化します。
+
+**パラメータ:**
+- `credential` (str | dict | None) - 認証情報（コンストラクタと同様）
+- `cache_key` (str | None) - OAuth 資格情報キャッシュキー
+
+**戻り値:** None
+
+**環境依存・注意点:**
+- `headless=True` では UI 認証フローを表示しません。
+- OAuth 認証で `headless=True` の場合、既存キャッシュが必要です（`cache_key` 推奨）。
+- Google Colab では認証ソースがディレクトリの場合、必要に応じて Drive マウントを使います。
+- 認証に失敗した場合は例外ではなくログ/メッセージで通知され、`self.creds` は未設定のままです。
+
+### `mg.enabled`
+
+現在有効なサービスを返します（`ga3`, `ga4`, `gs`, `sc`）。
+
+**戻り値:** list[str]
+
+### `mg.ga_ver`
+
+現在選択されている GA バージョンを返します。
+
+**戻り値:** str | None
+
 ---
 
 ## Search Console API
+
+### `mg.sc`
+
+`mg.search` のエイリアスです。
+
+**戻り値:** Search インスタンス
+
+### `mg.launch_sc(site_url=None)`
+
+Search Console クライアントを明示的に初期化します。
+
+**パラメータ:**
+- `site_url` (str | None) - 初期選択するサイト URL
+
+**戻り値:** Search Console クライアント | None
+
+**失敗時:**
+- 認証未完了、認証フォーマット不正、スコープ不足、初期化例外時は `None`
 
 ### `mg.search.sites`
 
@@ -61,7 +109,7 @@ Megaton インスタンスを作成します。
 **パラメータ:**
 - `site_url` (str) - サイト URL（例: `'https://example.com/'`）
 
-**戻り値:** None
+**戻り値:** str（選択した `site_url`）
 
 ### `mg.search.set.dates(date_from, date_to)`
 
@@ -71,14 +119,14 @@ Megaton インスタンスを作成します。
 - `date_from` (str) - 開始日（YYYY-MM-DD）
 - `date_to` (str) - 終了日（YYYY-MM-DD）
 
-**戻り値:** None
+**戻り値:** tuple[str, str]
 
-### `mg.search.set.months(ago=0, window_months=1, tz='Asia/Tokyo', now=None, min_ymd=None)`
+### `mg.search.set.months(ago=1, window_months=1, tz='Asia/Tokyo', now=None, min_ymd=None)`
 
 月単位でレポート期間を設定します。
 
 **パラメータ:**
-- `ago` (int) - 何ヶ月前から開始するか（default: 0）
+- `ago` (int) - 何ヶ月前から開始するか（default: 1）
 - `window_months` (int) - 何ヶ月分取得するか（default: 1）
 - `tz` (str) - タイムゾーン（default: 'Asia/Tokyo'）
 - `now` (datetime | None) - 基準日時（default: None = 現在時刻）
@@ -104,6 +152,11 @@ Search Console のクエリを実行します。
 
 **戻り値:** SearchResult - メソッドチェーン可能なラッパー（`.df` で DataFrame にアクセス）
 
+**前提条件・例外:**
+- `mg.search.use(site_url)` で対象サイトを先に指定（未指定時は `ValueError`）
+- 日付は `mg.search.set.*` または `mg.report.set.*` で先に指定（未指定時は `ValueError`）
+- `dimension_filter` の文字列演算子は `=~`, `!~`, `=@`, `!@` のみ（不正時は `ValueError`）
+
 ### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, dimension_filter=None, verbose=True, **kwargs)`
 
 複数サイトのデータを一括取得して結合します。
@@ -125,6 +178,11 @@ Search Console のクエリを実行します。
 - `**kwargs` - `mg.search.run()` に渡す追加引数（例: `limit`, `country`, `clean`）
 
 **戻り値:** SearchResult - 結合されたデータと item_key 列
+
+**失敗時の扱い:**
+- `site_url_key` が空のアイテムはスキップ
+- アイテム単位の取得失敗はそのアイテムのみスキップして継続
+- 全件スキップ時は空 DataFrame を持つ `SearchResult` を返します
 
 ### `mg.search.filter_by_thresholds(df, site, clicks_zero_only=False)`
 
@@ -156,7 +214,7 @@ Search Console のクエリを実行します。
 
 **戻り値:** None
 
-### `mg.report.set.months(ago=0, window_months=1, tz='Asia/Tokyo', now=None, min_ymd=None)`
+### `mg.report.set.months(ago=1, window_months=13, tz='Asia/Tokyo', now=None, min_ymd=None)`
 
 月単位でレポート期間を設定します。
 
@@ -174,13 +232,20 @@ GA4 レポートを実行します。
 - `m` (list) - 指標（省略形）
   - 文字列または `(api_name, alias)` のタプルのリスト
   - もしくは `[(metrics, options), ...]` のメトリクスセット配列（`options` は `filter_d` / `filter_m`）
-- `filter_d` (dict | None) - ディメンションフィルタ
-- `filter_m` (dict | None) - 指標フィルタ
-- `sort` (list | None) - ソート順
+- `filter_d` (str | None) - ディメンションフィルタ（`<field><op><value>`、`;` 区切りで AND）
+- `filter_m` (str | None) - メトリクスフィルタ（`<field><op><value>`、`;` 区切りで AND）
+- `sort` (str | None) - ソート順（例: `"date,-sessions"`）
 - `merge` (str | None) - メトリクスセット一括モードの結合方法（`left` / `outer`）
 - `show` (bool) - 実行結果を表示するか（default: True）
 
 **戻り値:** ReportResult - 結果は `mg.report.data` にも格納
+
+**`filter_d` / `filter_m` の演算子:**
+- `==`, `!=`, `=@`, `!@`, `=~`, `!~`, `>`, `>=`, `<`, `<=`
+
+**失敗時の扱い:**
+- 不正なフィルタや抽出条件ではエラーメッセージを表示し、結果が更新されない場合があります
+- `show=False` を指定しない限り、実行後に結果表示を試みます
 
 **m の複数セット一括取得（run）**
 
@@ -225,7 +290,12 @@ GA4 レポートを実行します。
 - `**kwargs` - `mg.report.run()` に渡す追加引数
   - `filter_d="site.filter_d"` を指定すると、各 `item['filter_d']` を使用します
 
-**戻り値:** pd.DataFrame - 結合されたデータと item_key 列
+**戻り値:** ReportResult - 結合されたデータ（`.df` で DataFrame を取得）
+
+**失敗時の扱い:**
+- `property_key` が空のアイテムはスキップ
+- アイテム単位の取得失敗はそのアイテムのみスキップして継続
+- 全件スキップ時は空 DataFrame を持つ `ReportResult` を返します
 
 ### `mg.report.prep(conf, df=None)`
 
@@ -242,6 +312,53 @@ DataFrame の前処理（列名変更、値置換など）を行います。
 
 **戻り値:** pd.DataFrame | None - 直近のレポート結果
 
+### `mg.report.show()`
+
+`mg.report.data` を表示します。
+
+**戻り値:** 表示オブジェクト
+
+**前提条件:**
+- `mg.report.data` が DataFrame であること
+
+### `mg.report.download(filename)`
+
+`mg.report.data` を CSV 保存し、Notebook からダウンロードします。
+
+**パラメータ:**
+- `filename` (str) - 保存ファイル名
+
+**戻り値:** None
+
+**前提条件:**
+- `mg.report.data` が DataFrame であること
+
+### `mg.report.to.csv(filename='report', quiet=False)`
+
+`mg.report.data` を CSV 保存します（`save_df` と同じ日付サフィックス規則）。
+
+**パラメータ:**
+- `filename` (str) - ファイル名またはパス
+- `quiet` (bool) - メッセージを出力しない（default: False）
+
+**戻り値:** None
+
+**前提条件:**
+- `mg.report.data` が DataFrame であること
+
+### `mg.report.to.sheet(sheet_name)`
+
+`mg.report.data` を指定シートへ上書き保存します。
+
+**パラメータ:**
+- `sheet_name` (str) - シート名
+
+**戻り値:** None
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` でスプレッドシートを開いていること
+- `mg.report.data` が DataFrame であること
+
 ### `mg.report.dates.to.sheet(sheet, start_cell, end_cell)`
 
 レポート期間をシートに書き込みます。
@@ -251,7 +368,11 @@ DataFrame の前処理（列名変更、値置換など）を行います。
 - `start_cell` (str) - 開始日を書き込むセル（A1 表記）
 - `end_cell` (str) - 終了日を書き込むセル（A1 表記）
 
-**戻り値:** None
+**戻り値:** bool | None
+
+**前提条件・例外:**
+- `mg.report.start_date` / `mg.report.end_date` が設定済みであること（未設定時は `ValueError`）
+- 先に `mg.open.sheet(url)` でスプレッドシートを開いていること（未接続時は `ValueError`）
 
 ---
 
@@ -270,6 +391,9 @@ DataFrame を CSV に保存します。
 
 **戻り値:** None
 
+**前提条件:**
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+
 ### `mg.append.to.csv(df=None, filename='report', include_dates=True, quiet=False)`
 
 DataFrame を CSV の末尾に追記します。
@@ -281,6 +405,10 @@ DataFrame を CSV の末尾に追記します。
 - `quiet` (bool) - メッセージを出力しない（default: False）
 
 **戻り値:** None
+
+**前提条件・例外:**
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- DataFrame 以外を渡した場合は `TypeError`
 
 ### `mg.upsert.to.csv(df=None, filename='report', keys, columns=None, sort_by=None, include_dates=True, quiet=False)`
 
@@ -297,9 +425,26 @@ DataFrame を CSV の末尾に追記します。
 
 **戻り値:** pd.DataFrame | None
 
+**前提条件・例外:**
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- DataFrame 以外を渡した場合は `TypeError`
+- 読み込み失敗やキー列不整合など、アップサート不能時は `None`
+
 ---
 
 ## Google Sheets API
+
+### `mg.launch_gs(url)`
+
+Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の互換 API）。
+
+**パラメータ:**
+- `url` (str) - スプレッドシート URL
+
+**戻り値:** bool | None
+
+**失敗時:**
+- 認証未完了、権限不足、URL不正、API無効、タイムアウト等で `None`
 
 ### `mg.open.sheet(url)`
 
@@ -314,7 +459,10 @@ DataFrame を CSV の末尾に追記します。
   - 0 以下で無効化
 - タイムアウト時はメッセージを出して終了します
 
-**戻り値:** None
+**戻り値:** bool | None
+
+**失敗時:**
+- 認証未完了、権限不足、URL不正、API無効、タイムアウト等で `None`
 
 ### `mg.sheets.select(sheet_name)`
 
@@ -323,7 +471,10 @@ DataFrame を CSV の末尾に追記します。
 **パラメータ:**
 - `sheet_name` (str) - シート名
 
-**戻り値:** None
+**戻り値:** str | None
+
+**前提条件・例外:**
+- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
 
 ### `mg.sheets.create(sheet_name)`
 
@@ -332,7 +483,10 @@ DataFrame を CSV の末尾に追記します。
 **パラメータ:**
 - `sheet_name` (str) - 作成するシート名
 
-**戻り値:** None
+**戻り値:** str（作成したシート名）
+
+**前提条件・例外:**
+- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
 
 ### `mg.sheets.delete(sheet_name)`
 
@@ -341,7 +495,11 @@ DataFrame を CSV の末尾に追記します。
 **パラメータ:**
 - `sheet_name` (str) - 削除するシート名
 
-**戻り値:** None
+**戻り値:** bool
+
+**前提条件・例外:**
+- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
+- シートが存在しない場合は `ValueError`
 
 ### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, auto_width=False, freeze_header=False)`
 
@@ -357,6 +515,10 @@ DataFrame をシートに上書き保存します。
 
 **戻り値:** None
 
+**前提条件:**
+- 先に `mg.open.sheet(url)` 済みであること
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+
 ### `mg.append.to.sheet(sheet_name, df=None)`
 
 DataFrame を既存データの末尾に追記します。
@@ -366,6 +528,10 @@ DataFrame を既存データの末尾に追記します。
 - `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
 
 **戻り値:** None
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` 済みであること
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
 
 ### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None)`
 
@@ -378,7 +544,13 @@ DataFrame を既存データの末尾に追記します。
 - `columns` (list[str] | None) - 出力する列のリスト（default: すべて）
 - `sort_by` (list[str] | None) - ソート列のリスト
 
-**戻り値:** None
+**戻り値:** pd.DataFrame | None
+
+**前提条件・例外:**
+- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- DataFrame 以外を渡した場合は `TypeError`
+- アップサート不能時は `None`
 
 ### 現在のシートへの操作
 
@@ -388,9 +560,15 @@ DataFrame を既存データの末尾に追記します。
 
 現在のシートをクリアします。
 
+**前提条件・例外:**
+- スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
+
 #### `mg.sheet.data`
 
 **戻り値:** list[dict] - 現在のシートのデータ
+
+**前提条件・例外:**
+- スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
 
 #### `mg.sheet.cell.set(cell, value)`
 
@@ -400,6 +578,11 @@ DataFrame を既存データの末尾に追記します。
 - `cell` (str) - セル（A1 表記）
 - `value` (str | int | float) - 値
 
+**戻り値:** bool | None
+
+**前提条件・例外:**
+- スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
+
 #### `mg.sheet.range.set(a1_range, values)`
 
 範囲に配列を書き込みます。
@@ -407,6 +590,11 @@ DataFrame を既存データの末尾に追記します。
 **パラメータ:**
 - `a1_range` (str) - 範囲（A1 表記、例: 'A1:B2'）
 - `values` (list[list]) - 2次元配列
+
+**戻り値:** bool | None
+
+**前提条件・例外:**
+- スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
 
 #### `mg.sheet.save(df=None, sort_by=None, sort_desc=True, auto_width=False, freeze_header=False)`
 
@@ -419,6 +607,13 @@ DataFrame を既存データの末尾に追記します。
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
 
+**戻り値:** None
+
+**前提条件・例外:**
+- スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- DataFrame 以外を渡した場合は `TypeError`
+
 #### `mg.sheet.append(df=None)`
 
 現在のシートに追記します。
@@ -426,11 +621,25 @@ DataFrame を既存データの末尾に追記します。
 **パラメータ:**
 - `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
 
+**戻り値:** None
+
+**前提条件・例外:**
+- スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- DataFrame 以外を渡した場合は `TypeError`
+
 #### `mg.sheet.upsert(df=None, keys, columns=None, sort_by=None)`
 
 現在のシートにアップサートします。
 
 **パラメータ:** `mg.upsert.to.sheet()` と同じ
+
+**戻り値:** pd.DataFrame | None
+
+**前提条件・例外:**
+- スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- DataFrame 以外を渡した場合は `TypeError`
 
 ---
 
@@ -443,7 +652,10 @@ BigQuery サービスを起動します。
 **パラメータ:**
 - `project_id` (str) - GCP プロジェクト ID
 
-**戻り値:** BigQuery クライアント
+**戻り値:** BigQuery クライアント | None
+
+**失敗時:**
+- 認証未完了時は `None`
 
 ### `bq.run(sql, to_dataframe=True)`
 
@@ -507,11 +719,13 @@ SQL クエリを実行します。
 - `.normalize(dimension, by, lower=True, strip=True)` - 正規化（上書き、集約なし）
 - `.categorize(dimension, by, into=None, default='(other)')` - カテゴリ列追加（集約なし）
 - `.classify(dimension, by, lower=True, strip=True)` - 正規化 + 集約（上書き、常に集約）
+- `.normalize_queries(mode='remove_all', prefer_by='impressions', group=True)` - クエリ正規化（空白揺れ統一）
 - `.filter_clicks(min=None, max=None, sites=None, site_key='site')` - クリック数フィルタ
 - `.filter_impressions(min=None, max=None, sites=None, site_key='site', keep_clicked=False)` - インプレッション数フィルタ
 - `.filter_ctr(min=None, max=None, sites=None, site_key='site', keep_clicked=False)` - CTR フィルタ
 - `.filter_position(min=None, max=None, sites=None, site_key='site', keep_clicked=False)` - ポジションフィルタ
 - `.aggregate(by=None)` - 手動集約
+- `.apply_if(condition, method_name, *args, **kwargs)` - 条件付きメソッドチェーン
 
 ---
 
@@ -809,6 +1023,27 @@ URL 列を正規化します。**ReportResult は明示的集約（`.group()` / 
 
 ## ユーティリティ
 
+### `mg.select.ga()`
+
+GA アカウント選択 UI を表示します（headless=False のとき）。
+
+**戻り値:** None
+
+**環境依存:**
+- `headless=True` では UI を表示しません（コードで明示指定する運用）
+
+### `mg.select.sheet(sheet_name)`
+
+開いているスプレッドシート内でシートを選択します。
+
+**パラメータ:**
+- `sheet_name` (str) - シート名
+
+**戻り値:** bool | None
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` 済みであること
+
 ### `mg.show.ga.dimensions`
 
 GA4 のディメンション一覧を表示します。
@@ -836,7 +1071,11 @@ DataFrame を表形式で表示します。
 - `rows` (int) - 表示行数（default: 10）
 - `include_index` (bool) - インデックスを含める（default: False）
 
-**戻り値:** None（UI で表示）
+**戻り値:** 表示オブジェクト | None
+
+**環境依存:**
+- Colab では `google.colab.data_table` 表示を利用
+- それ以外では `itables`（利用可能時）または通常 `display` を利用
 
 ### `mg.load.csv(path)`
 
@@ -847,17 +1086,32 @@ CSV ファイルを読み込みます。
 
 **戻り値:** pd.DataFrame
 
-### `mg.save_df(df, filename, mode='w', include_dates=True)`
+### `mg.load.cell(row, col, what=None)`
+
+現在選択中のシートの単一セル値を取得します。
+
+**パラメータ:**
+- `row` (int) - 行番号
+- `col` (int) - 列番号
+- `what` (str | None) - 表示ラベル（指定時は `"{what}は{value}"` を出力）
+
+**戻り値:** セル値
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` 済みで、対象シートが選択されていること
+
+### `mg.save_df(df, filename, mode='w', include_dates=True, quiet=False)`
 
 DataFrame をローカルファイルに保存します。
 
 **パラメータ:**
 - `df` (pd.DataFrame) - 保存する DataFrame
-- `filename` (str) - ファイル名（.csv または .xlsx）
+- `filename` (str) - ファイル名（拡張子未指定時は `.csv` を付与）
 - `mode` (str) - 書き込みモード（default: 'w'）
-- `include_dates` (bool) - 日付列を含める（default: True）
+- `include_dates` (bool) - ファイル名に `_<start>-<end>` サフィックスを付与（default: True）
+- `quiet` (bool) - メッセージを出力しない（default: False）
 
-**戻り値:** None
+**戻り値:** str | None（`quiet=True` のとき保存ファイル名）
 
 ### `mg.download(df, filename=None)`
 
@@ -868,6 +1122,9 @@ Notebook からファイルをダウンロードします。
 - `filename` (str | None) - ファイル名（default: 自動生成）
 
 **戻り値:** None
+
+**環境依存:**
+- 実際のブラウザダウンロード処理は Google Colab 実行時のみ有効
 
 ---
 
@@ -1123,16 +1380,6 @@ URL Seriesからドメインを抽出してラベルを推測します。
 - `out_col` (str | None) - 出力列名（default: value_col）
 
 **戻り値:** pd.DataFrame
-
----
-
-## エイリアス
-
-### `mg.sc`
-
-`mg.search` のエイリアスです。
-
----
 
 ## 参考資料
 
