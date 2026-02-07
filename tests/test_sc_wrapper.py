@@ -107,6 +107,32 @@ def test_search_run_uses_report_dates_and_metrics(monkeypatch):
     assert app.search.data is not None
 
 
+def test_search_run_expands_relative_dates(monkeypatch):
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2025, 1, 15, 12, 0, 0, tzinfo=tz)
+
+    monkeypatch.setattr(dates, "datetime", FixedDateTime)
+
+    app = Megaton(None, headless=True)
+    app.search.use("https://example.com")
+    app.search.set.dates("7daysAgo", "yesterday")
+
+    called = {}
+
+    def fake_query(**kwargs):
+        called["kwargs"] = kwargs
+        return pd.DataFrame({"page": ["test"], "clicks": [10]})
+
+    monkeypatch.setattr(app._gsc_service, "query", fake_query)
+
+    app.search.run(dimensions=["page"], metrics=["clicks"])
+
+    assert called["kwargs"]["start_date"] == "2025-01-08"
+    assert called["kwargs"]["end_date"] == "2025-01-14"
+
+
 def test_search_set_months_overrides_report_dates():
     app = Megaton(None, headless=True)
     app.ga = {

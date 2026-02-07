@@ -109,3 +109,17 @@ def test_get_month_window_validation():
 
     with pytest.raises(ValueError):
         dates.get_month_window(months_ago=1, window_months=0, now=now)
+
+
+def test_resolve_relative_date_token(monkeypatch):
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2025, 1, 15, 12, 0, 0, tzinfo=tz)
+
+    monkeypatch.setattr(dates, "datetime", FixedDateTime)
+
+    assert dates.resolve_relative_date_token("today") == "2025-01-15"
+    assert dates.resolve_relative_date_token("yesterday") == "2025-01-14"
+    assert dates.resolve_relative_date_token("7daysAgo") == "2025-01-08"
+    assert dates.resolve_relative_date_token("2025-01-01") == "2025-01-01"

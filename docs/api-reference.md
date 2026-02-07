@@ -116,10 +116,13 @@ Search Console クライアントを明示的に初期化します。
 レポート期間を日付で設定します。
 
 **パラメータ:**
-- `date_from` (str) - 開始日（YYYY-MM-DD）
-- `date_to` (str) - 終了日（YYYY-MM-DD）
+- `date_from` (str) - 開始日（`YYYY-MM-DD` / `NdaysAgo` / `yesterday` / `today`）
+- `date_to` (str) - 終了日（`YYYY-MM-DD` / `NdaysAgo` / `yesterday` / `today`）
 
 **戻り値:** tuple[str, str]
+
+**補足:**
+- `NdaysAgo` / `yesterday` / `today` は `mg.search.run()` 実行時に `YYYY-MM-DD` へ正規化されます。
 
 ### `mg.search.set.months(ago=1, window_months=1, tz='Asia/Tokyo', now=None, min_ymd=None)`
 

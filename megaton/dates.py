@@ -43,6 +43,46 @@ def parse_end_date(raw_date_str: str) -> datetime:
         raise ValueError(f"Invalid end_date format: {exc}") from exc
 
 
+def resolve_relative_date_token(
+    raw_date_str: str | None,
+    *,
+    tz: str = "Asia/Tokyo",
+    now: datetime | None = None,
+) -> str | None:
+    """Resolve GA-style relative tokens to ISO date (YYYY-MM-DD).
+
+    Supported tokens:
+        - today
+        - yesterday
+        - NdaysAgo (e.g., 7daysAgo)
+
+    Non-token inputs are returned as-is.
+    """
+    if raw_date_str is None:
+        return None
+
+    value = str(raw_date_str).strip()
+    lowered = value.lower()
+
+    if lowered == "today":
+        days_ago = 0
+    elif lowered == "yesterday":
+        days_ago = 1
+    else:
+        matched = re.fullmatch(r"(\d+)daysago", lowered)
+        if not matched:
+            return value
+        days_ago = int(matched.group(1))
+
+    tzinfo = ZoneInfo(tz)
+    if now is None:
+        now_dt = datetime.now(tzinfo)
+    else:
+        now_dt = now.replace(tzinfo=tzinfo) if now.tzinfo is None else now.astimezone(tzinfo)
+
+    return (now_dt.date() - timedelta(days=days_ago)).isoformat()
+
+
 def get_report_range(target_months_ago: int, tz: str = "Asia/Tokyo") -> tuple[str, str]:
     """Compatibility wrapper for the legacy 13-month window.
 

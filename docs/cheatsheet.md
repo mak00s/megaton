@@ -64,6 +64,10 @@ mg.report.run(d=["date"], m=["sessions"], sort="-sessions")   # 降順
 mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 ```
 
+### Search の日付テンプレート
+
+`mg.search.set.dates()` は `YYYY-MM-DD` のほか `NdaysAgo` / `yesterday` / `today` を指定可能（`run` 前に ISO 日付へ展開）。
+
 ## Sheets (by name)
 
 - `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, auto_width?, freeze_header?)`

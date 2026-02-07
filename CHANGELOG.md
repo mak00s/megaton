@@ -2,6 +2,17 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
+## 0.8.3 – 2026‑02‑07
+
+### 追加
+
+- **Search 日付テンプレート対応**: `mg.search.set.dates()` で `NdaysAgo` / `yesterday` / `today` を指定可能になりました。`mg.search.run()` 実行前に `YYYY-MM-DD` へ正規化されます。
+
+### 変更
+
+- **ドキュメント整備**: `docs/api-reference.md` と `docs/cheatsheet.md` を更新し、公開 API の漏れ補完、前提条件、失敗時挙動、環境依存（headless/Colab）を明記。
+- **パッケージバージョン**: `setup.py` のバージョンを `0.8.3` に更新。
+
 ## 0.8.2 – 2026‑02‑07
 
 ### 追加

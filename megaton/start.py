@@ -1836,11 +1836,24 @@ class Megaton:
 
         def _resolve_dates(self):
             if self.start_date and self.end_date:
-                return self.start_date, self.end_date
+                tz = "Asia/Tokyo"
+                if self.window and isinstance(self.window, dict):
+                    tz = self.window.get("tz", tz)
+                return (
+                    dates.resolve_relative_date_token(self.start_date, tz=tz),
+                    dates.resolve_relative_date_token(self.end_date, tz=tz),
+                )
 
             report = getattr(self.parent, "report", None)
             if report and report.start_date and report.end_date:
-                return report.start_date, report.end_date
+                tz = "Asia/Tokyo"
+                report_window = getattr(report, "window", None)
+                if report_window and isinstance(report_window, dict):
+                    tz = report_window.get("tz", tz)
+                return (
+                    dates.resolve_relative_date_token(report.start_date, tz=tz),
+                    dates.resolve_relative_date_token(report.end_date, tz=tz),
+                )
 
             raise ValueError(
                 "Search Console dates are not set. Use mg.search.set.* or mg.report.set.* first."
