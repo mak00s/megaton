@@ -49,6 +49,7 @@ pip install git+https://github.com/mak00s/megaton.git
 
 ## ドキュメント
 
+- 仕様の正は [api-reference.md](docs/api-reference.md) です。
 - [api-reference.md](docs/api-reference.md) - API 仕様の単一ソース
 - [design.md](docs/design.md) - 設計思想とトレードオフ
 - [cookbook.md](docs/cookbook.md) - 実用例集

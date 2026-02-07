@@ -1,27 +1,6 @@
-# Changelog
+# Changelog Archive
 
-このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
-
-## Unreleased
-
-### 追加
-
-- **GA4 report の指数バックオフ再試行**: `mg.report.run()` に `max_retries`（default: `3`）と `backoff_factor`（default: `2.0`）を追加し、GA4 Data API の `ServiceUnavailable` 発生時に再試行するようになりました。
-- **回帰テスト追加**: `tests/test_ga4_report_retry.py` を追加し、一時障害後の復帰と再試行枯渇時の挙動を検証。
-- **GA4 user properties 表示**: `mg.ga["4"].property.show("user_properties")` を追加し、`scope == 'USER'` のカスタムディメンションのみ確認できるようになりました。
-- **`mg.report.prep(show=False)`**: `mg.report.run(show=False)` と同様に表示抑制が可能になり、処理後の DataFrame を直接受け取れるようになりました。
-- **GA4 custom filter prefix 対応**: `filter_d` で `customEvent:...` / `customUser:...` を指定可能になりました。
-- **Sheets append/upsert の表示オプション拡張**: `mg.append.to.sheet()` / `mg.upsert.to.sheet()` / `mg.sheet.append()` / `mg.sheet.upsert()` でも `auto_width` / `freeze_header` を指定可能になりました。
-- **Sheets save の `start_row` 対応**: `mg.save.to.sheet()` / `mg.sheet.save()` に `start_row` を追加。`start_row>1` のときは上部行を保持したまま指定行から上書きできます。
-- **Sheets save/append の `create_if_missing` 対応**: `mg.save.to.sheet()` / `mg.append.to.sheet()` に `create_if_missing`（default: `False`）を追加。必要時のみシートを自動作成できます。
-
-### 変更
-
-- **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` に `mg.report.run()` の retry パラメータと挙動を追記。
-- **ドキュメント更新**: `mg.report.run(show=...)` と `mg.report.prep(show=...)` の挙動、`mg.report.prep()` の詳細仕様と実例を追記。
-- **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` / `docs/cookbook.md` に `start_row` の仕様と利用例を追記。
-- **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` に `create_if_missing` の仕様を追記。
-- **パッケージメタデータ修正**: `setup.py` の `long_description_content_type` を `text/markdown` に修正し、`install_requires` を `requirements.txt` から読み込むように変更。
+このファイルは `0.x` 系の履歴を保持するアーカイブです。
 
 ## 0.8.3 – 2026‑02‑07
 
