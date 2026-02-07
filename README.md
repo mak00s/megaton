@@ -40,6 +40,10 @@ mg.upsert.to.csv(result.df, filename='query_master', keys=['clinic', 'query', 'p
 ## インストール
 
 ```bash
+# PyPI 公開版
+pip install megaton
+
+# 最新版（GitHub）
 pip install git+https://github.com/mak00s/megaton.git
 ```
 

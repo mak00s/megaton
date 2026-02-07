@@ -21,6 +21,7 @@
 - **ドキュメント更新**: `mg.report.run(show=...)` と `mg.report.prep(show=...)` の挙動、`mg.report.prep()` の詳細仕様と実例を追記。
 - **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` / `docs/cookbook.md` に `start_row` の仕様と利用例を追記。
 - **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` に `create_if_missing` の仕様を追記。
+- **パッケージメタデータ修正**: `setup.py` の `long_description_content_type` を `text/markdown` に修正し、`install_requires` を `requirements.txt` から読み込むように変更。
 
 ## 0.8.3 – 2026‑02‑07
 
