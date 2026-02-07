@@ -47,7 +47,17 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
 
     called = {}
 
-    def fake_upsert_df(sheet_url, sheet_name, df_new, keys, columns=None, sort_by=None, create_if_missing=True):
+    def fake_upsert_df(
+        sheet_url,
+        sheet_name,
+        df_new,
+        keys,
+        columns=None,
+        sort_by=None,
+        create_if_missing=True,
+        auto_width=False,
+        freeze_header=False,
+    ):
         called["sheet_url"] = sheet_url
         called["sheet_name"] = sheet_name
         called["df_new"] = df_new
@@ -55,6 +65,8 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
         called["columns"] = columns
         called["sort_by"] = sort_by
         called["create_if_missing"] = create_if_missing
+        called["auto_width"] = auto_width
+        called["freeze_header"] = freeze_header
         return "ok"
 
     monkeypatch.setattr(app._sheets, "upsert_df", fake_upsert_df)
@@ -69,6 +81,8 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
     assert called["columns"] == ["a"]
     assert called["sort_by"] == ["a"]
     assert called["create_if_missing"] is True
+    assert called["auto_width"] is False
+    assert called["freeze_header"] is False
 
 
 def test_upsert_to_sheet_rejects_invalid_df():
