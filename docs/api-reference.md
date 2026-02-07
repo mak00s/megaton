@@ -9,6 +9,7 @@
 - [初期化](#初期化)
 - [Search Console API](#search-console-api)
 - [GA4 Analytics API](#ga4-analytics-api)
+- [CSV API](#csv-api)
 - [Google Sheets API](#google-sheets-api)
 - [BigQuery API](#bigquery-api)
 - [Config 管理](#config-管理)
@@ -254,6 +255,50 @@ DataFrame の前処理（列名変更、値置換など）を行います。
 
 ---
 
+## CSV API
+
+### `mg.save.to.csv(df=None, filename='report', mode='w', include_dates=True, quiet=False)`
+
+DataFrame を CSV に保存します。
+
+**パラメータ:**
+- `df` (pd.DataFrame | None) - 保存する DataFrame（default: `mg.report.data`）
+- `filename` (str) - ファイル名またはパス（拡張子未指定時は `.csv` を付与）
+- `mode` (`'w' | 'a'`) - 書き込みモード（default: `'w'`）
+- `include_dates` (bool) - `_<start>-<end>` サフィックスを付与（default: True）
+- `quiet` (bool) - メッセージを出力しない（default: False）
+
+**戻り値:** None
+
+### `mg.append.to.csv(df=None, filename='report', include_dates=True, quiet=False)`
+
+DataFrame を CSV の末尾に追記します。
+
+**パラメータ:**
+- `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
+- `filename` (str) - ファイル名またはパス
+- `include_dates` (bool) - 日付サフィックスを付与（default: True）
+- `quiet` (bool) - メッセージを出力しない（default: False）
+
+**戻り値:** None
+
+### `mg.upsert.to.csv(df=None, filename='report', keys, columns=None, sort_by=None, include_dates=True, quiet=False)`
+
+キー列を基準に CSV へアップサート（更新または挿入）します。
+
+**パラメータ:**
+- `df` (pd.DataFrame | None) - アップサートする DataFrame（default: `mg.report.data`）
+- `filename` (str) - ファイル名またはパス
+- `keys` (list[str]) - 重複判定に使うキー列
+- `columns` (list[str] | None) - 出力列順（default: 既存列）
+- `sort_by` (list[str] | str | None) - ソート列（default: `keys`）
+- `include_dates` (bool) - 日付サフィックスを付与（default: True）
+- `quiet` (bool) - メッセージを出力しない（default: False）
+
+**戻り値:** pd.DataFrame | None
+
+---
+
 ## Google Sheets API
 
 ### `mg.open.sheet(url)`
@@ -322,14 +367,14 @@ DataFrame を既存データの末尾に追記します。
 
 **戻り値:** None
 
-### `mg.upsert.to.sheet(sheet_name, df=None, keys=None, columns=None, sort_by=None)`
+### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None)`
 
 キー列を基準にアップサート（更新または挿入）します。
 
 **パラメータ:**
 - `sheet_name` (str) - シート名
 - `df` (pd.DataFrame | None) - アップサートする DataFrame（default: `mg.report.data`）
-- `keys` (list[str] | None) - キー列のリスト
+- `keys` (list[str]) - キー列のリスト
 - `columns` (list[str] | None) - 出力する列のリスト（default: すべて）
 - `sort_by` (list[str] | None) - ソート列のリスト
 
@@ -381,7 +426,7 @@ DataFrame を既存データの末尾に追記します。
 **パラメータ:**
 - `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
 
-#### `mg.sheet.upsert(df=None, keys=None, columns=None, sort_by=None)`
+#### `mg.sheet.upsert(df=None, keys, columns=None, sort_by=None)`
 
 現在のシートにアップサートします。
 

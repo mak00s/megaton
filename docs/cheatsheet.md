@@ -59,6 +59,12 @@ mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 - `mg.append.to.sheet(name, df?)`
 - `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?)`
 
+## CSV
+
+- `mg.save.to.csv(df?, filename?, mode?, include_dates?, quiet?)`
+- `mg.append.to.csv(df?, filename?, include_dates?, quiet?)`
+- `mg.upsert.to.csv(df?, filename?, keys, columns?, sort_by?, include_dates?, quiet?)`
+
 ## Sheets (current)
 
 - `mg.sheets.select(name)`

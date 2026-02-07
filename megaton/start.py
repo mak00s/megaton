@@ -1669,7 +1669,7 @@ class Megaton:
                 )
 
     class Upsert:
-        """DataFrameをGoogle Sheetsへupsert（dedup + overwrite）"""
+        """DataFrameをCSVやGoogle Sheetsへupsert（dedup + overwrite）"""
         def __init__(self, parent):
             self.parent = parent
             self.to = self.To(self)
@@ -1677,6 +1677,96 @@ class Megaton:
         class To:
             def __init__(self, parent):
                 self.parent = parent
+
+            def csv(
+                self,
+                df: pd.DataFrame = None,
+                filename: str = 'report',
+                *,
+                keys,
+                columns=None,
+                sort_by=None,
+                include_dates: bool = True,
+                quiet: bool = False,
+            ):
+                """DataFrameをCSVへupsertする
+
+                Args:
+                    filename: path to a file
+                    df: DataFrame. If omitted, mg.report.data will be used.
+                    keys: columns used for dedup
+                    columns: optional output column order
+                    sort_by: optional sort columns
+                    include_dates: if True, "_" + start date + "_" + end date is added to the filename
+                    quiet: when True, message won't be displayed
+                """
+                if df is None:
+                    df = self.parent.parent.report.data
+                if not isinstance(df, pd.DataFrame):
+                    raise TypeError(
+                        "df must be a pandas DataFrame (or omit df to use mg.report.data)."
+                    )
+
+                if include_dates:
+                    new_filename = files.append_suffix_to_filename(filename, f"_{self.parent.parent.report.dates}")
+                else:
+                    new_filename = files.append_suffix_to_filename(filename, "")
+
+                df_new = df.copy()
+                try:
+                    df_existing = pd.read_csv(new_filename)
+                except FileNotFoundError:
+                    df_existing = pd.DataFrame()
+                except pd.errors.EmptyDataError:
+                    df_existing = pd.DataFrame()
+                except Exception as exc:
+                    print(f"CSVファイル{new_filename}の読み込みに失敗しました: {exc}")
+                    return None
+
+                if df_existing.empty:
+                    files.save_df(df_new, new_filename, mode='w')
+                    if not quiet:
+                        print(f"CSVファイル{new_filename}をupsertで保存しました（{len(df_new)} 行）。")
+                    return df_new
+
+                df_existing = df_existing.copy()
+                for key in keys:
+                    if key in df_existing.columns:
+                        df_existing[key] = df_existing[key].astype(str).str.strip()
+                    if key in df_new.columns:
+                        df_new[key] = df_new[key].astype(str).str.strip()
+
+                try:
+                    keys_to_remove = set(tuple(row) for row in df_new[keys].drop_duplicates().values)
+                    mask = df_existing[keys].apply(tuple, axis=1).isin(keys_to_remove)
+                except KeyError as exc:
+                    print(f"重複判定に必要な列が見つかりません: {exc}")
+                    return None
+
+                df_cleaned = df_existing[~mask]
+                df_combined = pd.concat([df_cleaned, df_new], ignore_index=True)
+
+                sort_cols = sort_by or list(keys)
+                if sort_cols:
+                    missing_sort = [col for col in sort_cols if col not in df_combined.columns]
+                    if missing_sort:
+                        print(f"ソート対象の列が見つかりません: {missing_sort}")
+                    else:
+                        df_combined.sort_values(by=sort_cols, inplace=True)
+
+                if columns:
+                    for col in columns:
+                        if col not in df_combined.columns:
+                            df_combined[col] = None
+                    df_combined = df_combined[columns]
+
+                files.save_df(df_combined, new_filename, mode='w')
+                if not quiet:
+                    print(
+                        f"CSVファイル{new_filename}をupsertで更新しました（新規 {len(df_new)} 行、"
+                        f"削除 {mask.sum()} 行）。"
+                    )
+                return df_combined
 
             def sheet(self, sheet_name: str, df: pd.DataFrame = None, *, keys, columns=None, sort_by=None):
                 """DataFrameをGoogle Sheetsへupsertする

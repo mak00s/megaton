@@ -34,6 +34,7 @@ result = (mg.search.run.all(
     .categorize('page', by=page_map))
 
 mg.save.to.sheet('_query', result.df, sort_by='impressions')
+mg.upsert.to.csv(result.df, filename='query_master', keys=['clinic', 'query', 'page'], include_dates=False)
 ```
 
 ## インストール

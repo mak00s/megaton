@@ -166,6 +166,18 @@ mg.sheet.append(df)
 mg.sheet.upsert(df, keys=["date", "page"])
 ```
 
+## CSV: 追記ではなくアップサート
+
+```python
+mg.upsert.to.csv(
+    df,
+    filename="query_master",
+    keys=["clinic", "query", "page"],
+    columns=["clinic", "query", "page", "clicks", "impressions"],
+    include_dates=False,
+)
+```
+
 ## BigQuery: SQL 実行
 
 ```python

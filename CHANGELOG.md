@@ -2,6 +2,17 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
+## 0.8.2 – 2026‑02‑07
+
+### 追加
+
+- **CSV アップサート API**: `mg.upsert.to.csv(df?, filename?, keys, columns?, sort_by?, include_dates?, quiet?)` を追加。既存CSVを読み込み、`keys` を基準に重複行を置換して保存できます。
+
+### 変更
+
+- **ドキュメント更新**: `README.md` / `docs/api-reference.md` / `docs/cheatsheet.md` / `docs/cookbook.md` に `mg.upsert.to.csv()` の使用例と仕様を追記。
+- **パッケージバージョン**: `setup.py` のバージョンを `0.8.2` に更新。
+
 ## 0.8.1 – 2026‑02‑06
 
 ### 追加
