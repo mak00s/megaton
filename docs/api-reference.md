@@ -245,6 +245,9 @@ GA4 レポートを実行します。
 
 **戻り値:** ReportResult - 結果は `mg.report.data` にも格納
 
+**`show` オプション:**
+- `show=False` を指定すると表示を抑制します（戻り値の `ReportResult` と `mg.report.data` は通常どおり利用可能）。
+
 **名前解決ルール（d / m）:**
 - 文字列指定時は `api_name` または `display_name` の**完全一致**のみを受け付けます（前後空白は無視）。
 - 部分一致・あいまい一致・自動補完は行いません。
@@ -308,16 +311,62 @@ GA4 レポートを実行します。
 - アイテム単位の取得失敗はそのアイテムのみスキップして継続
 - 全件スキップ時は空 DataFrame を持つ `ReportResult` を返します
 
-### `mg.report.prep(conf, df=None)`
+### `mg.report.prep(conf, df=None, show=True)`
 
 DataFrame の前処理（列名変更、値置換など）を行います。
 
 **パラメータ:**
 - `conf` (dict) - 列ごとの処理設定
   - 各列に対して `cut`, `delete`, `name`, `replace`, `type` を指定
+  - 形式:
+    - `cut`: `str | list[str]`（正規表現パターンを削除）
+    - `delete`: `bool`（truthy なら列削除）
+    - `name`: `str`（列名変更）
+    - `replace`: `(before, after)` タプル（正規表現置換）
+    - `type`: `str` など `DataFrame.astype()` に渡せる型指定
 - `df` (pd.DataFrame | None) - 対象 DataFrame（default: `mg.report.data`）
+- `show` (bool) - 処理後に結果表示するか（default: `True`）
 
-**戻り値:** 表示用オブジェクト（`mg.report.data` が更新されます）
+**戻り値:**
+- `show=True`: 表示用オブジェクト
+- `show=False`: 処理後の `pd.DataFrame`
+- いずれも `mg.report.data` は更新されます
+
+**処理順序:**
+1. `cut` / `replace` を列ごとに先に実行
+2. `delete` / `type` / `name` を `utils.prep_df()` で適用
+3. `mg.report.data` を更新
+4. `show=True` なら `mg.report.show()` の戻り値を返却、`show=False` なら `mg.report.data` を返却
+
+**挙動メモ:**
+- `cut` / `replace` は regex 置換です（リテラル一致ではありません）。
+- `replace` は `(before, after)` タプルのみ有効です（それ以外は無視）。
+- 未知のアクションキーは無視されます。
+
+**前提条件・例外:**
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- `type` 指定が不正な場合は `astype` 由来の例外が発生
+
+**例:**
+```python
+conf = {
+    "pagePath": {
+        "cut": [r"^https?://[^/]+", r"\?.*$"],  # ドメインとクエリを除去
+        "name": "page",
+    },
+    "sessions": {
+        "type": "int64",
+    },
+    "campaign": {
+        "replace": (r"\([^)]*\)", ""),  # 括弧内を削除
+    },
+    "debug_col": {
+        "delete": True,
+    },
+}
+
+mg.report.prep(conf, show=False)
+```
 
 ### `mg.report.data`
 

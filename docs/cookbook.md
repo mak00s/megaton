@@ -156,6 +156,35 @@ df = (mg.report.run(d=['date'], m=['sessions', 'users'])
     .df)
 ```
 
+## Report: `mg.report.prep()` で列を整形
+
+```python
+mg.report.run(
+    d=[("landingPage", "page"), ("sessionDefaultChannelGroup", "channel")],
+    m=["sessions", "activeUsers"],
+    show=False,
+)
+
+conf = {
+    "page": {
+        "cut": [r"^https?://[^/]+", r"\?.*$"],  # ドメインとクエリを削除
+    },
+    "channel": {
+        "replace": (r"\s+", " "),  # 連続空白を1つに
+        "name": "default_channel",
+    },
+    "sessions": {
+        "type": "int64",
+    },
+    "activeUsers": {
+        "name": "users",
+    },
+}
+
+mg.report.prep(conf, show=False)
+df = mg.report.data
+```
+
 ## Google Sheets: 追記とアップサート
 
 ```python

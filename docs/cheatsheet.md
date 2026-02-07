@@ -21,7 +21,7 @@
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?, max_retries?, backoff_factor?)`
 - `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?)`
-- `mg.report.prep(conf, df?)`
+- `mg.report.prep(conf, df?, show?)`
 - `mg.report.show()`
 - `mg.report.download(filename)`
 - `mg.report.to.csv(filename?, quiet?)`
@@ -30,6 +30,28 @@
 - `mg.ga["4"].property.show("custom_dimensions")`
 - `mg.ga["4"].property.show("user_properties")`
 - `mg.ga["4"].property.show("custom_metrics")`
+
+### `mg.report.run(..., show=...)`
+
+- `show=True`（default）: 実行後に結果を表示
+- `show=False`: 表示を抑制（結果は `ReportResult` / `mg.report.data` で取得）
+
+```python
+result = mg.report.run(d=["date"], m=["sessions"], show=False)
+df = result.df  # または mg.report.data
+```
+
+### `mg.report.prep(conf)` の最小形
+
+```python
+conf = {
+    "pagePath": {"cut": r"\?.*$", "name": "page"},
+    "sessions": {"type": "int64"},
+    "campaign": {"replace": (r"\([^)]*\)", "")},
+    "debug_col": {"delete": True},
+}
+mg.report.prep(conf, show=False)  # displayを抑制してDataFrameを返す
+```
 
 ### d / m の指定ルール
 

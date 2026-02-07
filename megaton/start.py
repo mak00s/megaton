@@ -3220,12 +3220,13 @@ class Megaton:
         def download(self, filename: str):
             self.parent.download(self.data, filename)
 
-        def prep(self, conf: dict, df: pd.DataFrame = None):
+        def prep(self, conf: dict, df: pd.DataFrame = None, show: bool = True):
             """dataframeを前処理
 
             Args:
                 conf: dict
                 df: dataframe to be processed. If omitted, self.data is processed.
+                show: when True, display processed dataframe.
 
             Returns:
                 processed dataframe
@@ -3261,8 +3262,9 @@ class Megaton:
 
             df = utils.prep_df(df, delete_columns, type_columns, rename_columns)
             self.data = df
-            # return df
-            return self.show()
+            if show:
+                return self.show()
+            return self.data
 
         class Set:
             def __init__(self, parent):
