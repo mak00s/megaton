@@ -10,10 +10,12 @@
 - **回帰テスト追加**: `tests/test_ga4_report_retry.py` を追加し、一時障害後の復帰と再試行枯渇時の挙動を検証。
 - **GA4 user properties 表示**: `mg.ga["4"].property.show("user_properties")` を追加し、`scope == 'USER'` のカスタムディメンションのみ確認できるようになりました。
 - **`mg.report.prep(show=False)`**: `mg.report.run(show=False)` と同様に表示抑制が可能になり、処理後の DataFrame を直接受け取れるようになりました。
+- **GA4 custom filter prefix 対応**: `filter_d` で `customEvent:...` / `customUser:...` を指定可能になりました。
 
 ### 変更
 
 - **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` に `mg.report.run()` の retry パラメータと挙動を追記。
+- **ドキュメント更新**: `mg.report.run(show=...)` と `mg.report.prep(show=...)` の挙動、`mg.report.prep()` の詳細仕様と実例を追記。
 
 ## 0.8.3 – 2026‑02‑07
 
