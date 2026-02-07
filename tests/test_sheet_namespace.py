@@ -125,8 +125,28 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
     def fake_append(sheet_name, df_in, **kwargs):
         called["append"] = (sheet_name, df_in, kwargs)
 
-    def fake_upsert(sheet_url, sheet_name, df_in, keys, columns=None, sort_by=None, create_if_missing=True):
-        called["upsert"] = (sheet_url, sheet_name, df_in, keys, columns, sort_by, create_if_missing)
+    def fake_upsert(
+        sheet_url,
+        sheet_name,
+        df_in,
+        keys,
+        columns=None,
+        sort_by=None,
+        create_if_missing=True,
+        auto_width=False,
+        freeze_header=False,
+    ):
+        called["upsert"] = (
+            sheet_url,
+            sheet_name,
+            df_in,
+            keys,
+            columns,
+            sort_by,
+            create_if_missing,
+            auto_width,
+            freeze_header,
+        )
         return "ok"
 
     monkeypatch.setattr(app._sheets, "save_sheet", fake_save)
@@ -134,8 +154,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
     monkeypatch.setattr(app._sheets, "upsert_df", fake_upsert)
 
     app.sheet.save(df)
-    app.sheet.append(df)
-    result = app.sheet.upsert(df, keys=["a"])
+    app.sheet.append(df, auto_width=True, freeze_header=True)
+    result = app.sheet.upsert(df, keys=["a"], auto_width=True, freeze_header=True)
 
     assert called["save"][:2] == ("CV", df)
     assert called["save"][2] == {
@@ -144,9 +164,26 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         "auto_width": False,
         "freeze_header": False,
     }
-    assert called["append"] == ("CV", df, {})
+    assert called["append"] == (
+        "CV",
+        df,
+        {
+            "auto_width": True,
+            "freeze_header": True,
+        },
+    )
     assert result == "ok"
-    assert called["upsert"][:3] == ("https://example.com/sheet", "CV", df)
+    assert called["upsert"] == (
+        "https://example.com/sheet",
+        "CV",
+        df,
+        ["a"],
+        None,
+        None,
+        True,
+        True,
+        True,
+    )
 
 
 def test_sheet_requires_spreadsheet_and_selection():

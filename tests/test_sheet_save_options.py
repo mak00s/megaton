@@ -50,3 +50,50 @@ def test_sheet_save_passes_options():
         auto_width=True,
         freeze_header=True,
     )
+
+
+def test_append_to_sheet_passes_options():
+    app = Megaton()
+    app._sheets = MagicMock()
+    df = pd.DataFrame({"a": [1]})
+
+    app.append.to.sheet(
+        "Sheet1",
+        df,
+        auto_width=True,
+        freeze_header=True,
+    )
+
+    app._sheets.append_sheet.assert_called_once_with(
+        "Sheet1",
+        df,
+        auto_width=True,
+        freeze_header=True,
+    )
+
+
+def test_upsert_to_sheet_passes_options():
+    app = Megaton()
+    app._sheets = MagicMock()
+    app.state.gs_url = "https://example.com/sheet"
+    df = pd.DataFrame({"a": [1]})
+
+    app.upsert.to.sheet(
+        "Sheet1",
+        df,
+        keys=["a"],
+        auto_width=True,
+        freeze_header=True,
+    )
+
+    app._sheets.upsert_df.assert_called_once_with(
+        "https://example.com/sheet",
+        "Sheet1",
+        df,
+        keys=["a"],
+        columns=None,
+        sort_by=None,
+        create_if_missing=True,
+        auto_width=True,
+        freeze_header=True,
+    )

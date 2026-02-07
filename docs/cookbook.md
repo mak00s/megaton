@@ -191,8 +191,8 @@ df = mg.report.data
 mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
 mg.sheets.select("daily")
 
-mg.sheet.append(df)
-mg.sheet.upsert(df, keys=["date", "page"])
+mg.sheet.append(df, auto_width=True, freeze_header=True)
+mg.sheet.upsert(df, keys=["date", "page"], auto_width=True, freeze_header=True)
 ```
 
 ## CSV: 追記ではなくアップサート

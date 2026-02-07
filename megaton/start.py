@@ -1602,13 +1602,25 @@ class Megaton:
 
                 self.parent.parent.save_df(df, filename, mode='a', include_dates=include_dates, quiet=quiet)
 
-            def sheet(self, sheet_name: str, df: pd.DataFrame = None):
+            def sheet(
+                self,
+                sheet_name: str,
+                df: pd.DataFrame = None,
+                *,
+                auto_width: bool = False,
+                freeze_header: bool = False,
+            ):
                 """DataFrameをGoogle Sheetsへ反映する
                 """
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
-                self.parent.parent._sheets.append_sheet(sheet_name, df)
+                self.parent.parent._sheets.append_sheet(
+                    sheet_name,
+                    df,
+                    auto_width=auto_width,
+                    freeze_header=freeze_header,
+                )
 
     class Save:
         """DaraFrameをCSVやGoogle Sheetsとして保存
@@ -1768,7 +1780,17 @@ class Megaton:
                     )
                 return df_combined
 
-            def sheet(self, sheet_name: str, df: pd.DataFrame = None, *, keys, columns=None, sort_by=None):
+            def sheet(
+                self,
+                sheet_name: str,
+                df: pd.DataFrame = None,
+                *,
+                keys,
+                columns=None,
+                sort_by=None,
+                auto_width: bool = False,
+                freeze_header: bool = False,
+            ):
                 """DataFrameをGoogle Sheetsへupsertする
 
                 Args:
@@ -1777,6 +1799,8 @@ class Megaton:
                     keys: columns used for dedup
                     columns: optional output column order
                     sort_by: optional sort columns
+                    auto_width: adjust column widths to fit contents
+                    freeze_header: freeze the first row
                 """
                 if df is None:
                     df = self.parent.parent.report.data
@@ -1801,6 +1825,8 @@ class Megaton:
                     columns=columns,
                     sort_by=sort_by,
                     create_if_missing=True,
+                    auto_width=auto_width,
+                    freeze_header=freeze_header,
                 )
 
     class Search:
@@ -2309,13 +2335,33 @@ class Megaton:
                 freeze_header=freeze_header,
             )
 
-        def append(self, df: pd.DataFrame = None):
+        def append(
+            self,
+            df: pd.DataFrame = None,
+            *,
+            auto_width: bool = False,
+            freeze_header: bool = False,
+        ):
             df = self._coerce_df(df)
             self._ensure_spreadsheet()
             sheet_name = self._ensure_sheet_selected()
-            return self.parent._sheets.append_sheet(sheet_name, df)
+            return self.parent._sheets.append_sheet(
+                sheet_name,
+                df,
+                auto_width=auto_width,
+                freeze_header=freeze_header,
+            )
 
-        def upsert(self, df: pd.DataFrame = None, *, keys, columns=None, sort_by=None):
+        def upsert(
+            self,
+            df: pd.DataFrame = None,
+            *,
+            keys,
+            columns=None,
+            sort_by=None,
+            auto_width: bool = False,
+            freeze_header: bool = False,
+        ):
             df = self._coerce_df(df)
             self._ensure_spreadsheet()
             sheet_url = self.parent.state.gs_url
@@ -2328,6 +2374,8 @@ class Megaton:
                 columns=columns,
                 sort_by=sort_by,
                 create_if_missing=True,
+                auto_width=auto_width,
+                freeze_header=freeze_header,
             )
 
         class Cell:

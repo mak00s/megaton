@@ -141,6 +141,35 @@ class SheetsService:
         if requests:
             self.app.gs._driver.batch_update({"requests": requests})
 
+    def _sheet_to_df(self) -> pd.DataFrame:
+        try:
+            data = self.app.gs.sheet.data or []
+        except Exception:
+            return pd.DataFrame()
+        return pd.DataFrame(data)
+
+    def _apply_write_options(
+        self,
+        df_for_width: pd.DataFrame | None,
+        *,
+        auto_width: bool,
+        freeze_header: bool,
+        width_min: int,
+        width_max: int,
+        single_byte_multiplier: int,
+        multi_byte_multiplier: int,
+    ) -> None:
+        if auto_width:
+            self._apply_column_widths(
+                df_for_width,
+                width_min=width_min,
+                width_max=width_max,
+                single_byte_multiplier=single_byte_multiplier,
+                multi_byte_multiplier=multi_byte_multiplier,
+            )
+        if freeze_header:
+            self.app.gs.sheet.freeze(rows=1)
+
     def save_sheet(
         self,
         sheet_name: str,
@@ -158,21 +187,41 @@ class SheetsService:
         if self.select_sheet(sheet_name):
             df = self._sort_df(df, sort_by, sort_desc)
             if self.app.gs.sheet.overwrite_data(df, include_index=False):
-                if auto_width:
-                    self._apply_column_widths(
-                        df,
-                        width_min=width_min,
-                        width_max=width_max,
-                        single_byte_multiplier=single_byte_multiplier,
-                        multi_byte_multiplier=multi_byte_multiplier,
-                    )
-                if freeze_header:
-                    self.app.gs.sheet.freeze(rows=1)
+                self._apply_write_options(
+                    df,
+                    auto_width=auto_width,
+                    freeze_header=freeze_header,
+                    width_min=width_min,
+                    width_max=width_max,
+                    single_byte_multiplier=single_byte_multiplier,
+                    multi_byte_multiplier=multi_byte_multiplier,
+                )
                 print(f"データを「{sheet_name}」シートへ反映しました。")
 
-    def append_sheet(self, sheet_name: str, df):
+    def append_sheet(
+        self,
+        sheet_name: str,
+        df,
+        *,
+        auto_width: bool = False,
+        freeze_header: bool = False,
+        width_min: int = 50,
+        width_max: int = 500,
+        single_byte_multiplier: int = 7,
+        multi_byte_multiplier: int = 14,
+    ):
         if self.select_sheet(sheet_name):
             if self.app.gs.sheet.save_data(df, include_index=False):
+                width_df = self._sheet_to_df() if auto_width else None
+                self._apply_write_options(
+                    width_df,
+                    auto_width=auto_width,
+                    freeze_header=freeze_header,
+                    width_min=width_min,
+                    width_max=width_max,
+                    single_byte_multiplier=single_byte_multiplier,
+                    multi_byte_multiplier=multi_byte_multiplier,
+                )
                 print(f"データを「{sheet_name}」シートに追記しました。")
 
     def open_or_create_sheet(self, sheet_url: str, sheet_name: str) -> Optional[bool]:
@@ -222,6 +271,12 @@ class SheetsService:
         columns=None,
         sort_by=None,
         create_if_missing: bool = True,
+        auto_width: bool = False,
+        freeze_header: bool = False,
+        width_min: int = 50,
+        width_max: int = 500,
+        single_byte_multiplier: int = 7,
+        multi_byte_multiplier: int = 14,
     ) -> Optional[pd.DataFrame]:
         if not isinstance(df_new, pd.DataFrame):
             raise TypeError("df_new must be a pandas.DataFrame")
@@ -249,6 +304,15 @@ class SheetsService:
         if df_existing.empty:
             try:
                 self.app.gs.sheet.overwrite_data(df_new, include_index=False)
+                self._apply_write_options(
+                    df_new,
+                    auto_width=auto_width,
+                    freeze_header=freeze_header,
+                    width_min=width_min,
+                    width_max=width_max,
+                    single_byte_multiplier=single_byte_multiplier,
+                    multi_byte_multiplier=multi_byte_multiplier,
+                )
                 print(f"'{sheet_name}' シートへ {len(df_new)} 行を書き込みました。")
                 return df_new
             except Exception as exc:
@@ -288,6 +352,15 @@ class SheetsService:
 
         try:
             self.app.gs.sheet.overwrite_data(df_combined, include_index=False)
+            self._apply_write_options(
+                df_combined,
+                auto_width=auto_width,
+                freeze_header=freeze_header,
+                width_min=width_min,
+                width_max=width_max,
+                single_byte_multiplier=single_byte_multiplier,
+                multi_byte_multiplier=multi_byte_multiplier,
+            )
             print(f"'{sheet_name}' シートを更新しました（新規 {len(df_new)} 行、削除 {mask.sum()} 行）。")
             return df_combined
         except Exception as exc:

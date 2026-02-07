@@ -592,13 +592,15 @@ DataFrame をシートに上書き保存します。
 - 先に `mg.open.sheet(url)` 済みであること
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 
-### `mg.append.to.sheet(sheet_name, df=None)`
+### `mg.append.to.sheet(sheet_name, df=None, auto_width=False, freeze_header=False)`
 
 DataFrame を既存データの末尾に追記します。
 
 **パラメータ:**
 - `sheet_name` (str) - シート名
 - `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
 
 **戻り値:** None
 
@@ -606,7 +608,7 @@ DataFrame を既存データの末尾に追記します。
 - 先に `mg.open.sheet(url)` 済みであること
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 
-### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None)`
+### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None, auto_width=False, freeze_header=False)`
 
 キー列を基準にアップサート（更新または挿入）します。
 
@@ -616,6 +618,8 @@ DataFrame を既存データの末尾に追記します。
 - `keys` (list[str]) - キー列のリスト
 - `columns` (list[str] | None) - 出力する列のリスト（default: すべて）
 - `sort_by` (list[str] | None) - ソート列のリスト
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
 
 **戻り値:** pd.DataFrame | None
 
@@ -687,12 +691,14 @@ DataFrame を既存データの末尾に追記します。
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 - DataFrame 以外を渡した場合は `TypeError`
 
-#### `mg.sheet.append(df=None)`
+#### `mg.sheet.append(df=None, auto_width=False, freeze_header=False)`
 
 現在のシートに追記します。
 
 **パラメータ:**
 - `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
 
 **戻り値:** None
 
@@ -701,7 +707,7 @@ DataFrame を既存データの末尾に追記します。
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 - DataFrame 以外を渡した場合は `TypeError`
 
-#### `mg.sheet.upsert(df=None, keys, columns=None, sort_by=None)`
+#### `mg.sheet.upsert(df=None, keys, columns=None, sort_by=None, auto_width=False, freeze_header=False)`
 
 現在のシートにアップサートします。
 

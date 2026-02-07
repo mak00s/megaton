@@ -111,8 +111,8 @@ mg.report.run(d=["date"], m=["sessions"], max_retries=5, backoff_factor=1.0)
 ## Sheets (by name)
 
 - `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, auto_width?, freeze_header?)`
-- `mg.append.to.sheet(name, df?)`
-- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?)`
+- `mg.append.to.sheet(name, df?, auto_width?, freeze_header?)`
+- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
 
 ## CSV
 
@@ -127,8 +127,8 @@ mg.report.run(d=["date"], m=["sessions"], max_retries=5, backoff_factor=1.0)
 - `mg.sheets.delete(name)`
 - `mg.select.sheet(name)`  # legacy
 - `mg.sheet.save(df?, sort_by?, sort_desc?, auto_width?, freeze_header?)`
-- `mg.sheet.append(df?)`
-- `mg.sheet.upsert(df?, keys, columns?, sort_by?)`
+- `mg.sheet.append(df?, auto_width?, freeze_header?)`
+- `mg.sheet.upsert(df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
 - `mg.sheet.cell.set(cell, value)`
 - `mg.sheet.range.set(a1_range, values)`
 

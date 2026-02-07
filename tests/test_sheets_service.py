@@ -38,6 +38,14 @@ class _FakeSheet:
         self.parent._sheets[self._name] = df.to_dict(orient="records")
         return True
 
+    def save_data(self, df, include_index=False):
+        rows = self.parent._sheets.setdefault(self._name, [])
+        rows.extend(df.to_dict(orient="records"))
+        return True
+
+    def freeze(self, rows=None, cols=None):
+        self.parent.frozen = (rows, cols)
+
     def update_acell(self, cell, value):
         self.updated_cells[cell] = value
 
@@ -48,7 +56,9 @@ class _FakeGS:
         self._url = url
         self._title = "Fake Sheet"
         self.last_written = None
+        self.frozen = None
         self.sheet = _FakeSheet(self)
+        self._driver = SimpleNamespace(batch_update=lambda payload: None)
 
     @property
     def url(self):
@@ -106,3 +116,60 @@ def test_upsert_df_deduplicates_and_sorts():
         {"month": "2024-02", "clinic": "B", "users": 3},
         {"month": "2024-03", "clinic": "C", "users": 4},
     ]
+
+
+def test_append_sheet_applies_write_options():
+    gs = _FakeGS("https://example.com/sheet", {"report": [{"a": 1}]})
+    app = _make_app(gs)
+    gs.sheet.select("report")
+    service = SheetsService(app)
+
+    calls = {}
+
+    def _record(df_for_width, **kwargs):
+        calls["df"] = df_for_width
+        calls["kwargs"] = kwargs
+
+    service._apply_write_options = _record
+    service.append_sheet(
+        "report",
+        pd.DataFrame([{"a": 2}]),
+        auto_width=True,
+        freeze_header=True,
+    )
+
+    assert calls["kwargs"]["auto_width"] is True
+    assert calls["kwargs"]["freeze_header"] is True
+    assert calls["df"].to_dict(orient="records") == [{"a": 1}, {"a": 2}]
+
+
+def test_upsert_df_applies_write_options():
+    gs = _FakeGS(
+        "https://example.com/sheet",
+        {"report": [{"month": "2024-01", "clinic": "A", "users": 1}]},
+    )
+    app = _make_app(gs)
+    gs.sheet.select("report")
+    service = SheetsService(app)
+
+    calls = {}
+
+    def _record(df_for_width, **kwargs):
+        calls["df"] = df_for_width
+        calls["kwargs"] = kwargs
+
+    service._apply_write_options = _record
+
+    result = service.upsert_df(
+        "https://example.com/sheet",
+        "report",
+        pd.DataFrame([{"month": "2024-02", "clinic": "B", "users": 2}]),
+        keys=["month", "clinic"],
+        auto_width=True,
+        freeze_header=True,
+    )
+
+    assert result is not None
+    assert calls["kwargs"]["auto_width"] is True
+    assert calls["kwargs"]["freeze_header"] is True
+    assert calls["df"].to_dict(orient="records") == result.to_dict(orient="records")

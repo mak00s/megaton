@@ -11,6 +11,7 @@
 - **GA4 user properties 表示**: `mg.ga["4"].property.show("user_properties")` を追加し、`scope == 'USER'` のカスタムディメンションのみ確認できるようになりました。
 - **`mg.report.prep(show=False)`**: `mg.report.run(show=False)` と同様に表示抑制が可能になり、処理後の DataFrame を直接受け取れるようになりました。
 - **GA4 custom filter prefix 対応**: `filter_d` で `customEvent:...` / `customUser:...` を指定可能になりました。
+- **Sheets append/upsert の表示オプション拡張**: `mg.append.to.sheet()` / `mg.upsert.to.sheet()` / `mg.sheet.append()` / `mg.sheet.upsert()` でも `auto_width` / `freeze_header` を指定可能になりました。
 
 ### 変更
 
