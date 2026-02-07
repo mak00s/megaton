@@ -4,8 +4,15 @@
 
 ## Start
 
-- `mg = start.Megaton(creds)`
+- `mg = start.Megaton(creds, use_ga3?, cache_key?, headless?)`
+- `mg.auth(credential?, cache_key?)`
+- `mg.enabled`
+- `mg.ga_ver`
+- `mg.select.ga()`  # UI selector
+- `mg.sc` (=`mg.search`)
+- `mg.launch_sc(site_url?)`
 - `mg.open.sheet(url)`
+- `mg.launch_gs(url)`
 - `mg.launch_bigquery(project)`
 
 ## GA4
@@ -15,6 +22,10 @@
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?)`
 - `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?)`
 - `mg.report.prep(conf, df?)`
+- `mg.report.show()`
+- `mg.report.download(filename)`
+- `mg.report.to.csv(filename?, quiet?)`
+- `mg.report.to.sheet(name)`
 - `mg.report.data`
 
 ### filter_d / filter_m の書式
@@ -70,6 +81,7 @@ mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 - `mg.sheets.select(name)`
 - `mg.sheets.create(name)`
 - `mg.sheets.delete(name)`
+- `mg.select.sheet(name)`  # legacy
 - `mg.sheet.save(df?, sort_by?, sort_desc?, auto_width?, freeze_header?)`
 - `mg.sheet.append(df?)`
 - `mg.sheet.upsert(df?, keys, columns?, sort_by?)`
@@ -85,7 +97,8 @@ mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 - `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, dimension_filter?)`
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
 - `SearchResult: .decode() -> .clean_url() -> .remove_params() -> .remove_fragment() -> .lower()`
-- `SearchResult: .normalize() -> .categorize(into=...) -> .classify() -> .aggregate()`
+- `SearchResult: .normalize() -> .categorize(into=...) -> .classify() -> .normalize_queries() -> .aggregate()`
+- `SearchResult: .apply_if(condition, method_name, *args, **kwargs)`
 - `result.filter_impressions(min=100)`
 - `result.filter_impressions(sites=cfg.sites, site_key="clinic")`
 - `result.filter_ctr(min=0.02)`
@@ -119,7 +132,8 @@ mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 ## Files
 
 - `mg.load.csv(path)`
-- `mg.save_df(df, filename, mode?, include_dates?)`
+- `mg.load.cell(row, col, what?)`
+- `mg.save_df(df, filename, mode?, include_dates?, quiet?)`
 - `mg.download(df, filename?)`
 
 ## BigQuery
