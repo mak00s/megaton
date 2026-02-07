@@ -170,6 +170,24 @@ class SheetsService:
         if freeze_header:
             self.app.gs.sheet.freeze(rows=1)
 
+    def _select_or_create_sheet(self, sheet_name: str, *, create_if_missing: bool) -> bool:
+        if not self.app.gs:
+            print("Google Sheetsが開かれていません。先に mg.open.sheet(url) を実行してください。")
+            return False
+        if sheet_name in self.app.gs.sheets:
+            return bool(self.select_sheet(sheet_name))
+        if not create_if_missing:
+            print(f"{sheet_name} シートが存在しません。")
+            return False
+        try:
+            self.app.gs.sheet.create(sheet_name)
+            self.app.state.gs_sheet_name = sheet_name
+            print(f"'{sheet_name}' シートを作成しました。")
+            return True
+        except Exception as exc:
+            print(f"'{sheet_name}' シートの作成に失敗しました: {exc}")
+            return False
+
     def save_sheet(
         self,
         sheet_name: str,
@@ -178,6 +196,7 @@ class SheetsService:
         sort_by=None,
         sort_desc: bool = True,
         start_row: int = 1,
+        create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
         width_min: int = 50,
@@ -188,7 +207,7 @@ class SheetsService:
         if start_row < 1:
             raise ValueError("start_row must be >= 1")
 
-        if self.select_sheet(sheet_name):
+        if self._select_or_create_sheet(sheet_name, create_if_missing=create_if_missing):
             df = self._sort_df(df, sort_by, sort_desc)
             if start_row == 1:
                 wrote = self.app.gs.sheet.overwrite_data(df, include_index=False)
@@ -216,6 +235,7 @@ class SheetsService:
         sheet_name: str,
         df,
         *,
+        create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
         width_min: int = 50,
@@ -223,7 +243,7 @@ class SheetsService:
         single_byte_multiplier: int = 7,
         multi_byte_multiplier: int = 14,
     ):
-        if self.select_sheet(sheet_name):
+        if self._select_or_create_sheet(sheet_name, create_if_missing=create_if_missing):
             if self.app.gs.sheet.save_data(df, include_index=False):
                 width_df = self._sheet_to_df() if auto_width else None
                 self._apply_write_options(

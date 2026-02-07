@@ -15,6 +15,7 @@ def test_save_to_sheet_passes_options():
         sort_by="a",
         sort_desc=False,
         start_row=2,
+        create_if_missing=True,
         auto_width=True,
         freeze_header=True,
     )
@@ -25,6 +26,7 @@ def test_save_to_sheet_passes_options():
         sort_by="a",
         sort_desc=False,
         start_row=2,
+        create_if_missing=True,
         auto_width=True,
         freeze_header=True,
     )
@@ -64,6 +66,7 @@ def test_append_to_sheet_passes_options():
     app.append.to.sheet(
         "Sheet1",
         df,
+        create_if_missing=True,
         auto_width=True,
         freeze_header=True,
     )
@@ -71,6 +74,7 @@ def test_append_to_sheet_passes_options():
     app._sheets.append_sheet.assert_called_once_with(
         "Sheet1",
         df,
+        create_if_missing=True,
         auto_width=True,
         freeze_header=True,
     )

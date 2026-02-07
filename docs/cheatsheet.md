@@ -110,14 +110,16 @@ mg.report.run(d=["date"], m=["sessions"], max_retries=5, backoff_factor=1.0)
 
 ## Sheets (by name)
 
-- `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, start_row?, auto_width?, freeze_header?)`
-- `mg.append.to.sheet(name, df?, auto_width?, freeze_header?)`
+- `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, start_row?, create_if_missing?, auto_width?, freeze_header?)`
+- `mg.append.to.sheet(name, df?, create_if_missing?, auto_width?, freeze_header?)`
 - `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
 
 ### `start_row` の挙動（save系）
 
 - `start_row=1`（default）: シート全体を上書き
 - `start_row>1`: `start_row` より上の既存行は保持し、`start_row` 行目からヘッダ付きで上書き
+- `create_if_missing=False`（default）: シート未存在時は作成しない
+- `create_if_missing=True`: シート未存在時に自動作成して保存/追記
 
 ## CSV
 

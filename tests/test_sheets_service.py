@@ -154,6 +154,53 @@ def test_append_sheet_applies_write_options():
     assert calls["df"].to_dict(orient="records") == [{"a": 1}, {"a": 2}]
 
 
+def test_save_sheet_can_create_missing_sheet():
+    gs = _FakeGS("https://example.com/sheet", {"existing": [{"a": 1}]})
+    app = _make_app(gs)
+    service = SheetsService(app)
+
+    service.save_sheet(
+        "new_report",
+        pd.DataFrame([{"month": "2024-02", "users": 2}]),
+        create_if_missing=True,
+    )
+
+    assert "new_report" in gs.sheets
+    assert app.state.gs_sheet_name == "new_report"
+    assert gs.last_write == ("overwrite_data", 1, False)
+
+
+def test_append_sheet_can_create_missing_sheet():
+    gs = _FakeGS("https://example.com/sheet", {"existing": [{"a": 1}]})
+    app = _make_app(gs)
+    service = SheetsService(app)
+
+    service.append_sheet(
+        "new_report",
+        pd.DataFrame([{"month": "2024-02", "users": 2}]),
+        create_if_missing=True,
+    )
+
+    assert "new_report" in gs.sheets
+    assert app.state.gs_sheet_name == "new_report"
+    assert gs._sheets["new_report"] == [{"month": "2024-02", "users": 2}]
+
+
+def test_save_sheet_missing_sheet_without_create_does_nothing():
+    gs = _FakeGS("https://example.com/sheet", {"existing": [{"a": 1}]})
+    app = _make_app(gs)
+    service = SheetsService(app)
+
+    service.save_sheet(
+        "missing",
+        pd.DataFrame([{"month": "2024-02", "users": 2}]),
+        create_if_missing=False,
+    )
+
+    assert "missing" not in gs.sheets
+    assert gs.last_write is None
+
+
 def test_save_sheet_start_row_uses_partial_overwrite_and_preserves_upper_rows():
     gs = _FakeGS(
         "https://example.com/sheet",

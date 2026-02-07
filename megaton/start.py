@@ -1607,10 +1607,18 @@ class Megaton:
                 sheet_name: str,
                 df: pd.DataFrame = None,
                 *,
+                create_if_missing: bool = False,
                 auto_width: bool = False,
                 freeze_header: bool = False,
             ):
                 """DataFrameをGoogle Sheetsへ反映する
+
+                Args:
+                    sheet_name: sheet name
+                    df: DataFrame. If omitted, mg.report.data will be used.
+                    create_if_missing: create worksheet when missing
+                    auto_width: adjust column widths to fit contents
+                    freeze_header: freeze the first row
                 """
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
@@ -1618,6 +1626,7 @@ class Megaton:
                 self.parent.parent._sheets.append_sheet(
                     sheet_name,
                     df,
+                    create_if_missing=create_if_missing,
                     auto_width=auto_width,
                     freeze_header=freeze_header,
                 )
@@ -1656,6 +1665,7 @@ class Megaton:
                 sort_by=None,
                 sort_desc: bool = True,
                 start_row: int = 1,
+                create_if_missing: bool = False,
                 auto_width: bool = False,
                 freeze_header: bool = False,
             ):
@@ -1667,6 +1677,7 @@ class Megaton:
                     sort_by: optional sort columns
                     sort_desc: when True, sort descending
                     start_row: row number where headers are written (1-based)
+                    create_if_missing: create worksheet when missing
                     auto_width: adjust column widths to fit contents
                     freeze_header: freeze the first row
                 """
@@ -1679,6 +1690,7 @@ class Megaton:
                     sort_by=sort_by,
                     sort_desc=sort_desc,
                     start_row=start_row,
+                    create_if_missing=create_if_missing,
                     auto_width=auto_width,
                     freeze_header=freeze_header,
                 )
