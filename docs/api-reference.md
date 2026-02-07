@@ -240,6 +240,8 @@ GA4 レポートを実行します。
 - `sort` (str | None) - ソート順（例: `"date,-sessions"`）
 - `merge` (str | None) - メトリクスセット一括モードの結合方法（`left` / `outer`）
 - `show` (bool) - 実行結果を表示するか（default: True）
+- `max_retries` (int) - GA4 Data API の一時エラー（`ServiceUnavailable`）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
 
 **戻り値:** ReportResult - 結果は `mg.report.data` にも格納
 
@@ -249,6 +251,7 @@ GA4 レポートを実行します。
 **失敗時の扱い:**
 - 不正なフィルタや抽出条件ではエラーメッセージを表示し、結果が更新されない場合があります
 - `show=False` を指定しない限り、実行後に結果表示を試みます
+- GA4 Data API が一時的に利用不可（`ServiceUnavailable`）の場合は指数バックオフで再試行し、枯渇時は空結果を返します
 
 **m の複数セット一括取得（run）**
 

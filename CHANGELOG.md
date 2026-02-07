@@ -2,6 +2,17 @@
 
 このプロジェクトの主要な変更点を記録するファイルです。バージョン番号は [Semantic Versioning](https://semver.org/spec/v2.0.0.html) に従って増分されます。
 
+## Unreleased
+
+### 追加
+
+- **GA4 report の指数バックオフ再試行**: `mg.report.run()` に `max_retries`（default: `3`）と `backoff_factor`（default: `2.0`）を追加し、GA4 Data API の `ServiceUnavailable` 発生時に再試行するようになりました。
+- **回帰テスト追加**: `tests/test_ga4_report_retry.py` を追加し、一時障害後の復帰と再試行枯渇時の挙動を検証。
+
+### 変更
+
+- **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` に `mg.report.run()` の retry パラメータと挙動を追記。
+
 ## 0.8.3 – 2026‑02‑07
 
 ### 追加

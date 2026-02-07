@@ -5,6 +5,7 @@ Functions for Google Analytics 4 API
 import logging
 import re
 import sys
+import time
 from collections import OrderedDict
 from datetime import datetime
 from typing import Optional
@@ -768,28 +769,53 @@ class MegatonGA4(object):
 
             return all_data, names, dimension_types + metric_types
 
-        def _request_report_api(self, offset: int, request: dict):
+        def _request_report_api(
+            self,
+            offset: int,
+            request: dict,
+            *,
+            max_retries: int = 3,
+            backoff_factor: float = 2.0,
+        ):
             if offset:
                 request.offset = offset
 
             total_rows, response = 0, None
-            try:
-                response = self.parent.data_client.run_report(request)
-                total_rows = response.row_count
-            except PermissionDenied as e:
-                LOGGER.error("権限がありません。")
-                message = getattr(e, 'message', repr(e))
-                ex_value = sys.exc_info()[1]
-                m = re.search(r'reason: "([^"]+)', str(ex_value))
-                if m:
-                    reason = m.group(1)
-                    if reason == 'SERVICE_DISABLED':
-                        LOGGER.error("GCPのプロジェクトでData APIを有効化してください。")
-                LOGGER.warning(message)
-            except Exception as e:
-                type_, value, traceback_ = sys.exc_info()
-                LOGGER.debug(type_)
-                LOGGER.debug(value)
+            max_retries = max(1, int(max_retries))
+
+            for attempt in range(max_retries):
+                try:
+                    response = self.parent.data_client.run_report(request)
+                    total_rows = response.row_count
+                    break
+                except ServiceUnavailable as e:
+                    wait = backoff_factor * (2**attempt)
+                    if attempt + 1 >= max_retries:
+                        LOGGER.warning("GA4 Data API error: %s", e)
+                        break
+                    LOGGER.warning(
+                        "GA4 Data API unavailable; retrying in %.1fs (%s/%s)",
+                        wait,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(wait)
+                except PermissionDenied as e:
+                    LOGGER.error("権限がありません。")
+                    message = getattr(e, 'message', repr(e))
+                    ex_value = sys.exc_info()[1]
+                    m = re.search(r'reason: "([^"]+)', str(ex_value))
+                    if m:
+                        reason = m.group(1)
+                        if reason == 'SERVICE_DISABLED':
+                            LOGGER.error("GCPのプロジェクトでData APIを有効化してください。")
+                    LOGGER.warning(message)
+                    break
+                except Exception as e:
+                    type_, value, traceback_ = sys.exc_info()
+                    LOGGER.debug(type_)
+                    LOGGER.debug(value)
+                    break
 
             data, headers, types = self._parse_response(response)
 
@@ -811,6 +837,8 @@ class MegatonGA4(object):
             limit = kwargs.get('limit', 10000)
             start_date = kwargs.get('start_date', self.start_date)
             end_date = kwargs.get('end_date', self.end_date)
+            max_retries = kwargs.get('max_retries', 3)
+            backoff_factor = kwargs.get('backoff_factor', 2.0)
             LOGGER.info(f"Requesting a report ({start_date} - {end_date})")
 
             request = self._format_request(
@@ -828,7 +856,12 @@ class MegatonGA4(object):
 
             all_rows, offset, page = [], 0, 1
             while True:
-                (data, total_rows, headers, types) = self._request_report_api(offset, request)
+                (data, total_rows, headers, types) = self._request_report_api(
+                    offset,
+                    request,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                )
                 if len(data) > 0:
                     all_rows.extend(data)
                     if offset == 0:

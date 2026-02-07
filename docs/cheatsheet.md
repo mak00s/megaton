@@ -19,7 +19,7 @@
 
 - `mg.report.set.dates(date_from, date_to)`
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
-- `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?)`
+- `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?, max_retries?, backoff_factor?)`
 - `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?)`
 - `mg.report.prep(conf, df?)`
 - `mg.report.show()`
@@ -62,6 +62,15 @@ mg.report.run(d=["date"], m=["sessions"], filter_m="sessions>100")
 mg.report.run(d=["date"], m=["sessions"], sort="date")        # 昇順
 mg.report.run(d=["date"], m=["sessions"], sort="-sessions")   # 降順
 mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
+```
+
+### GA4 API retry
+
+`mg.report.run()` は GA4 Data API の `ServiceUnavailable` に対して指数バックオフで再試行します。
+
+```python
+# default: max_retries=3, backoff_factor=2.0
+mg.report.run(d=["date"], m=["sessions"], max_retries=5, backoff_factor=1.0)
 ```
 
 ### Search の日付テンプレート
