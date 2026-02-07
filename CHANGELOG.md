@@ -12,11 +12,13 @@
 - **`mg.report.prep(show=False)`**: `mg.report.run(show=False)` と同様に表示抑制が可能になり、処理後の DataFrame を直接受け取れるようになりました。
 - **GA4 custom filter prefix 対応**: `filter_d` で `customEvent:...` / `customUser:...` を指定可能になりました。
 - **Sheets append/upsert の表示オプション拡張**: `mg.append.to.sheet()` / `mg.upsert.to.sheet()` / `mg.sheet.append()` / `mg.sheet.upsert()` でも `auto_width` / `freeze_header` を指定可能になりました。
+- **Sheets save の `start_row` 対応**: `mg.save.to.sheet()` / `mg.sheet.save()` に `start_row` を追加。`start_row>1` のときは上部行を保持したまま指定行から上書きできます。
 
 ### 変更
 
 - **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` に `mg.report.run()` の retry パラメータと挙動を追記。
 - **ドキュメント更新**: `mg.report.run(show=...)` と `mg.report.prep(show=...)` の挙動、`mg.report.prep()` の詳細仕様と実例を追記。
+- **ドキュメント更新**: `docs/api-reference.md` / `docs/cheatsheet.md` / `docs/cookbook.md` に `start_row` の仕様と利用例を追記。
 
 ## 0.8.3 – 2026‑02‑07
 

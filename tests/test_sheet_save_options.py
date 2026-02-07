@@ -14,6 +14,7 @@ def test_save_to_sheet_passes_options():
         df,
         sort_by="a",
         sort_desc=False,
+        start_row=2,
         auto_width=True,
         freeze_header=True,
     )
@@ -23,6 +24,7 @@ def test_save_to_sheet_passes_options():
         df,
         sort_by="a",
         sort_desc=False,
+        start_row=2,
         auto_width=True,
         freeze_header=True,
     )
@@ -38,6 +40,7 @@ def test_sheet_save_passes_options():
     app.sheet.save(
         df,
         sort_by="a",
+        start_row=3,
         auto_width=True,
         freeze_header=True,
     )
@@ -47,6 +50,7 @@ def test_sheet_save_passes_options():
         df,
         sort_by="a",
         sort_desc=True,
+        start_row=3,
         auto_width=True,
         freeze_header=True,
     )

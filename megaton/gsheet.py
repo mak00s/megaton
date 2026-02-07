@@ -301,6 +301,49 @@ class MegatonGS(object):
             """Clear the sheet and save the dataframe"""
             return self.save_data(df, mode='w', include_index=include_index)
 
+        def overwrite_data_from_row(self, df: pd.DataFrame, row: int, include_index: bool = False):
+            """Preserve rows above ``row`` and overwrite data from ``row`` onward."""
+            if row <= 1:
+                return self.overwrite_data(df, include_index=include_index)
+
+            if not len(df):
+                LOGGER.info("no data to write.")
+                return
+            if not self._driver:
+                LOGGER.warn("Please select a sheet first.")
+                return
+
+            try:
+                # Keep rows above `row` and clear old payload from target row onward.
+                self._driver.batch_clear([f"{row}:{self._driver.row_count}"])
+            except gspread.exceptions.APIError as e:
+                if 'disabled' in str(e):
+                    raise errors.ApiDisabled
+                elif 'PERMISSION_DENIED' in str(e):
+                    raise errors.BadPermission
+                raise
+
+            header_rows = 1
+            required_last_row = row + len(df) + header_rows - 1
+            if self._driver.row_count < required_last_row:
+                self._driver.add_rows(required_last_row - self._driver.row_count)
+                self._refresh()
+
+            required_cols = len(df.columns) + (1 if include_index else 0)
+            if self._driver.col_count < required_cols:
+                self._driver.add_cols(required_cols - self._driver.col_count)
+                self._refresh()
+
+            set_with_dataframe(
+                self._driver,
+                df,
+                include_index=include_index,
+                include_column_header=True,
+                row=row,
+                resize=False,
+            )
+            return True
+
         class Cell(object):
             def __init__(self, parent):
                 self.parent = parent

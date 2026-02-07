@@ -1655,6 +1655,7 @@ class Megaton:
                 *,
                 sort_by=None,
                 sort_desc: bool = True,
+                start_row: int = 1,
                 auto_width: bool = False,
                 freeze_header: bool = False,
             ):
@@ -1665,6 +1666,7 @@ class Megaton:
                     df: DataFrame. If omitted, mg.report.data will be saved.
                     sort_by: optional sort columns
                     sort_desc: when True, sort descending
+                    start_row: row number where headers are written (1-based)
                     auto_width: adjust column widths to fit contents
                     freeze_header: freeze the first row
                 """
@@ -1676,6 +1678,7 @@ class Megaton:
                     df,
                     sort_by=sort_by,
                     sort_desc=sort_desc,
+                    start_row=start_row,
                     auto_width=auto_width,
                     freeze_header=freeze_header,
                 )
@@ -2320,6 +2323,7 @@ class Megaton:
             *,
             sort_by=None,
             sort_desc: bool = True,
+            start_row: int = 1,
             auto_width: bool = False,
             freeze_header: bool = False,
         ):
@@ -2331,6 +2335,7 @@ class Megaton:
                 df,
                 sort_by=sort_by,
                 sort_desc=sort_desc,
+                start_row=start_row,
                 auto_width=auto_width,
                 freeze_header=freeze_header,
             )

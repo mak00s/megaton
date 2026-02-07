@@ -161,6 +161,7 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
     assert called["save"][2] == {
         "sort_by": None,
         "sort_desc": True,
+        "start_row": 1,
         "auto_width": False,
         "freeze_header": False,
     }

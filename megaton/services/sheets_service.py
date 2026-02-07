@@ -177,6 +177,7 @@ class SheetsService:
         *,
         sort_by=None,
         sort_desc: bool = True,
+        start_row: int = 1,
         auto_width: bool = False,
         freeze_header: bool = False,
         width_min: int = 50,
@@ -184,9 +185,21 @@ class SheetsService:
         single_byte_multiplier: int = 7,
         multi_byte_multiplier: int = 14,
     ):
+        if start_row < 1:
+            raise ValueError("start_row must be >= 1")
+
         if self.select_sheet(sheet_name):
             df = self._sort_df(df, sort_by, sort_desc)
-            if self.app.gs.sheet.overwrite_data(df, include_index=False):
+            if start_row == 1:
+                wrote = self.app.gs.sheet.overwrite_data(df, include_index=False)
+            else:
+                wrote = self.app.gs.sheet.overwrite_data_from_row(
+                    df,
+                    row=start_row,
+                    include_index=False,
+                )
+
+            if wrote:
                 self._apply_write_options(
                     df,
                     auto_width=auto_width,

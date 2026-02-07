@@ -195,6 +195,15 @@ mg.sheet.append(df, auto_width=True, freeze_header=True)
 mg.sheet.upsert(df, keys=["date", "page"], auto_width=True, freeze_header=True)
 ```
 
+## Google Sheets: 1行目を残して保存（start_row）
+
+```python
+mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+
+# 1行目（メモや更新日時など）を残し、2行目からヘッダ+データを書き込む
+mg.save.to.sheet("daily", df, start_row=2)
+```
+
 ## CSV: 追記ではなくアップサート
 
 ```python

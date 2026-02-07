@@ -574,7 +574,7 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
 - 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
 - シートが存在しない場合は `ValueError`
 
-### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, auto_width=False, freeze_header=False)`
+### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, start_row=1, auto_width=False, freeze_header=False)`
 
 DataFrame をシートに上書き保存します。
 
@@ -583,6 +583,7 @@ DataFrame をシートに上書き保存します。
 - `df` (pd.DataFrame | None) - 保存する DataFrame（default: `mg.report.data`）
 - `sort_by` (list[str] | str | None) - ソート列（指定時のみソート）
 - `sort_desc` (bool) - 降順ソート（default: True）
+- `start_row` (int) - ヘッダを書き込む開始行（1始まり、default: 1）
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
 
@@ -591,6 +592,7 @@ DataFrame をシートに上書き保存します。
 **前提条件:**
 - 先に `mg.open.sheet(url)` 済みであること
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
+- `start_row >= 1` であること（`start_row=2` の場合、1行目は保持されます）
 
 ### `mg.append.to.sheet(sheet_name, df=None, auto_width=False, freeze_header=False)`
 
@@ -673,7 +675,7 @@ DataFrame を既存データの末尾に追記します。
 **前提条件・例外:**
 - スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
 
-#### `mg.sheet.save(df=None, sort_by=None, sort_desc=True, auto_width=False, freeze_header=False)`
+#### `mg.sheet.save(df=None, sort_by=None, sort_desc=True, start_row=1, auto_width=False, freeze_header=False)`
 
 現在のシートに DataFrame を保存します。
 
@@ -681,6 +683,7 @@ DataFrame を既存データの末尾に追記します。
 - `df` (pd.DataFrame | None) - 保存する DataFrame（default: `mg.report.data`）
 - `sort_by` (list[str] | str | None) - ソート列（指定時のみソート）
 - `sort_desc` (bool) - 降順ソート（default: True）
+- `start_row` (int) - ヘッダを書き込む開始行（1始まり、default: 1）
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
 
@@ -690,6 +693,7 @@ DataFrame を既存データの末尾に追記します。
 - スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 - DataFrame 以外を渡した場合は `TypeError`
+- `start_row >= 1` であること（`start_row=2` の場合、1行目は保持されます）
 
 #### `mg.sheet.append(df=None, auto_width=False, freeze_header=False)`
 

@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from megaton import errors
 from megaton.services.sheets_service import SheetsService
@@ -34,8 +35,17 @@ class _FakeSheet:
         self._name = name
 
     def overwrite_data(self, df, include_index=False):
+        self.parent.last_write = ("overwrite_data", 1, include_index)
         self.parent.last_written = df.copy()
         self.parent._sheets[self._name] = df.to_dict(orient="records")
+        return True
+
+    def overwrite_data_from_row(self, df, row, include_index=False):
+        self.parent.last_write = ("overwrite_data_from_row", row, include_index)
+        existing = list(self.parent._sheets.get(self._name, []))
+        kept = existing[: max(0, row - 1)]
+        self.parent.last_written = df.copy()
+        self.parent._sheets[self._name] = kept + df.to_dict(orient="records")
         return True
 
     def save_data(self, df, include_index=False):
@@ -56,6 +66,7 @@ class _FakeGS:
         self._url = url
         self._title = "Fake Sheet"
         self.last_written = None
+        self.last_write = None
         self.frozen = None
         self.sheet = _FakeSheet(self)
         self._driver = SimpleNamespace(batch_update=lambda payload: None)
@@ -141,6 +152,61 @@ def test_append_sheet_applies_write_options():
     assert calls["kwargs"]["auto_width"] is True
     assert calls["kwargs"]["freeze_header"] is True
     assert calls["df"].to_dict(orient="records") == [{"a": 1}, {"a": 2}]
+
+
+def test_save_sheet_start_row_uses_partial_overwrite_and_preserves_upper_rows():
+    gs = _FakeGS(
+        "https://example.com/sheet",
+        {"report": [{"meta": "keep"}, {"month": "2024-01", "users": 1}]},
+    )
+    app = _make_app(gs)
+    gs.sheet.select("report")
+    service = SheetsService(app)
+
+    calls = {}
+
+    def _record(df_for_width, **kwargs):
+        calls["df"] = df_for_width
+        calls["kwargs"] = kwargs
+
+    service._apply_write_options = _record
+    service.save_sheet(
+        "report",
+        pd.DataFrame([{"month": "2024-02", "users": 2}]),
+        start_row=2,
+        auto_width=True,
+        freeze_header=True,
+    )
+
+    assert gs.last_write == ("overwrite_data_from_row", 2, False)
+    assert gs._sheets["report"] == [{"meta": "keep"}, {"month": "2024-02", "users": 2}]
+    assert calls["kwargs"]["auto_width"] is True
+    assert calls["kwargs"]["freeze_header"] is True
+    assert calls["df"].to_dict(orient="records") == [{"month": "2024-02", "users": 2}]
+
+
+def test_save_sheet_default_start_row_uses_full_overwrite():
+    gs = _FakeGS("https://example.com/sheet", {"report": [{"meta": "old"}]})
+    app = _make_app(gs)
+    gs.sheet.select("report")
+    service = SheetsService(app)
+
+    service.save_sheet(
+        "report",
+        pd.DataFrame([{"month": "2024-02", "users": 2}]),
+    )
+
+    assert gs.last_write == ("overwrite_data", 1, False)
+    assert gs._sheets["report"] == [{"month": "2024-02", "users": 2}]
+
+
+def test_save_sheet_rejects_invalid_start_row():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    app = _make_app(gs)
+    service = SheetsService(app)
+
+    with pytest.raises(ValueError, match="start_row"):
+        service.save_sheet("report", pd.DataFrame([{"a": 1}]), start_row=0)
 
 
 def test_upsert_df_applies_write_options():
