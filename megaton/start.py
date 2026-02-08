@@ -1,13 +1,15 @@
 """An app for Jupyter Notebook/Google Colaboratory to get data from Google Analytics
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import pandas as pd
 import re
 import sys
 from types import SimpleNamespace
-from typing import Optional
+from typing import Callable, Optional, Self
 from datetime import datetime
 from urllib.parse import urlparse
 from IPython.display import clear_output
@@ -46,11 +48,15 @@ KNOWN_GA4_DIMENSIONS = {
     'deviceCategory', 'country', 'city', 'landingPage', 'pagePath',
 }
 
+# SearchResult / ReportResult の normalize / categorize / classify で使うマッピング型
+# callable は、正規化済みの値（基本は str だが念のため object）を受け取り、置換後の値を返す想定。
+MappingRule = dict[str, str] | Callable[[object], object | None]
+
 
 class SearchResult:
     """Search Console データをラップし、メソッドチェーンで処理を行うクラス"""
-    
-    def __init__(self, df, parent, dimensions):
+
+    def __init__(self, df: pd.DataFrame, parent: Megaton.Search, dimensions: list[str]) -> None:
         """
         Args:
             df: pandas DataFrame
@@ -60,17 +66,17 @@ class SearchResult:
         self._df = df
         self.parent = parent
         self.dimensions = dimensions
-    
+
     @property
-    def df(self):
+    def df(self) -> pd.DataFrame:
         """DataFrame として直接アクセス（後方互換性）"""
         return self._df
-    
-    def _aggregate(self, df):
+
+    def _aggregate(self, df: pd.DataFrame) -> pd.DataFrame:
         """dimensions に基づいて集計 (位置は重み付き平均、他は合計)"""
         return self._aggregate_gsc(df, self.dimensions)
-    
-    def _aggregate_gsc(self, df, dims):
+
+    def _aggregate_gsc(self, df: pd.DataFrame, dims: list[str]) -> pd.DataFrame:
         """GSC データを集計 (位置は重み付き平均、CTR は再計算、他は合計)"""
         if df.empty:
             return df
@@ -103,13 +109,13 @@ class SearchResult:
         
         return grouped
     
-    def decode(self, group=True):
+    def decode(self, group: bool = True) -> Self:
         """
         URL デコード（%xx → 文字）
-        
+
         Args:
             group: True の場合、dimensions で集計（default: True）
-        
+
         Returns:
             SearchResult
         """
@@ -128,14 +134,14 @@ class SearchResult:
         
         return SearchResult(df, self.parent, self.dimensions)
     
-    def remove_params(self, keep=None, group=True):
+    def remove_params(self, keep: list[str] | None = None, group: bool = True) -> Self:
         """
         クエリパラメータを削除
-        
+
         Args:
             keep: 保持するパラメータのリスト（例: ['utm_source']）
             group: True の場合、dimensions で集計（default: True）
-        
+
         Returns:
             SearchResult
         """
@@ -165,13 +171,13 @@ class SearchResult:
         
         return SearchResult(df, self.parent, self.dimensions)
     
-    def remove_fragment(self, group=True):
+    def remove_fragment(self, group: bool = True) -> Self:
         """
         # 以降のフラグメントを削除
-        
+
         Args:
             group: True の場合、dimensions で集計（default: True)
-        
+
         Returns:
             SearchResult
         """
@@ -195,14 +201,14 @@ class SearchResult:
 
     def clean_url(
         self,
-        dimension='page',
+        dimension: str = 'page',
         *,
-        unquote=True,
-        drop_query=True,
-        drop_hash=True,
-        lower=True,
-        group=True,
-    ):
+        unquote: bool = True,
+        drop_query: bool = True,
+        drop_hash: bool = True,
+        lower: bool = True,
+        group: bool = True,
+    ) -> Self:
         """
         URL列を正規化（URLデコード、クエリ/フラグメント削除、小文字化）
 
@@ -237,14 +243,14 @@ class SearchResult:
 
         return SearchResult(df, self.parent, self.dimensions)
 
-    def lower(self, columns=None, group=True):
+    def lower(self, columns: list[str] | None = None, group: bool = True) -> Self:
         """
         指定列を小文字化
-        
+
         Args:
             columns: 小文字化する列のリスト（default: ['page']）
             group: True の場合、dimensions で集計（default: True）
-        
+
         Returns:
             SearchResult
         """
@@ -261,7 +267,7 @@ class SearchResult:
         
         return SearchResult(df, self.parent, self.dimensions)
     
-    def _normalize_value(self, value, *, lower: bool, strip: bool):
+    def _normalize_value(self, value: object, *, lower: bool, strip: bool) -> object:
         if pd.isna(value):
             return value
         if not isinstance(value, str):
@@ -273,7 +279,7 @@ class SearchResult:
             text = text.lower()
         return text
 
-    def _map_value(self, value, by, *, default=None):
+    def _map_value(self, value: object, by: MappingRule, *, default: str | None = None) -> object:
         if pd.isna(value):
             return default if default is not None else value
         if callable(by):
@@ -290,7 +296,7 @@ class SearchResult:
             return default if default is not None else value
         raise TypeError("by must be a dict or callable.")
 
-    def normalize(self, dimension, by, *, lower: bool = True, strip: bool = True):
+    def normalize(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
         """
         既存ディメンションの値を正規化（上書き、集約なし）
         """
@@ -305,7 +311,7 @@ class SearchResult:
         df[dimension] = df[dimension].apply(_apply)
         return SearchResult(df, self.parent, self.dimensions)
 
-    def categorize(self, dimension, by, *, into: str | None = None, default: str = "(other)"):
+    def categorize(self, dimension: str, by: MappingRule, *, into: str | None = None, default: str = "(other)") -> Self:
         """
         既存ディメンションからカテゴリ列を追加（集約なし）
         """
@@ -323,7 +329,7 @@ class SearchResult:
             new_dimensions.append(into)
         return SearchResult(df, self.parent, new_dimensions)
 
-    def classify(self, dimension, by, *, lower: bool = True, strip: bool = True):
+    def classify(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
         """
         正規化 + 集約（ディメンション上書き、常に集約）
         """
@@ -339,7 +345,7 @@ class SearchResult:
         df = self._aggregate_gsc(df, self.dimensions)
         return SearchResult(df, self.parent, self.dimensions)
     
-    def normalize_queries(self, mode='remove_all', prefer_by='impressions', group=True):
+    def normalize_queries(self, mode: str = 'remove_all', prefer_by: str = 'impressions', group: bool = True) -> Self:
         """
         クエリの空白を正規化して重複を排除
         
@@ -417,7 +423,7 @@ class SearchResult:
         # dimensions は元のまま（query を含む）
         return SearchResult(df, self.parent, self.dimensions)
     
-    def filter_clicks(self, min=None, max=None, sites=None, site_key='site'):
+    def filter_clicks(self, min: float | None = None, max: float | None = None, sites: list[dict[str, object]] | None = None, site_key: str = 'site') -> Self:
         """
         クリック数でフィルタリング
         
@@ -433,23 +439,23 @@ class SearchResult:
         return self._filter_metric('clicks', min, max, sites, site_key, False,
                                    'min_clicks', 'max_clicks')
     
-    def filter_impressions(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+    def filter_impressions(self, min: float | None = None, max: float | None = None, sites: list[dict[str, object]] | None = None, site_key: str = 'site', keep_clicked: bool = False) -> Self:
         """インプレッション数でフィルタリング（default: keep_clicked=False）"""
         return self._filter_metric('impressions', min, max, sites, site_key, keep_clicked,
                                    'min_impressions', 'max_impressions')
-    
-    def filter_ctr(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+
+    def filter_ctr(self, min: float | None = None, max: float | None = None, sites: list[dict[str, object]] | None = None, site_key: str = 'site', keep_clicked: bool = False) -> Self:
         """CTRでフィルタリング（default: keep_clicked=False）"""
         return self._filter_metric('ctr', min, max, sites, site_key, keep_clicked,
                                    'min_ctr', 'max_ctr')
-    
-    def filter_position(self, min=None, max=None, sites=None, site_key='site', keep_clicked=False):
+
+    def filter_position(self, min: float | None = None, max: float | None = None, sites: list[dict[str, object]] | None = None, site_key: str = 'site', keep_clicked: bool = False) -> Self:
         """平均順位でフィルタリング（default: keep_clicked=False）"""
         return self._filter_metric('position', min, max, sites, site_key, keep_clicked,
                                    'min_position', 'max_position')
-    
-    def _filter_metric(self, metric, min_val, max_val, sites, site_key, keep_clicked,
-                       min_key, max_key):
+
+    def _filter_metric(self, metric: str, min_val: float | None, max_val: float | None, sites: list[dict[str, object]] | None, site_key: str, keep_clicked: bool,
+                       min_key: str, max_key: str) -> Self:
         """
         指標ごとのフィルタリングを実行
         
@@ -546,13 +552,13 @@ class SearchResult:
         
         return SearchResult(df, self.parent, self.dimensions)
     
-    def aggregate(self, by=None):
+    def aggregate(self, by: str | list[str] | None = None) -> Self:
         """
         手動集計
-        
+
         Args:
             by: 集計するカテゴリ列。None の場合は dimensions で集計
-        
+
         Returns:
             SearchResult
         """
@@ -567,22 +573,22 @@ class SearchResult:
         
         return SearchResult(df, self.parent, new_dimensions)
     
-    def apply_if(self, condition, method_name, *args, **kwargs):
+    def apply_if(self, condition: bool | Callable[[SearchResult], bool], method_name: str, *args: object, **kwargs: object) -> Self:
         """
         条件が真の場合のみメソッドを適用
-        
+
         メソッドチェーン内で条件分岐を実現し、if/else による重複を排除します。
-        
+
         Args:
             condition: bool または callable(SearchResult) -> bool
                       - bool: 静的な条件（例: TARGET_MONTHS_AGO > 0）
                       - callable: 動的な条件（例: lambda sr: len(sr.df) > 100）
             method_name: str - 適用するメソッド名（例: 'filter_impressions'）
             *args, **kwargs: メソッドの引数
-        
+
         Returns:
             SearchResult: チェーン継続可能
-        
+
         Raises:
             AttributeError: method_name が存在しない場合
         
@@ -623,8 +629,8 @@ class SearchResult:
 
 class ReportResult:
     """GA4 レポートデータをラップし、メソッドチェーンで処理を行うクラス"""
-    
-    def __init__(self, df, dimensions=None):
+
+    def __init__(self, df: pd.DataFrame, dimensions: list[str] | None = None) -> None:
         """
         Args:
             df: pandas DataFrame
@@ -632,7 +638,7 @@ class ReportResult:
                        None の場合は自動で推定（指標以外の列）
         """
         self._df = df
-        
+
         # dimensions の推定（明示指定がある場合は最優先）
         if dimensions is None:
             # 自動判定の順序:
@@ -640,8 +646,8 @@ class ReportResult:
             # 2. KNOWN_GA4_METRICS を除外
             # 3. 残りの数値列もメトリクスとして除外（カスタムメトリクスの自動検出）
             # 4. 最終的に dimensions = 既知dimension + 非数値列
-            if df is None or len(df.columns) == 0:
-                self.dimensions = []
+            if len(df.columns) == 0:
+                self.dimensions: list[str] = []
             else:
                 # 数値列のうち既知のディメンションを除いたものをメトリクス候補とする
                 numeric_cols = set(df.select_dtypes(include=['number']).columns)
@@ -651,35 +657,35 @@ class ReportResult:
                 self.dimensions = [col for col in df.columns if col not in metric_cols]
         else:
             self.dimensions = dimensions
-    
+
     @property
-    def df(self):
+    def df(self) -> pd.DataFrame:
         """DataFrame として直接アクセス（後方互換性）"""
         return self._df
-    
+
     @property
-    def empty(self):
+    def empty(self) -> bool:
         """DataFrame が空かどうか"""
         return self._df.empty
-    
+
     @property
-    def columns(self):
+    def columns(self) -> list[str]:
         """DataFrame の列名"""
         return self._df.columns.tolist()
-    
-    def __repr__(self):
+
+    def __repr__(self) -> str:
         """ReportResult オブジェクトの文字列表現"""
         return f"ReportResult({len(self._df)} rows x {len(self._df.columns)} columns)"
-    
-    def __len__(self):
+
+    def __len__(self) -> int:
         """len() でデータフレームの行数を返す（後方互換性）"""
         return len(self._df)
-    
-    def __getitem__(self, key):
+
+    def __getitem__(self, key: str) -> pd.Series:
         """df[key] として列にアクセス（後方互換性）"""
         return self._df[key]
-    
-    def _normalize_value(self, value, *, lower: bool, strip: bool):
+
+    def _normalize_value(self, value: object, *, lower: bool, strip: bool) -> object:
         if pd.isna(value):
             return value
         if not isinstance(value, str):
@@ -691,7 +697,7 @@ class ReportResult:
             text = text.lower()
         return text
 
-    def _map_value(self, value, by, *, default=None):
+    def _map_value(self, value: object, by: MappingRule, *, default: str | None = None) -> object:
         if pd.isna(value):
             return default if default is not None else value
         if callable(by):
@@ -708,7 +714,7 @@ class ReportResult:
             return default if default is not None else value
         raise TypeError("by must be a dict or callable.")
 
-    def normalize(self, dimension, by, *, lower: bool = True, strip: bool = True):
+    def normalize(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
         """
         既存ディメンションの値を正規化（上書き、集約なし）
         """
@@ -723,7 +729,7 @@ class ReportResult:
         df[dimension] = df[dimension].apply(_apply)
         return ReportResult(df, self.dimensions)
 
-    def categorize(self, dimension, by, *, into: str | None = None, default: str = "(other)"):
+    def categorize(self, dimension: str, by: MappingRule, *, into: str | None = None, default: str = "(other)") -> Self:
         """
         既存ディメンションからカテゴリ列を追加（集約なし）
         """
@@ -741,17 +747,17 @@ class ReportResult:
             new_dimensions.append(into)
         return ReportResult(df, new_dimensions)
 
-    def classify(self, dimension, by, *, lower: bool = True, strip: bool = True):
+    def classify(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
         """
         正規化 + 集約（ディメンション上書き、常に集約）
         """
         normalized = self.normalize(dimension, by, lower=lower, strip=strip)
         return normalized.group(by=normalized.dimensions)
     
-    def group(self, by, metrics=None, method='sum'):
+    def group(self, by: str | list[str], metrics: str | list[str] | None = None, method: str = 'sum') -> Self:
         """
         指定したディメンションで集計
-        
+
         Args:
             by: 集計キーとなるディメンション列名または列名のリスト
             metrics: 集計する指標列名のリスト（または単一の列名文字列）
@@ -810,10 +816,10 @@ class ReportResult:
         
         return ReportResult(grouped, new_dimensions)
     
-    def sort(self, by, ascending=True):
+    def sort(self, by: str | list[str], ascending: bool | list[bool] = True) -> Self:
         """
         指定した列でソート
-        
+
         Args:
             by: ソートキーとなる列名または列名のリスト
             ascending: 昇順（True）または降順（False）
@@ -833,10 +839,10 @@ class ReportResult:
         sorted_df = df.sort_values(by=by, ascending=ascending).reset_index(drop=True)
         return ReportResult(sorted_df, self.dimensions)
     
-    def fill(self, to='(not set)', dimensions=None):
+    def fill(self, to: str = '(not set)', dimensions: list[str] | None = None) -> Self:
         """
         ディメンション列の欠損値を指定した値で埋める
-        
+
         Args:
             to: 埋める値（default: '(not set)'）
             dimensions: 対象のディメンション列名のリスト
@@ -867,7 +873,7 @@ class ReportResult:
         
         return ReportResult(df, self.dimensions)
     
-    def to_int(self, metrics=None, *, fill_value=0):
+    def to_int(self, metrics: str | list[str] | None = None, *, fill_value: int = 0) -> Self:
         """
         指標列を整数型に変換（欠損値は指定した値で埋める）
         
@@ -917,7 +923,7 @@ class ReportResult:
         
         return ReportResult(df, self.dimensions)
     
-    def replace(self, dimension, by, *, regex=True):
+    def replace(self, dimension: str, by: dict[str, str], *, regex: bool = True) -> Self:
         """
         ディメンション列の値を辞書マッピングで置換
         
@@ -954,7 +960,7 @@ class ReportResult:
         
         return ReportResult(df, self.dimensions)
 
-    def clean_url(self, dimension, *, unquote=True, drop_query=True, drop_hash=True, lower=True):
+    def clean_url(self, dimension: str, *, unquote: bool = True, drop_query: bool = True, drop_hash: bool = True, lower: bool = True) -> Self:
         """
         URL列を正規化（URLデコード、クエリ/フラグメント削除、小文字化）
 
