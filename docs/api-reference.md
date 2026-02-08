@@ -543,6 +543,9 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
 - 環境変数で上書き可能:
   - `MEGATON_GS_MAX_RETRIES`（default: `3`）
   - `MEGATON_GS_BACKOFF_FACTOR`（default: `2.0`）
+  - `MEGATON_GS_MAX_WAIT`（1回の待機上限、秒。未指定なら上限なし）
+  - `MEGATON_GS_MAX_ELAPSED`（総経過時間上限、秒。未指定なら上限なし）
+  - `MEGATON_GS_JITTER`（待機時間に jitter を付与。`0 <= jitter < 1`、default: `0`）
 
 **戻り値:** bool | None
 

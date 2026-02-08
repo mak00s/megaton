@@ -46,6 +46,9 @@ class MegatonGS(object):
         *,
         max_retries: Optional[int] = None,
         backoff_factor: Optional[float] = None,
+        max_wait: Optional[float] = None,
+        max_elapsed: Optional[float] = None,
+        jitter: Optional[float] = None,
     ):
         """constructor"""
         self.credentials = credentials
@@ -55,6 +58,9 @@ class MegatonGS(object):
         self.timeout = self._resolve_timeout(timeout)
         self.max_retries = self._resolve_max_retries(max_retries)
         self.backoff_factor = self._resolve_backoff_factor(backoff_factor)
+        self.max_wait = self._resolve_max_wait(max_wait)
+        self.max_elapsed = self._resolve_max_elapsed(max_elapsed)
+        self.jitter = self._resolve_jitter(jitter)
 
         self._authorize()
         if url:
@@ -119,6 +125,59 @@ class MegatonGS(object):
             value = 2.0
         return max(0.0, value)
 
+    def _resolve_max_wait(self, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            env = os.getenv("MEGATON_GS_MAX_WAIT")
+            if env is None:
+                return None
+            try:
+                value = float(env)
+            except ValueError:
+                return None
+        try:
+            value = float(value)
+        except Exception:  # noqa: BLE001
+            return None
+        if value <= 0:
+            return None
+        return value
+
+    def _resolve_max_elapsed(self, value: Optional[float]) -> Optional[float]:
+        if value is None:
+            env = os.getenv("MEGATON_GS_MAX_ELAPSED")
+            if env is None:
+                return None
+            try:
+                value = float(env)
+            except ValueError:
+                return None
+        try:
+            value = float(value)
+        except Exception:  # noqa: BLE001
+            return None
+        if value <= 0:
+            return None
+        return value
+
+    def _resolve_jitter(self, value: Optional[float]) -> float:
+        if value is None:
+            env = os.getenv("MEGATON_GS_JITTER")
+            if env is None:
+                return 0.0
+            try:
+                value = float(env)
+            except ValueError:
+                value = 0.0
+        try:
+            value = float(value)
+        except Exception:  # noqa: BLE001
+            value = 0.0
+        if value < 0:
+            return 0.0
+        if value >= 1:
+            return 0.99
+        return value
+
     def _call_with_retry(
         self,
         op: str,
@@ -131,6 +190,9 @@ class MegatonGS(object):
     ):
         default_max = getattr(self, "max_retries", 3)
         default_backoff = getattr(self, "backoff_factor", 2.0)
+        default_max_wait = getattr(self, "max_wait", None)
+        default_max_elapsed = getattr(self, "max_elapsed", None)
+        default_jitter = getattr(self, "jitter", 0.0)
         max_retries = default_max if max_retries is None else max(1, int(max_retries))
         backoff_factor = default_backoff if backoff_factor is None else float(backoff_factor)
 
@@ -162,6 +224,9 @@ class MegatonGS(object):
             is_retryable=_is_retryable,
             on_retry=_on_retry,
             sleep=sleep,
+            jitter=default_jitter,
+            max_wait=default_max_wait,
+            max_elapsed=default_max_elapsed,
         )
 
     @property

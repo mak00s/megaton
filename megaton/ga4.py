@@ -30,7 +30,9 @@ from google.analytics.data_v1beta.types import MetricType
 from google.analytics.data_v1beta.types import NumericValue
 from google.analytics.data_v1beta.types import OrderBy
 from google.analytics.data_v1beta.types import RunReportRequest
+from google.api_core.exceptions import DeadlineExceeded
 from google.api_core.exceptions import PermissionDenied
+from google.api_core.exceptions import ResourceExhausted
 from google.api_core.exceptions import ServiceUnavailable
 from google.api_core.exceptions import Unauthenticated
 from google.oauth2 import service_account
@@ -804,12 +806,12 @@ class MegatonGA4(object):
                     lambda: self.parent.data_client.run_report(request),
                     max_retries=max_retries,
                     backoff_factor=backoff_factor,
-                    exceptions=(ServiceUnavailable,),
+                    exceptions=(ServiceUnavailable, DeadlineExceeded, ResourceExhausted),
                     on_retry=_on_retry,
                     sleep=time.sleep,
                 )
                 total_rows = response.row_count
-            except ServiceUnavailable as e:
+            except (ServiceUnavailable, DeadlineExceeded, ResourceExhausted) as e:
                 LOGGER.warning("GA4 Data API error: %s", e)
                 response = None
             except PermissionDenied as e:

@@ -214,6 +214,13 @@ class GSCService:
                         max_attempts,
                     )
 
+            def _is_retryable(exc: BaseException) -> bool:
+                if not isinstance(exc, HttpError):
+                    return False
+                resp = getattr(exc, "resp", None)
+                status = getattr(resp, "status", None)
+                return status in {429, 500, 502, 503, 504}
+
             try:
                 response = retry_utils.expo_retry(
                     lambda: (
@@ -224,6 +231,7 @@ class GSCService:
                     max_retries=max_retries,
                     backoff_factor=backoff_factor,
                     exceptions=(HttpError,),
+                    is_retryable=_is_retryable,
                     on_retry=_on_retry,
                     sleep=time.sleep,
                 )

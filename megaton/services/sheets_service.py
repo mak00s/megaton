@@ -373,6 +373,7 @@ class SheetsService:
                 )
             )
         except Exception as exc:
+            logger.exception("Failed to read sheet '%s' for upsert", sheet_name)
             print(f"'{sheet_name}' シートの読み込みに失敗しました: {exc}")
             df_existing = pd.DataFrame()
 
@@ -399,6 +400,7 @@ class SheetsService:
                 print(f"'{sheet_name}' シートへ {len(df_new)} 行を書き込みました。")
                 return df_new
             except Exception as exc:
+                logger.exception("Failed to overwrite sheet '%s' (empty upsert)", sheet_name)
                 print(f"'{sheet_name}' シートへの書き込みに失敗しました: {exc}")
                 return None
 
@@ -454,6 +456,7 @@ class SheetsService:
             print(f"'{sheet_name}' シートを更新しました（新規 {len(df_new)} 行、削除 {mask.sum()} 行）。")
             return df_combined
         except Exception as exc:
+            logger.exception("Failed to overwrite sheet '%s' (upsert)", sheet_name)
             print(f"'{sheet_name}' シートへの書き込みに失敗しました: {exc}")
             return None
 
