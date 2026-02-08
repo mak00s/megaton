@@ -1,5 +1,6 @@
 import builtins
 import importlib
+import importlib.util
 import os
 import sys
 import types
@@ -26,15 +27,21 @@ def _clear_megaton_modules():
             del sys.modules[name]
 
 
-def _block_ga_imports(monkeypatch):
-    real_import = builtins.__import__
+def _block_ga_specs(monkeypatch):
+    # start.py uses importlib.util.find_spec to decide whether to auto-install.
+    real_find_spec = importlib.util.find_spec
+    missing = {
+        "google.analytics.data",
+        "google.analytics.admin",
+        "google.cloud.bigquery_datatransfer",
+    }
 
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name in ("google.analytics.data", "google.analytics.admin"):
-            raise ModuleNotFoundError(f"No module named '{name}'")
-        return real_import(name, globals, locals, fromlist, level)
+    def fake_find_spec(name, package=None):
+        if name in missing:
+            return None
+        return real_find_spec(name, package)
 
-    monkeypatch.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
 
 
 def _mock_os_system(monkeypatch):
@@ -50,18 +57,21 @@ def _mock_os_system(monkeypatch):
 
 def _reload_megaton():
     _clear_megaton_modules()
-    return importlib.import_module("megaton")
+    return importlib.import_module("megaton.start")
 
 
 def test_auto_install_non_colab_default_disabled(monkeypatch, capsys):
-    # Expected: non-colab + no env -> no auto-install, ModuleNotFoundError raised.
+    # Expected: non-colab + no env -> no auto-install, ModuleNotFoundError raised on Megaton() init.
     _remove_colab_stub()
     monkeypatch.delenv("MEGATON_AUTO_INSTALL", raising=False)
-    _block_ga_imports(monkeypatch)
+    _block_ga_specs(monkeypatch)
     calls = _mock_os_system(monkeypatch)
 
     with pytest.raises(ModuleNotFoundError):
-        _reload_megaton()
+        start = _reload_megaton()
+        monkeypatch.setattr(start, "mount_google_drive", lambda: None)
+        monkeypatch.setattr(start.Megaton, "auth", lambda *args, **kwargs: None)
+        start.Megaton(headless=True)
 
     out = capsys.readouterr().out
     assert "pip install" in out
@@ -69,27 +79,33 @@ def test_auto_install_non_colab_default_disabled(monkeypatch, capsys):
 
 
 def test_auto_install_colab_default_enabled(monkeypatch):
-    # Expected: colab + no env -> auto-install called.
+    # Expected: colab + no env -> auto-install called on Megaton() init.
     _install_colab_stub()
     monkeypatch.delenv("MEGATON_AUTO_INSTALL", raising=False)
-    _block_ga_imports(monkeypatch)
+    _block_ga_specs(monkeypatch)
     calls = _mock_os_system(monkeypatch)
 
-    _reload_megaton()
+    start = _reload_megaton()
+    monkeypatch.setattr(start, "mount_google_drive", lambda: None)
+    monkeypatch.setattr(start.Megaton, "auth", lambda *args, **kwargs: None)
+    start.Megaton(headless=True)
 
     assert calls
     _remove_colab_stub()
 
 
 def test_auto_install_colab_env_zero_disabled(monkeypatch, capsys):
-    # Expected: colab + MEGATON_AUTO_INSTALL=0 -> no auto-install.
+    # Expected: colab + MEGATON_AUTO_INSTALL=0 -> no auto-install, ModuleNotFoundError raised on Megaton() init.
     _install_colab_stub()
     monkeypatch.setenv("MEGATON_AUTO_INSTALL", "0")
-    _block_ga_imports(monkeypatch)
+    _block_ga_specs(monkeypatch)
     calls = _mock_os_system(monkeypatch)
 
     with pytest.raises(ModuleNotFoundError):
-        _reload_megaton()
+        start = _reload_megaton()
+        monkeypatch.setattr(start, "mount_google_drive", lambda: None)
+        monkeypatch.setattr(start.Megaton, "auth", lambda *args, **kwargs: None)
+        start.Megaton(headless=True)
 
     out = capsys.readouterr().out
     assert "pip install" in out

@@ -16,7 +16,12 @@ def in_colab():
 IN_COLAB = in_colab()
 
 if IN_COLAB:
-    from google.colab import files
+    try:
+        from google.colab import files as _colab_files
+    except Exception:  # pragma: no cover
+        _colab_files = None
+else:
+    _colab_files = None
 
 
 def append_suffix_to_filename(filename: str, suffix: str, ext: str = '.csv'):
@@ -47,5 +52,5 @@ def save_df(df: pd.DataFrame, filename: str, mode: str = 'w', include_header: bo
 def download_file(filename: str):
     """Download a file from Google Colaboratory
     """
-    if IN_COLAB:
-        files.download(filename)
+    if IN_COLAB and _colab_files is not None:
+        _colab_files.download(filename)

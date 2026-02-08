@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import logging
+import os
 import pandas as pd
 import re
 import sys
@@ -12,18 +14,73 @@ from types import SimpleNamespace
 from typing import Callable, Optional, Self
 from datetime import datetime
 from urllib.parse import urlparse
-from IPython.display import clear_output
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import bq, constants, dates, errors, files, ga3, ga4, recipes, searchconsole, utils, mount_google_drive
+from . import constants, dates, errors, files, recipes, searchconsole, utils, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
-from .services.bq_service import BQService
 from .services.gsc_service import GSCService
 from .services.sheets_service import SheetsService
 from .state import MegatonState
 from .ui import widgets
 
 logger = logging.getLogger(__name__)  # .setLevel(logging.ERROR)
+
+
+def clear_output(*args, **kwargs):
+    """Best-effort clear_output for notebooks (lazy import)."""
+    try:
+        from IPython.display import clear_output as _clear_output  # type: ignore
+    except Exception:
+        return None
+    return _clear_output(*args, **kwargs)
+
+
+def _auto_install_enabled(*, in_colab: bool) -> bool:
+    env_value = os.environ.get("MEGATON_AUTO_INSTALL")
+    if env_value == "1":
+        return True
+    if env_value == "0":
+        return False
+    return in_colab
+
+
+def _print_install_help():
+    print(
+        "Megaton requires GA4 packages. Install with:\n"
+        "  pip install -U -q google-analytics-admin google-analytics-data\n"
+        "  pip install -U -q google-cloud-bigquery-datatransfer\n"
+        "Or set MEGATON_AUTO_INSTALL=1 in Colab."
+    )
+
+
+def _ensure_deps(*, in_colab: bool) -> None:
+    """Ensure optional runtime dependencies are available (Colab auto-install).
+
+    This is intentionally called at use-time (Megaton() init), not on module import,
+    so that `from megaton import start` stays lightweight.
+    """
+    required = (
+        "google.analytics.data",
+        "google.analytics.admin",
+        "google.cloud.bigquery_datatransfer",
+    )
+    missing = [m for m in required if importlib.util.find_spec(m) is None]
+    if not missing:
+        return
+
+    if _auto_install_enabled(in_colab=in_colab):
+        clear_output()
+        print("Installing packages for GA4...")
+        from .install import install_bigquery, install_ga4
+
+        install_ga4.install()
+        install_bigquery.install()
+        importlib.invalidate_caches()
+        clear_output()
+        return
+
+    _print_install_help()
+    raise ModuleNotFoundError(f"No module named '{missing[0]}'")
 
 # GA4の既知のメトリクス名（標準 + よく使われるカスタムメトリクス）
 KNOWN_GA4_METRICS = {
@@ -1009,6 +1066,7 @@ class Megaton:
                  use_ga3: bool = False,
                  cache_key: Optional[str] = None,
                  headless: bool = False):
+        _ensure_deps(in_colab=self.in_colab)
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
         self.creds = None
@@ -1022,7 +1080,7 @@ class Megaton:
         self.state = MegatonState()
         self.state.headless = headless
         self.recipes = SimpleNamespace(load_config=lambda sheet_url: recipes.load_config(self, sheet_url))
-        self.bq_service = BQService(self)
+        self.bq_service = None  # lazy init (avoid importing BigQuery modules on start import)
         self._gsc_service = GSCService(self)
         self._sheets = SheetsService(self)
         self.search = self.Search(self)
@@ -1295,6 +1353,8 @@ class Megaton:
 
     def _build_ga_clients(self):
         """GA APIの準備"""
+        from . import ga4 as ga4
+        from . import ga3 as ga3
         self.ga = {}
         if not self.creds:
             logger.warning('認証が完了していないため、GA クライアントを初期化できません。')
@@ -1367,6 +1427,10 @@ class Megaton:
         return self._sc_client
 
     def launch_bigquery(self, gcp_project: str):
+        if self.bq_service is None:
+            from .services.bq_service import BQService
+
+            self.bq_service = BQService(self)
         return self.bq_service.launch_bigquery(gcp_project)
 
     def launch_gs(self, url: str):
