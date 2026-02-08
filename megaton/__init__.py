@@ -3,7 +3,7 @@ import sys
 from IPython.display import clear_output
 
 
-__all__ = ['start', 'mount_google_drive']
+__all__ = ['mount_google_drive']
 
 
 def _is_colab() -> bool:

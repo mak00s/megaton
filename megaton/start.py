@@ -1889,8 +1889,8 @@ class Megaton:
             if sc is not None:
                 try:
                     sc.set_site(site_url)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug('sc.set_site(%s) failed: %s', site_url, exc, exc_info=True)
             return site_url
 
         def _resolve_dates(self):
@@ -2171,8 +2171,8 @@ class Megaton:
                     min_imp_val = int(min_imp)
                     if "impressions" in res.columns:
                         res = res[res["impressions"] >= min_imp_val]
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug('min_impressions filter failed: %s', exc)
             # position (max allowed)
             max_pos = site.get("max_position")
             if max_pos is not None:
@@ -2180,24 +2180,24 @@ class Megaton:
                     max_pos_val = float(max_pos)
                     if "position" in res.columns:
                         res = res[res["position"] <= max_pos_val]
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug('max_position filter failed: %s', exc)
             # page views (optional column 'pv')
             min_pv = site.get("min_pv")
             if min_pv is not None and "pv" in res.columns:
                 try:
                     min_pv_val = int(min_pv)
                     res = res[res["pv"] >= min_pv_val]
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug('min_pv filter failed: %s', exc)
             # conversions (optional column 'cv')
             min_cv = site.get("min_cv")
             if min_cv is not None and "cv" in res.columns:
                 try:
                     min_cv_val = int(min_cv)
                     res = res[res["cv"] >= min_cv_val]
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug('min_cv filter failed: %s', exc)
             return res
 
         class Get:
