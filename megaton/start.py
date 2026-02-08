@@ -1353,8 +1353,7 @@ class Megaton:
 
     def _build_ga_clients(self):
         """GA APIの準備"""
-        from . import ga4 as ga4
-        from . import ga3 as ga3
+        from . import ga3, ga4
         self.ga = {}
         if not self.creds:
             logger.warning('認証が完了していないため、GA クライアントを初期化できません。')
