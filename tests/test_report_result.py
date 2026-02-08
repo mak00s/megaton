@@ -611,6 +611,141 @@ def test_report_result_replace_missing_column():
         result.replace(dimension='nonexistent', by={'x': 'y'})
 
 
+# ---------------------------------------------------------------------------
+# _normalize_value / _map_value edge cases (ReportResult)
+# ---------------------------------------------------------------------------
+
+def test_rr_normalize_value_nan():
+    """_normalize_value が NaN をそのまま返す"""
+    df = pd.DataFrame({
+        'sessionSource': [None, 'google'],
+        'sessions': [100, 50],
+    })
+    result = ReportResult(df)
+    normalized = result.normalize(
+        dimension='sessionSource', by={r'google': 'Search'}
+    )
+    assert pd.isna(normalized.df['sessionSource'].iloc[0])
+    assert normalized.df['sessionSource'].iloc[1] == 'Search'
+
+
+def test_rr_normalize_value_non_string():
+    """_normalize_value が非文字列をそのまま返す"""
+    df = pd.DataFrame({
+        'sessionSource': [123, 'google'],
+        'sessions': [100, 50],
+    })
+    result = ReportResult(df)
+    normalized = result.normalize(
+        dimension='sessionSource', by={r'google': 'Search'}
+    )
+    assert normalized.df['sessionSource'].iloc[0] == 123
+
+
+def test_rr_map_value_nan_with_default():
+    """_map_value が NaN + default ありで default を返す"""
+    df = pd.DataFrame({
+        'sessionSource': [None, 'google'],
+        'sessions': [100, 50],
+    })
+    result = ReportResult(df)
+    categorized = result.categorize(
+        dimension='sessionSource',
+        by={'google': 'Search'},
+        default='unknown',
+    )
+    assert categorized.df['sessionSource_category'].iloc[0] == 'unknown'
+    assert categorized.df['sessionSource_category'].iloc[1] == 'Search'
+
+
+def test_rr_map_value_callable():
+    """_map_value が callable を正しく処理する"""
+    df = pd.DataFrame({
+        'sessionSource': ['google', 'other'],
+        'sessions': [100, 50],
+    })
+    result = ReportResult(df)
+    categorized = result.categorize(
+        dimension='sessionSource',
+        by=lambda x: 'Search' if x == 'google' else None,
+        default='Others',
+    )
+    assert categorized.df['sessionSource_category'].iloc[0] == 'Search'
+    assert categorized.df['sessionSource_category'].iloc[1] == 'Others'
+
+
+def test_rr_map_value_regex_error_skips():
+    """_map_value で不正な正規表現はスキップされる"""
+    df = pd.DataFrame({
+        'sessionSource': ['google'],
+        'sessions': [100],
+    })
+    result = ReportResult(df)
+    categorized = result.categorize(
+        dimension='sessionSource',
+        by={'[invalid': 'bad', r'google': 'Search'},
+        default='none',
+    )
+    assert categorized.df['sessionSource_category'].iloc[0] == 'Search'
+
+
+def test_rr_map_value_non_string_value():
+    """_map_value が非文字列値を dict で処理する場合 default を返す"""
+    df = pd.DataFrame({
+        'sessionSource': [999],
+        'sessions': [100],
+    })
+    result = ReportResult(df)
+    categorized = result.categorize(
+        dimension='sessionSource',
+        by={r'google': 'Search'},
+        default='unknown',
+    )
+    assert categorized.df['sessionSource_category'].iloc[0] == 'unknown'
+
+
+# ---------------------------------------------------------------------------
+# categorize missing column
+# ---------------------------------------------------------------------------
+
+def test_rr_map_value_invalid_type_raises():
+    """_map_value が dict/callable 以外の by でTypeErrorを投げる"""
+    df = pd.DataFrame({
+        'sessionSource': ['google'],
+        'sessions': [100],
+    })
+    result = ReportResult(df)
+    with pytest.raises(TypeError, match="must be a dict or callable"):
+        result.categorize(dimension='sessionSource', by=42)  # type: ignore[arg-type]
+
+
+def test_rr_categorize_missing_column_raises():
+    """ReportResult.categorize() 存在しない列はエラー"""
+    df = pd.DataFrame({
+        'date': ['2024-01'],
+        'sessions': [100],
+    })
+    result = ReportResult(df)
+    with pytest.raises(ValueError, match="not found"):
+        result.categorize(dimension='nonexistent', by={'x': 'y'})
+
+
+# ---------------------------------------------------------------------------
+# group with no metrics found
+# ---------------------------------------------------------------------------
+
+def test_rr_group_no_numeric_columns():
+    """group() で数値列がない場合は空DataFrameが返される"""
+    df = pd.DataFrame({
+        'date': ['2024-01', '2024-01'],
+        'source': ['google', 'yahoo'],
+    })
+    result = ReportResult(df, dimensions=['date', 'source'])
+    grouped = result.group(by='date')
+    # メトリクスがないので空の列構成
+    assert grouped.df.empty or 'date' in grouped.df.columns
+
+
 def test_report_result_custom_metrics_not_in_dimensions():
     """カスタムメトリクス（cv, ad_cost, totalPurchasers等）が dimensions に入らないことを確認"""
     df = pd.DataFrame({

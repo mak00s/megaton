@@ -371,10 +371,366 @@ def test_ctr_not_added_when_absent():
         # ctr なし
     })
     result = SearchResult(df, None, ['page'])
-    
+
     # group=True で集計
     aggregated = result.decode(group=True)
-    
+
     # CTR 列は追加されない
     assert len(aggregated.df) == 1
     assert 'ctr' not in aggregated.df.columns
+
+
+# ---------------------------------------------------------------------------
+# _aggregate_gsc edge cases
+# ---------------------------------------------------------------------------
+
+def test_aggregate_gsc_empty_df():
+    """空DataFrameの集計は即座に返される"""
+    df = pd.DataFrame(columns=['page', 'clicks', 'impressions'])
+    result = SearchResult(df, None, ['page'])
+    # group=True で _aggregate → _aggregate_gsc を通る
+    aggregated = result.decode(group=True)
+    assert aggregated.df.empty
+
+
+def test_aggregate_gsc_no_metric_cols():
+    """指標列がない場合はそのまま返す"""
+    df = pd.DataFrame({
+        'page': ['https://example.com/a', 'https://example.com/a'],
+        'query': ['test', 'test'],
+    })
+    result = SearchResult(df, None, ['page', 'query'])
+    # group=True → _aggregate_gsc が呼ばれるが clicks/impressions なし
+    aggregated = result.decode(group=True)
+    assert len(aggregated.df) == 2  # 集計できないのでそのまま
+
+
+# ---------------------------------------------------------------------------
+# NaN URL handling
+# ---------------------------------------------------------------------------
+
+def test_remove_params_nan_url():
+    """remove_params で NaN URL がそのまま保持される"""
+    df = pd.DataFrame({
+        'page': ['https://example.com/page?foo=1', None],
+        'clicks': [10, 5],
+        'impressions': [100, 50],
+    })
+    result = SearchResult(df, None, ['page'])
+    cleaned = result.remove_params(group=False)
+    assert pd.isna(cleaned.df['page'].iloc[1])
+    assert '?' not in str(cleaned.df['page'].iloc[0])
+
+
+def test_remove_fragment_nan_url():
+    """remove_fragment で NaN URL がそのまま保持される"""
+    df = pd.DataFrame({
+        'page': ['https://example.com/page#section', None],
+        'clicks': [10, 5],
+        'impressions': [100, 50],
+    })
+    result = SearchResult(df, None, ['page'])
+    cleaned = result.remove_fragment(group=False)
+    assert pd.isna(cleaned.df['page'].iloc[1])
+    assert '#' not in str(cleaned.df['page'].iloc[0])
+
+
+# ---------------------------------------------------------------------------
+# _normalize_value / _map_value edge cases
+# ---------------------------------------------------------------------------
+
+def test_normalize_value_nan():
+    """_normalize_value が NaN をそのまま返す"""
+    df = pd.DataFrame({
+        'query': [None, 'test'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    result = SearchResult(df, None, ['query'])
+    normalized = result.normalize('query', by={r'test': 'mapped'})
+    assert pd.isna(normalized.df['query'].iloc[0])
+    assert normalized.df['query'].iloc[1] == 'mapped'
+
+
+def test_normalize_value_non_string():
+    """_normalize_value が非文字列をそのまま返す"""
+    df = pd.DataFrame({
+        'query': [123, 'test'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    result = SearchResult(df, None, ['query'])
+    normalized = result.normalize('query', by={r'test': 'mapped'})
+    assert normalized.df['query'].iloc[0] == 123
+
+
+def test_map_value_nan_with_default():
+    """_map_value が NaN + default ありの場合 default を返す"""
+    df = pd.DataFrame({
+        'query': [None, 'test'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    result = SearchResult(df, None, ['query'])
+    categorized = result.categorize('query', by={r'test': 'mapped'}, default='unknown')
+    assert categorized.df['query_category'].iloc[0] == 'unknown'
+    assert categorized.df['query_category'].iloc[1] == 'mapped'
+
+
+def test_map_value_callable(  ):
+    """_map_value が callable を正しく処理する"""
+    df = pd.DataFrame({
+        'query': ['test', 'other'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    result = SearchResult(df, None, ['query'])
+    categorized = result.categorize(
+        'query',
+        by=lambda x: 'mapped' if x == 'test' else None,
+        default='fallback',
+    )
+    assert categorized.df['query_category'].iloc[0] == 'mapped'
+    assert categorized.df['query_category'].iloc[1] == 'fallback'
+
+
+def test_map_value_regex_error_skips():
+    """_map_value で不正な正規表現はスキップされる"""
+    df = pd.DataFrame({
+        'query': ['test'],
+        'clicks': [10],
+        'impressions': [100],
+    })
+    result = SearchResult(df, None, ['query'])
+    # 不正な正規表現パターン（[は閉じていない）を含むマップ
+    categorized = result.categorize(
+        'query',
+        by={'[invalid': 'bad', r'test': 'good'},
+        default='none',
+    )
+    assert categorized.df['query_category'].iloc[0] == 'good'
+
+
+def test_map_value_dict_no_match_returns_default():
+    """_map_value でマッチしない場合 default を返す"""
+    df = pd.DataFrame({
+        'query': ['no_match'],
+        'clicks': [10],
+        'impressions': [100],
+    })
+    result = SearchResult(df, None, ['query'])
+    categorized = result.categorize(
+        'query',
+        by={r'xyz': 'mapped'},
+        default='other',
+    )
+    assert categorized.df['query_category'].iloc[0] == 'other'
+
+
+# ---------------------------------------------------------------------------
+# normalize/categorize/classify missing column
+# ---------------------------------------------------------------------------
+
+def test_normalize_missing_column_raises():
+    """normalize() 存在しない列はエラー"""
+    df = pd.DataFrame({'query': ['a'], 'clicks': [1], 'impressions': [10]})
+    result = SearchResult(df, None, ['query'])
+    with pytest.raises(ValueError, match="not found"):
+        result.normalize('nonexistent', by={})
+
+
+def test_categorize_missing_column_raises():
+    """categorize() 存在しない列はエラー"""
+    df = pd.DataFrame({'query': ['a'], 'clicks': [1], 'impressions': [10]})
+    result = SearchResult(df, None, ['query'])
+    with pytest.raises(ValueError, match="not found"):
+        result.categorize('nonexistent', by={})
+
+
+def test_classify_missing_column_raises():
+    """classify() 存在しない列はエラー"""
+    df = pd.DataFrame({'query': ['a'], 'clicks': [1], 'impressions': [10]})
+    result = SearchResult(df, None, ['query'])
+    with pytest.raises(ValueError, match="not found"):
+        result.classify('nonexistent', by={})
+
+
+# ---------------------------------------------------------------------------
+# filter_ctr / filter_position
+# ---------------------------------------------------------------------------
+
+def test_filter_ctr():
+    """filter_ctr が CTR で正しくフィルタリングする"""
+    df = pd.DataFrame({
+        'query': ['a', 'b', 'c'],
+        'clicks': [10, 1, 0],
+        'impressions': [100, 100, 100],
+        'ctr': [0.1, 0.01, 0.0],
+    })
+    result = SearchResult(df, None, ['query'])
+    filtered = result.filter_ctr(min=0.05)
+    assert len(filtered.df) == 1
+    assert filtered.df['query'].iloc[0] == 'a'
+
+
+def test_filter_position():
+    """filter_position が平均順位で正しくフィルタリングする"""
+    df = pd.DataFrame({
+        'query': ['a', 'b', 'c'],
+        'clicks': [10, 10, 10],
+        'impressions': [100, 100, 100],
+        'position': [3.0, 15.0, 50.0],
+    })
+    result = SearchResult(df, None, ['query'])
+    filtered = result.filter_position(max=10.0)
+    assert len(filtered.df) == 1
+    assert filtered.df['query'].iloc[0] == 'a'
+
+
+# ---------------------------------------------------------------------------
+# _filter_metric with sites + keep_clicked deeper paths
+# ---------------------------------------------------------------------------
+
+def test_filter_with_sites_max_val():
+    """sites に max 値が設定されている場合のフィルタ"""
+    df = pd.DataFrame({
+        'site': ['A', 'A'],
+        'impressions': [50, 500],
+        'clicks': [0, 0],
+    })
+    sites = [{'site': 'A', 'max_impressions': 100}]
+    result = SearchResult(df, None, ['site'])
+    filtered = result.filter_impressions(sites=sites, site_key='site')
+    assert len(filtered.df) == 1
+    assert filtered.df['impressions'].iloc[0] == 50
+
+
+def test_filter_no_sites_keep_clicked_with_min_max():
+    """sites なし + keep_clicked + min/max の組み合わせ"""
+    df = pd.DataFrame({
+        'query': ['a', 'b', 'c'],
+        'clicks': [0, 1, 0],
+        'impressions': [5, 5, 50],
+    })
+    result = SearchResult(df, None, ['query'])
+    filtered = result.filter_impressions(min=10, max=100, keep_clicked=True)
+    # a: clicks=0, imp=5 < 10 → 除外
+    # b: clicks=1 → 無条件に残る
+    # c: clicks=0, imp=50 in [10,100] → 残る
+    assert len(filtered.df) == 2
+    assert set(filtered.df['query']) == {'b', 'c'}
+
+
+# ---------------------------------------------------------------------------
+# aggregate with no by
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# remove_params / remove_fragment with group=True
+# ---------------------------------------------------------------------------
+
+def test_remove_params_group_true():
+    """remove_params(group=True) が集計を行う"""
+    df = pd.DataFrame({
+        'page': [
+            'https://example.com/page?foo=1',
+            'https://example.com/page?bar=2',
+        ],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    result = SearchResult(df, None, ['page'])
+    cleaned = result.remove_params(group=True)
+    # パラメータ削除後、同一URLに集約される
+    assert len(cleaned.df) == 1
+    assert cleaned.df['clicks'].iloc[0] == 30
+
+
+def test_remove_fragment_group_true():
+    """remove_fragment(group=True) が集計を行う"""
+    df = pd.DataFrame({
+        'page': [
+            'https://example.com/page#section1',
+            'https://example.com/page#section2',
+        ],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    result = SearchResult(df, None, ['page'])
+    cleaned = result.remove_fragment(group=True)
+    # フラグメント削除後、同一URLに集約される
+    assert len(cleaned.df) == 1
+    assert cleaned.df['clicks'].iloc[0] == 30
+
+
+# ---------------------------------------------------------------------------
+# _map_value with invalid by type
+# ---------------------------------------------------------------------------
+
+def test_map_value_invalid_type_raises():
+    """_map_value が dict/callable 以外の by でTypeErrorを投げる"""
+    df = pd.DataFrame({
+        'query': ['test'],
+        'clicks': [10],
+        'impressions': [100],
+    })
+    result = SearchResult(df, None, ['query'])
+    with pytest.raises(TypeError, match="must be a dict or callable"):
+        result.categorize('query', by=42)  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# _filter_metric with sites + keep_clicked + max_val
+# ---------------------------------------------------------------------------
+
+def test_filter_explicit_max_with_sites():
+    """明示的な max_val が sites より優先される"""
+    df = pd.DataFrame({
+        'site': ['A', 'A'],
+        'impressions': [50, 150],
+        'clicks': [0, 0],
+    })
+    sites = [{'site': 'A', 'max_impressions': 200}]
+    result = SearchResult(df, None, ['site'])
+    # 明示的な max=100 が sites の max_impressions=200 より優先
+    filtered = result.filter_impressions(max=100, sites=sites, site_key='site')
+    assert len(filtered.df) == 1
+    assert filtered.df['impressions'].iloc[0] == 50
+
+
+def test_filter_with_sites_keep_clicked_max():
+    """sites + keep_clicked + max_val の組み合わせ"""
+    df = pd.DataFrame({
+        'site': ['A', 'A', 'A', 'A'],
+        'impressions': [5, 50, 500, 200],
+        'clicks': [1, 0, 0, None],  # 1つはclicked, 1つはNaN
+    })
+    sites = [{'site': 'A', 'min_impressions': 10, 'max_impressions': 100}]
+    result = SearchResult(df, None, ['site'])
+    filtered = result.filter_impressions(
+        sites=sites, site_key='site', keep_clicked=True
+    )
+    # clicks=1 → 無条件に残る (imp=5)
+    # clicks=0, imp=50 → 10 <= 50 <= 100 → 残る
+    # clicks=0, imp=500 → 500 > 100 → 除外
+    # clicks=NaN → NaN clicks → 残る
+    assert len(filtered.df) == 3
+    assert 500 not in filtered.df['impressions'].values
+
+
+# ---------------------------------------------------------------------------
+# aggregate with no by
+# ---------------------------------------------------------------------------
+
+def test_aggregate_no_by():
+    """aggregate(by=None) が dimensions で集計する"""
+    df = pd.DataFrame({
+        'query': ['test', 'test'],
+        'clicks': [10, 20],
+        'impressions': [100, 200],
+    })
+    result = SearchResult(df, None, ['query'])
+    aggregated = result.aggregate()
+    assert len(aggregated.df) == 1
+    assert aggregated.df['clicks'].iloc[0] == 30
+    assert aggregated.dimensions == ['query']
