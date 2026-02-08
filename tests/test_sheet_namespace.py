@@ -135,6 +135,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         create_if_missing=True,
         auto_width=False,
         freeze_header=False,
+        max_retries=3,
+        backoff_factor=2.0,
     ):
         called["upsert"] = (
             sheet_url,
@@ -146,6 +148,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
             create_if_missing,
             auto_width,
             freeze_header,
+            max_retries,
+            backoff_factor,
         )
         return "ok"
 
@@ -164,6 +168,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         "start_row": 1,
         "auto_width": False,
         "freeze_header": False,
+        "max_retries": 3,
+        "backoff_factor": 2.0,
     }
     assert called["append"] == (
         "CV",
@@ -171,6 +177,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         {
             "auto_width": True,
             "freeze_header": True,
+            "max_retries": 3,
+            "backoff_factor": 2.0,
         },
     )
     assert result == "ok"
@@ -184,6 +192,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         True,
         True,
         True,
+        3,
+        2.0,
     )
 
 

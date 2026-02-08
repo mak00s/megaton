@@ -103,6 +103,8 @@ class SheetsService:
         width_max: int,
         single_byte_multiplier: int,
         multi_byte_multiplier: int,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
     ) -> None:
         if df is None or len(df.columns) == 0:
             return
@@ -139,7 +141,17 @@ class SheetsService:
                 }
             )
         if requests:
-            self.app.gs._driver.batch_update({"requests": requests})
+            call = getattr(self.app.gs, "_call_with_retry", None)
+            if callable(call):
+                call(
+                    "Google Sheets set column widths",
+                    lambda: self.app.gs._driver.batch_update({"requests": requests}),
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                    retry_on_requests=True,
+                )
+            else:
+                self.app.gs._driver.batch_update({"requests": requests})
 
     def _sheet_to_df(self) -> pd.DataFrame:
         try:
@@ -158,6 +170,8 @@ class SheetsService:
         width_max: int,
         single_byte_multiplier: int,
         multi_byte_multiplier: int,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
     ) -> None:
         if auto_width:
             self._apply_column_widths(
@@ -166,9 +180,11 @@ class SheetsService:
                 width_max=width_max,
                 single_byte_multiplier=single_byte_multiplier,
                 multi_byte_multiplier=multi_byte_multiplier,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
             )
         if freeze_header:
-            self.app.gs.sheet.freeze(rows=1)
+            self.app.gs.sheet.freeze(rows=1, max_retries=max_retries, backoff_factor=backoff_factor)
 
     def _select_or_create_sheet(self, sheet_name: str, *, create_if_missing: bool) -> bool:
         if not self.app.gs:
@@ -199,6 +215,8 @@ class SheetsService:
         create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,
@@ -210,12 +228,19 @@ class SheetsService:
         if self._select_or_create_sheet(sheet_name, create_if_missing=create_if_missing):
             df = self._sort_df(df, sort_by, sort_desc)
             if start_row == 1:
-                wrote = self.app.gs.sheet.overwrite_data(df, include_index=False)
+                wrote = self.app.gs.sheet.overwrite_data(
+                    df,
+                    include_index=False,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                )
             else:
                 wrote = self.app.gs.sheet.overwrite_data_from_row(
                     df,
                     row=start_row,
                     include_index=False,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
 
             if wrote:
@@ -227,6 +252,8 @@ class SheetsService:
                     width_max=width_max,
                     single_byte_multiplier=single_byte_multiplier,
                     multi_byte_multiplier=multi_byte_multiplier,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
                 print(f"データを「{sheet_name}」シートへ反映しました。")
 
@@ -238,13 +265,20 @@ class SheetsService:
         create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,
         multi_byte_multiplier: int = 14,
     ):
         if self._select_or_create_sheet(sheet_name, create_if_missing=create_if_missing):
-            if self.app.gs.sheet.save_data(df, include_index=False):
+            if self.app.gs.sheet.save_data(
+                df,
+                include_index=False,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            ):
                 width_df = self._sheet_to_df() if auto_width else None
                 self._apply_write_options(
                     width_df,
@@ -254,6 +288,8 @@ class SheetsService:
                     width_max=width_max,
                     single_byte_multiplier=single_byte_multiplier,
                     multi_byte_multiplier=multi_byte_multiplier,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
                 print(f"データを「{sheet_name}」シートに追記しました。")
 
@@ -306,6 +342,8 @@ class SheetsService:
         create_if_missing: bool = True,
         auto_width: bool = False,
         freeze_header: bool = False,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,
@@ -328,7 +366,12 @@ class SheetsService:
                 return None
 
         try:
-            df_existing = pd.DataFrame(self.app.gs.sheet.data)
+            df_existing = pd.DataFrame(
+                self.app.gs.sheet.get_records(
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                )
+            )
         except Exception as exc:
             print(f"'{sheet_name}' シートの読み込みに失敗しました: {exc}")
             df_existing = pd.DataFrame()
@@ -336,7 +379,12 @@ class SheetsService:
         df_new = df_new.copy()
         if df_existing.empty:
             try:
-                self.app.gs.sheet.overwrite_data(df_new, include_index=False)
+                self.app.gs.sheet.overwrite_data(
+                    df_new,
+                    include_index=False,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                )
                 self._apply_write_options(
                     df_new,
                     auto_width=auto_width,
@@ -345,6 +393,8 @@ class SheetsService:
                     width_max=width_max,
                     single_byte_multiplier=single_byte_multiplier,
                     multi_byte_multiplier=multi_byte_multiplier,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
                 print(f"'{sheet_name}' シートへ {len(df_new)} 行を書き込みました。")
                 return df_new
@@ -384,7 +434,12 @@ class SheetsService:
             df_combined = df_combined[columns]
 
         try:
-            self.app.gs.sheet.overwrite_data(df_combined, include_index=False)
+            self.app.gs.sheet.overwrite_data(
+                df_combined,
+                include_index=False,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            )
             self._apply_write_options(
                 df_combined,
                 auto_width=auto_width,
@@ -393,6 +448,8 @@ class SheetsService:
                 width_max=width_max,
                 single_byte_multiplier=single_byte_multiplier,
                 multi_byte_multiplier=multi_byte_multiplier,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
             )
             print(f"'{sheet_name}' シートを更新しました（新規 {len(df_new)} 行、削除 {mask.sum()} 行）。")
             return df_combined
@@ -416,8 +473,16 @@ class SheetsService:
             return None
 
         try:
+            call = getattr(self.app.gs, "_call_with_retry", None)
             for cell, value in updates.items():
-                self.app.gs.sheet._driver.update_acell(cell, value)
+                if callable(call):
+                    call(
+                        "Google Sheets update cell",
+                        lambda c=cell, v=value: self.app.gs.sheet._driver.update_acell(c, v),
+                        retry_on_requests=True,
+                    )
+                else:
+                    self.app.gs.sheet._driver.update_acell(cell, value)
             print(f"'{sheet_name}' シートのセルを更新しました: {', '.join(updates.keys())}")
             return True
         except Exception as exc:
@@ -440,7 +505,15 @@ class SheetsService:
             return None
 
         try:
-            self.app.gs.sheet._driver.update(a1_range, values)
+            call = getattr(self.app.gs, "_call_with_retry", None)
+            if callable(call):
+                call(
+                    "Google Sheets update range",
+                    lambda: self.app.gs.sheet._driver.update(a1_range, values),
+                    retry_on_requests=True,
+                )
+            else:
+                self.app.gs.sheet._driver.update(a1_range, values)
             print(f"'{sheet_name}' シートの範囲を更新しました: {a1_range}")
             return True
         except Exception as exc:

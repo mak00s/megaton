@@ -8,7 +8,7 @@ from urllib.parse import unquote
 import pandas as pd
 from googleapiclient.errors import HttpError
 
-from .. import searchconsole
+from .. import retry_utils, searchconsole
 
 logger = logging.getLogger(__name__)
 
@@ -204,40 +204,40 @@ class GSCService:
                     }
                 ]
 
-            response = None
-            for attempt in range(max_retries):
-                try:
-                    response = (
+            def _on_retry(attempt_no, max_attempts, wait, exc):
+                if verbose:
+                    logger.warning(
+                        "Search Console API error on startRow=%s; retrying in %.1fs (%s/%s)",
+                        current_start,
+                        wait,
+                        attempt_no,
+                        max_attempts,
+                    )
+
+            try:
+                response = retry_utils.expo_retry(
+                    lambda: (
                         client.searchanalytics()
                         .query(siteUrl=site_url, body=request_body)
                         .execute()
+                    ),
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                    exceptions=(HttpError,),
+                    on_retry=_on_retry,
+                    sleep=time.sleep,
+                )
+            except HttpError as exc:
+                if verbose:
+                    logger.warning(
+                        "Search Console API error on startRow=%s: %s",
+                        current_start,
+                        exc,
                     )
-                    break
-                except HttpError as exc:
-                    wait = backoff_factor * (2**attempt)
-                    if attempt + 1 >= max_retries:
-                        if verbose:
-                            logger.warning(
-                                "Search Console API error on startRow=%s: %s",
-                                current_start,
-                                exc,
-                            )
-                        return pd.DataFrame()
-                    if verbose:
-                        logger.warning(
-                            "Search Console API error on startRow=%s; retrying in %.1fs (%s/%s)",
-                            current_start,
-                            wait,
-                            attempt + 1,
-                            max_retries,
-                        )
-                    time.sleep(wait)
-                except Exception as exc:
-                    if verbose:
-                        logger.error("Search Console request failed on startRow=%s: %s", current_start, exc)
-                    return pd.DataFrame()
-
-            if response is None:
+                return pd.DataFrame()
+            except Exception as exc:
+                if verbose:
+                    logger.error("Search Console request failed on startRow=%s: %s", current_start, exc)
                 return pd.DataFrame()
 
             rows = response.get("rows", [])

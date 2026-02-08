@@ -29,6 +29,8 @@ def test_save_to_sheet_passes_options():
         create_if_missing=True,
         auto_width=True,
         freeze_header=True,
+        max_retries=3,
+        backoff_factor=2.0,
     )
 
 
@@ -55,6 +57,8 @@ def test_sheet_save_passes_options():
         start_row=3,
         auto_width=True,
         freeze_header=True,
+        max_retries=3,
+        backoff_factor=2.0,
     )
 
 
@@ -77,6 +81,8 @@ def test_append_to_sheet_passes_options():
         create_if_missing=True,
         auto_width=True,
         freeze_header=True,
+        max_retries=3,
+        backoff_factor=2.0,
     )
 
 
@@ -104,4 +110,6 @@ def test_upsert_to_sheet_passes_options():
         create_if_missing=True,
         auto_width=True,
         freeze_header=True,
+        max_retries=3,
+        backoff_factor=2.0,
     )

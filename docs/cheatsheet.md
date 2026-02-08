@@ -85,6 +85,29 @@ mg.report.run(d=["date"], m=["sessions"], filter_m="sessions>100")
 | `!~` | 正規表現不一致 |
 | `>`, `>=`, `<`, `<=` | 数値比較 |
 
+### 複数メトリクスセット（multi-set モード）
+
+`m` に `[(metrics_list, options_dict), ...]` を渡すと、**セット数だけ API コール**して結果を **d 列で結合**します。
+デフォルトは **LEFT JOIN**（1セット目基準）で、`merge="outer"` で外部結合にもできます。
+
+```python
+result = mg.report.run(
+    d=[("yearMonth", "month"), ("landingPage", "page")],
+    m=[
+        (["sessions"], {"filter_d": "defaultChannelGroup==Organic Search"}),
+        (["totalPurchasers"], {"filter_d": "defaultChannelGroup==Organic Search"}),
+    ],
+    merge="left",   # default
+    show=False,
+)
+df = result.df
+```
+
+注意:
+- 通常モード（`m=["sessions", ...]`）と multi-set（`m=[([...], {...}), ...]`）は **混在不可**。
+- `options_dict` で指定できるのは `filter_d` / `filter_m` のみ。
+- `mg.report.run()` では `("sessions", "sessions", {"filter_d": ...})` のような **メトリクス定義の options は解釈されません**。フィルタを分けたい場合は multi-set を使ってください。
+
 ### sort の書式
 
 ソートは文字列で指定。降順は先頭に `-` を付ける。複数はカンマ区切り。
@@ -110,9 +133,17 @@ mg.report.run(d=["date"], m=["sessions"], max_retries=5, backoff_factor=1.0)
 
 ## Sheets (by name)
 
-- `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, start_row?, create_if_missing?, auto_width?, freeze_header?)`
-- `mg.append.to.sheet(name, df?, create_if_missing?, auto_width?, freeze_header?)`
-- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
+- `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, start_row?, create_if_missing?, auto_width?, freeze_header?, max_retries?, backoff_factor?)`
+- `mg.append.to.sheet(name, df?, create_if_missing?, auto_width?, freeze_header?, max_retries?, backoff_factor?)`
+- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?, auto_width?, freeze_header?, max_retries?, backoff_factor?)`
+
+### Sheets API retry
+
+Sheets の保存系は指数バックオフで再試行できます（default: `max_retries=3`, `backoff_factor=2.0`）。
+
+```python
+mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
+```
 
 ### `start_row` の挙動（save系）
 

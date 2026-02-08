@@ -36,7 +36,7 @@ from google.api_core.exceptions import Unauthenticated
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 
-from . import errors, utils
+from . import errors, retry_utils, utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -791,39 +791,43 @@ class MegatonGA4(object):
             total_rows, response = 0, None
             max_retries = max(1, int(max_retries))
 
-            for attempt in range(max_retries):
-                try:
-                    response = self.parent.data_client.run_report(request)
-                    total_rows = response.row_count
-                    break
-                except ServiceUnavailable as e:
-                    wait = backoff_factor * (2**attempt)
-                    if attempt + 1 >= max_retries:
-                        LOGGER.warning("GA4 Data API error: %s", e)
-                        break
-                    LOGGER.warning(
-                        "GA4 Data API unavailable; retrying in %.1fs (%s/%s)",
-                        wait,
-                        attempt + 1,
-                        max_retries,
-                    )
-                    time.sleep(wait)
-                except PermissionDenied as e:
-                    LOGGER.error("権限がありません。")
-                    message = getattr(e, 'message', repr(e))
-                    ex_value = sys.exc_info()[1]
-                    m = re.search(r'reason: "([^"]+)', str(ex_value))
-                    if m:
-                        reason = m.group(1)
-                        if reason == 'SERVICE_DISABLED':
-                            LOGGER.error("GCPのプロジェクトでData APIを有効化してください。")
-                    LOGGER.warning(message)
-                    break
-                except Exception as e:
-                    type_, value, traceback_ = sys.exc_info()
-                    LOGGER.debug(type_)
-                    LOGGER.debug(value)
-                    break
+            def _on_retry(attempt_no, max_attempts, wait, exc):
+                LOGGER.warning(
+                    "GA4 Data API unavailable; retrying in %.1fs (%s/%s)",
+                    wait,
+                    attempt_no,
+                    max_attempts,
+                )
+
+            try:
+                response = retry_utils.expo_retry(
+                    lambda: self.parent.data_client.run_report(request),
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                    exceptions=(ServiceUnavailable,),
+                    on_retry=_on_retry,
+                    sleep=time.sleep,
+                )
+                total_rows = response.row_count
+            except ServiceUnavailable as e:
+                LOGGER.warning("GA4 Data API error: %s", e)
+                response = None
+            except PermissionDenied as e:
+                LOGGER.error("権限がありません。")
+                message = getattr(e, 'message', repr(e))
+                ex_value = sys.exc_info()[1]
+                m = re.search(r'reason: \"([^\"]+)', str(ex_value))
+                if m:
+                    reason = m.group(1)
+                    if reason == 'SERVICE_DISABLED':
+                        LOGGER.error("GCPのプロジェクトでData APIを有効化してください。")
+                LOGGER.warning(message)
+                response = None
+            except Exception as e:
+                type_, value, traceback_ = sys.exc_info()
+                LOGGER.debug(type_)
+                LOGGER.debug(value)
+                response = None
 
             data, headers, types = self._parse_response(response)
 

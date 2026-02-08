@@ -57,6 +57,8 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
         create_if_missing=True,
         auto_width=False,
         freeze_header=False,
+        max_retries=3,
+        backoff_factor=2.0,
     ):
         called["sheet_url"] = sheet_url
         called["sheet_name"] = sheet_name
@@ -67,6 +69,8 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
         called["create_if_missing"] = create_if_missing
         called["auto_width"] = auto_width
         called["freeze_header"] = freeze_header
+        called["max_retries"] = max_retries
+        called["backoff_factor"] = backoff_factor
         return "ok"
 
     monkeypatch.setattr(app._sheets, "upsert_df", fake_upsert_df)
@@ -83,6 +87,8 @@ def test_upsert_to_sheet_calls_service(monkeypatch):
     assert called["create_if_missing"] is True
     assert called["auto_width"] is False
     assert called["freeze_header"] is False
+    assert called["max_retries"] == 3
+    assert called["backoff_factor"] == 2.0
 
 
 def test_upsert_to_sheet_rejects_invalid_df():

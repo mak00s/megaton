@@ -25,6 +25,9 @@ class _FakeSheet:
             return []
         return self.parent._sheets.get(self._name, [])
 
+    def get_records(self, **_kwargs):
+        return self.data
+
     def select(self, name: str):
         if name not in self.parent._sheets:
             raise errors.SheetNotFound
@@ -35,13 +38,13 @@ class _FakeSheet:
         self.parent._sheets[name] = []
         self._name = name
 
-    def overwrite_data(self, df, include_index=False):
+    def overwrite_data(self, df, include_index=False, **_kwargs):
         self.parent.last_write = ("overwrite_data", 1, include_index)
         self.parent.last_written = df.copy()
         self.parent._sheets[self._name] = df.to_dict(orient="records")
         return True
 
-    def overwrite_data_from_row(self, df, row, include_index=False):
+    def overwrite_data_from_row(self, df, row, include_index=False, **_kwargs):
         self.parent.last_write = ("overwrite_data_from_row", row, include_index)
         existing = list(self.parent._sheets.get(self._name, []))
         kept = existing[: max(0, row - 1)]
@@ -49,12 +52,12 @@ class _FakeSheet:
         self.parent._sheets[self._name] = kept + df.to_dict(orient="records")
         return True
 
-    def save_data(self, df, include_index=False):
+    def save_data(self, df, include_index=False, **_kwargs):
         rows = self.parent._sheets.setdefault(self._name, [])
         rows.extend(df.to_dict(orient="records"))
         return True
 
-    def freeze(self, rows=None, cols=None):
+    def freeze(self, rows=None, cols=None, **_kwargs):
         self.parent.frozen = (rows, cols)
 
     def update_acell(self, cell, value):

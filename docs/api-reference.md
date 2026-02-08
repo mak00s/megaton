@@ -282,6 +282,10 @@ GA4 レポートを実行します。
 - いずれかのセット取得が失敗したら全体を失敗扱い
 - `sort` はマージ後に適用
 
+**注意（よくある勘違い）:**
+- `mg.report.run()` では `("sessions", "sessions", {"filter_d": ...})` のような **メトリクス定義の options dict は解釈されません**。
+  - フィルタをメトリクスごとに分けたい場合は、上の **multi-set**（`m=[([...], {...}), ...]`）を使ってください。
+
 ### `mg.report.run.all(items, d=None, m=None, dimensions=None, metrics=None, item_key='site', property_key='ga4_property_id', item_filter=None, verbose=True, **kwargs)`
 
 複数プロパティのレポートを一括実行して結合します。
@@ -295,6 +299,8 @@ GA4 レポートを実行します。
 - `m` (list | None) - 指標（省略形）
   - `site.<key>` を指定すると `item[<key>]` をメトリクスとして使用します
   - `(api_name, alias, options)` の `options` に `{'filter_d': ...}` を指定できます（メトリクス別フィルタ）
+    - `run.all` のメトリクス別フィルタは **filter_d のみ**をサポート（`filter_m` は未対応）
+    - 同一アイテム内で `filter_d` が異なるメトリクスが混在する場合、Megaton は **複数回 API コール**して結果をマージします
 - `dimensions` (list | None) - ディメンション（明示形）
 - `metrics` (list | None) - 指標（明示形）
 - `item_key` (str) - 識別子のキー名（default: 'site'）
@@ -532,6 +538,12 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
   - 0 以下で無効化
 - タイムアウト時はメッセージを出して終了します
 
+**Retry（指数バックオフ）:**
+- 一時エラー（HTTP 429/5xx）やネットワーク例外に対して指数バックオフで再試行します
+- 環境変数で上書き可能:
+  - `MEGATON_GS_MAX_RETRIES`（default: `3`）
+  - `MEGATON_GS_BACKOFF_FACTOR`（default: `2.0`）
+
 **戻り値:** bool | None
 
 **失敗時:**
@@ -574,7 +586,7 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
 - 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
 - シートが存在しない場合は `ValueError`
 
-### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, start_row=1, create_if_missing=False, auto_width=False, freeze_header=False)`
+### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, start_row=1, create_if_missing=False, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
 
 DataFrame をシートに上書き保存します。
 
@@ -587,6 +599,8 @@ DataFrame をシートに上書き保存します。
 - `create_if_missing` (bool) - 対象シートがない場合に自動作成するか（default: False）
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
 
 **戻り値:** None
 
@@ -596,7 +610,7 @@ DataFrame をシートに上書き保存します。
 - `start_row >= 1` であること（`start_row=2` の場合、1行目は保持されます）
 - `create_if_missing=False` の場合、対象シートが未作成だと保存されません
 
-### `mg.append.to.sheet(sheet_name, df=None, create_if_missing=False, auto_width=False, freeze_header=False)`
+### `mg.append.to.sheet(sheet_name, df=None, create_if_missing=False, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
 
 DataFrame を既存データの末尾に追記します。
 
@@ -606,6 +620,8 @@ DataFrame を既存データの末尾に追記します。
 - `create_if_missing` (bool) - 対象シートがない場合に自動作成するか（default: False）
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
 
 **戻り値:** None
 
@@ -614,7 +630,7 @@ DataFrame を既存データの末尾に追記します。
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 - `create_if_missing=False` の場合、対象シートが未作成だと追記されません
 
-### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None, auto_width=False, freeze_header=False)`
+### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
 
 キー列を基準にアップサート（更新または挿入）します。
 
@@ -626,6 +642,8 @@ DataFrame を既存データの末尾に追記します。
 - `sort_by` (list[str] | None) - ソート列のリスト
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
 
 **戻り値:** pd.DataFrame | None
 
@@ -679,7 +697,7 @@ DataFrame を既存データの末尾に追記します。
 **前提条件・例外:**
 - スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
 
-#### `mg.sheet.save(df=None, sort_by=None, sort_desc=True, start_row=1, auto_width=False, freeze_header=False)`
+#### `mg.sheet.save(df=None, sort_by=None, sort_desc=True, start_row=1, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
 
 現在のシートに DataFrame を保存します。
 
@@ -690,6 +708,8 @@ DataFrame を既存データの末尾に追記します。
 - `start_row` (int) - ヘッダを書き込む開始行（1始まり、default: 1）
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
 
 **戻り値:** None
 
@@ -699,7 +719,7 @@ DataFrame を既存データの末尾に追記します。
 - DataFrame 以外を渡した場合は `TypeError`
 - `start_row >= 1` であること（`start_row=2` の場合、1行目は保持されます）
 
-#### `mg.sheet.append(df=None, auto_width=False, freeze_header=False)`
+#### `mg.sheet.append(df=None, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
 
 現在のシートに追記します。
 
@@ -707,6 +727,9 @@ DataFrame を既存データの末尾に追記します。
 - `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
 - `auto_width` (bool) - 列幅を自動調整（default: False）
 - `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
+  - `append` は非冪等になり得るため、retry は主に HTTP 429/5xx を対象にします
 
 **戻り値:** None
 
@@ -719,7 +742,7 @@ DataFrame を既存データの末尾に追記します。
 
 現在のシートにアップサートします。
 
-**パラメータ:** `mg.upsert.to.sheet()` と同じ
+**パラメータ:** `mg.upsert.to.sheet()` と同じ（`max_retries` / `backoff_factor` 含む）
 
 **戻り値:** pd.DataFrame | None
 

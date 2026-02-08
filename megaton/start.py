@@ -1610,6 +1610,8 @@ class Megaton:
                 create_if_missing: bool = False,
                 auto_width: bool = False,
                 freeze_header: bool = False,
+                max_retries: int = 3,
+                backoff_factor: float = 2.0,
             ):
                 """DataFrameをGoogle Sheetsへ反映する
 
@@ -1629,6 +1631,8 @@ class Megaton:
                     create_if_missing=create_if_missing,
                     auto_width=auto_width,
                     freeze_header=freeze_header,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
 
     class Save:
@@ -1668,6 +1672,8 @@ class Megaton:
                 create_if_missing: bool = False,
                 auto_width: bool = False,
                 freeze_header: bool = False,
+                max_retries: int = 3,
+                backoff_factor: float = 2.0,
             ):
                 """DataFrameをGoogle Sheetsへ反映する
 
@@ -1693,6 +1699,8 @@ class Megaton:
                     create_if_missing=create_if_missing,
                     auto_width=auto_width,
                     freeze_header=freeze_header,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
 
     class Upsert:
@@ -1805,6 +1813,8 @@ class Megaton:
                 sort_by=None,
                 auto_width: bool = False,
                 freeze_header: bool = False,
+                max_retries: int = 3,
+                backoff_factor: float = 2.0,
             ):
                 """DataFrameをGoogle Sheetsへupsertする
 
@@ -1842,6 +1852,8 @@ class Megaton:
                     create_if_missing=True,
                     auto_width=auto_width,
                     freeze_header=freeze_header,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
 
     class Search:
@@ -2338,6 +2350,8 @@ class Megaton:
             start_row: int = 1,
             auto_width: bool = False,
             freeze_header: bool = False,
+            max_retries: int = 3,
+            backoff_factor: float = 2.0,
         ):
             df = self._coerce_df(df)
             self._ensure_spreadsheet()
@@ -2350,6 +2364,8 @@ class Megaton:
                 start_row=start_row,
                 auto_width=auto_width,
                 freeze_header=freeze_header,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
             )
 
         def append(
@@ -2358,6 +2374,8 @@ class Megaton:
             *,
             auto_width: bool = False,
             freeze_header: bool = False,
+            max_retries: int = 3,
+            backoff_factor: float = 2.0,
         ):
             df = self._coerce_df(df)
             self._ensure_spreadsheet()
@@ -2367,6 +2385,8 @@ class Megaton:
                 df,
                 auto_width=auto_width,
                 freeze_header=freeze_header,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
             )
 
         def upsert(
@@ -2378,6 +2398,8 @@ class Megaton:
             sort_by=None,
             auto_width: bool = False,
             freeze_header: bool = False,
+            max_retries: int = 3,
+            backoff_factor: float = 2.0,
         ):
             df = self._coerce_df(df)
             self._ensure_spreadsheet()
@@ -2393,6 +2415,8 @@ class Megaton:
                 create_if_missing=True,
                 auto_width=auto_width,
                 freeze_header=freeze_header,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
             )
 
         class Cell:
