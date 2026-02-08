@@ -1,14 +1,14 @@
 # megaton
 
-Megaton は Google Analytics 4、Google Search Console、Google Sheets、BigQuery を **Notebook から短いコードで扱う** ためのツールです。分析の試行錯誤を速く回すことを重視し、Notebook 向けの UX に特化しています。
+Megaton is a Python toolkit for working with Google Analytics 4, Google Search Console, Google Sheets, and BigQuery from Notebooks with minimal code. It focuses on fast iteration during analysis and provides a UX tailored for Notebook workflows.
 
-## コア概念
+## Core Concepts
 
-- **結果オブジェクト**: `SearchResult` / `ReportResult` によるメソッドチェーン
-- **シンプルな流れ**: 開く → 期間設定 → 取得 → 保存
-- **Notebook 前提**: 途中結果の確認を前提にした設計
+- **Result objects**: Method chaining via `SearchResult` / `ReportResult`
+- **Simple flow**: Open → Set dates → Run → Save
+- **Notebook-first**: Designed for inspecting intermediate results
 
-## クイックスタート
+## Quick Start
 
 ```python
 from megaton.start import Megaton
@@ -21,10 +21,10 @@ mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
 mg.save.to.sheet("_ga_data", mg.report.data)
 ```
 
-## もう少し実用的な例
+## More Practical Example
 
 ```python
-# 複数サイトの Search Console データを一括取得して整形
+# Fetch Search Console data for multiple sites and categorize
 result = (mg.search.run.all(
     sites,
     dimensions=['query', 'page'],
@@ -37,29 +37,28 @@ mg.save.to.sheet('_query', result.df, sort_by='impressions')
 mg.upsert.to.csv(result.df, filename='query_master', keys=['clinic', 'query', 'page'], include_dates=False)
 ```
 
-## インストール
+## Installation
 
 ```bash
-# PyPI 公開版
+# From PyPI
 pip install megaton
 
-# 最新版（GitHub）
+# Latest from GitHub
 pip install git+https://github.com/mak00s/megaton.git
 ```
 
-## ドキュメント
+## Documentation
 
-- 仕様の正は [api-reference.md](docs/api-reference.md) です。
-- [api-reference.md](docs/api-reference.md) - API 仕様の単一ソース
-- [design.md](docs/design.md) - 設計思想とトレードオフ
-- [cookbook.md](docs/cookbook.md) - 実用例集
-- [cheatsheet.md](docs/cheatsheet.md) - 1 行リファレンス
+- [api-reference.md](docs/api-reference.md) - API reference (single source of truth)
+- [design.md](docs/design.md) - Design philosophy and trade-offs
+- [cookbook.md](docs/cookbook.md) - Practical recipes
+- [cheatsheet.md](docs/cheatsheet.md) - One-line reference
 
-## 変更履歴
+## Changelog
 
 - [CHANGELOG.md](CHANGELOG.md)
-- [docs/changelog-archive.md](docs/changelog-archive.md) - 0.x 系の履歴
+- [docs/changelog-archive.md](docs/changelog-archive.md) - 0.x series history
 
-## ライセンス
+## License
 
 MIT License
