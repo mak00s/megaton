@@ -17,7 +17,6 @@
 
 ### 変更
 
-- **パッケージ配布修正**: `setup.py` の `long_description_content_type` を `text/markdown` に修正し、`install_requires` を `requirements.txt` から読み込むように更新。
-- **配布物修正**: `MANIFEST.in` を追加して `requirements.txt` を sdist に同梱。
+- **pyproject.toml 移行**: `setup.py` / `MANIFEST.in` / `requirements.txt` を廃止し PEP 621 準拠の `pyproject.toml` に統合。
 - **テスト拡充**: `sheets_service` / `gsheet` / `ga4 report` の分岐テストを追加。
 - **ドキュメント整理**: API リファレンス、チートシート、README を現行仕様に合わせて更新。

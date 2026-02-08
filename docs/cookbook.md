@@ -7,7 +7,39 @@ Megaton の実用例をまとめています。API の仕様は [api-reference.m
 ```python
 from megaton.start import Megaton
 
+# サービスアカウント JSON のパスを渡して初期化
 mg = Megaton("/path/to/service_account.json")
+```
+
+## 前提：よく使う変数
+
+以下のレシピでは `sites`, `query_map`, `page_map` が登場します。
+
+```python
+# sites: GA4 / GSC の対象サイト定義（list[dict]）
+sites = [
+    {
+        "clinic": "tokyo",                       # 識別キー
+        "ga4_property_id": "properties/123456",   # GA4 プロパティ
+        "gsc_site_url": "https://example.com",    # GSC サイト URL
+        "min_impressions": 50,                    # フィルタ閾値（任意）
+    },
+]
+
+# query_map: 正規表現 → カテゴリ名の辞書
+# キーは正規表現パターン、値はカテゴリ名。上から順にマッチ。
+query_map = {
+    r"brand|ブランド名": "Brand",
+    r"料金|price":       "Price",
+    r".*":               "(other)",
+}
+
+# page_map: ページURLの分類用（query_map と同じ形式）
+page_map = {
+    r"/service/":  "Service",
+    r"/blog/":     "Blog",
+    r".*":         "(other)",
+}
 ```
 
 ## GA4: 基本レポート → Sheets 保存
