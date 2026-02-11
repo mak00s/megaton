@@ -223,4 +223,10 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 ## BigQuery
 
 - `bq = mg.launch_bigquery(project)`
+- `bq.update()`
 - `bq.run(sql, to_dataframe=True)`
+- `bq.dataset.select(dataset_id?)`
+- `bq.dataset.update(dataset_id?)`
+- `bq.table.select(table_id?)`
+- `bq.table.update(table_id?)`
+- `bq.table.create(table_id, schema, description?, partitioning_field?, clustering_fields?)`

@@ -285,6 +285,38 @@ GROUP BY 1
 df = bq.run(sql, to_dataframe=True)
 ```
 
+## BigQuery: dataset / table を選択
+
+```python
+bq = mg.launch_bigquery("my-gcp-project")
+
+bq.dataset.select("analytics_work")
+bq.table.select("daily_summary")
+```
+
+## BigQuery: table を作成（partition / cluster）
+
+```python
+from google.cloud import bigquery
+
+bq = mg.launch_bigquery("my-gcp-project")
+bq.dataset.select("analytics_work")
+
+schema = [
+    bigquery.SchemaField("date", "DATE", description="report date"),
+    bigquery.SchemaField("sessions", "INT64"),
+    bigquery.SchemaField("users", "INT64"),
+]
+
+bq.table.create(
+    table_id="daily_summary",
+    schema=schema,
+    description="Daily GA summary",
+    partitioning_field="date",
+    clustering_fields=["date"],
+)
+```
+
 ## Transform: source 正規化 + channel 分類
 
 ```python

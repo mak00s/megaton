@@ -819,6 +819,96 @@ SQL クエリを実行します。
 
 **戻り値:** pd.DataFrame | QueryJob
 
+### `bq.update()`
+
+プロジェクト配下の dataset 一覧を再取得します。
+
+**戻り値:** bool（成功時 `True`）
+
+**副作用:**
+- `bq.datasets` が最新化されます
+
+### `bq.dataset.select(dataset_id=None)`
+
+dataset を選択します。`None` または空文字の場合は選択をクリアします。
+
+**パラメータ:**
+- `dataset_id` (str | None) - 対象 dataset ID
+
+**戻り値:** bool（成功時 `True`）
+
+**副作用:**
+- `bq.dataset.id` / `bq.dataset.ref` / `bq.dataset.instance` / `bq.dataset.tables` を更新
+- state 連携時は `state.bq_dataset_id` を更新
+
+**例外:**
+- `ValueError` - 指定 dataset がプロジェクトに存在しない場合
+
+### `bq.dataset.update(dataset_id='')`
+
+選択中 dataset（または指定 dataset）のメタデータと table 一覧を再取得します。
+
+**パラメータ:**
+- `dataset_id` (str) - 省略時は現在選択中 dataset を使用
+
+**戻り値:** bool（成功時 `True`）
+
+**例外:**
+- `ValueError` - dataset 未選択かつ `dataset_id` 未指定
+- `ValueError` - 指定 dataset が存在しない
+
+### `bq.table.select(table_id=None)`
+
+table を選択します。`None` または空文字の場合は選択をクリアします。
+
+**パラメータ:**
+- `table_id` (str | None) - 対象 table ID
+
+**戻り値:** bool（成功時 `True`）
+
+**前提条件:**
+- 先に `bq.dataset.select(dataset_id)` で dataset を選択済みであること
+
+**例外:**
+- `ValueError` - dataset 未選択
+- `ValueError` - 指定 table が dataset に存在しない
+
+### `bq.table.update(table_id='')`
+
+選択中 table（または指定 table）のメタデータを再取得します。
+
+**パラメータ:**
+- `table_id` (str) - 省略時は現在選択中 table を使用
+
+**戻り値:** bool（成功時 `True`）
+
+**前提条件:**
+- dataset が選択済みであること
+
+**例外:**
+- `ValueError` - dataset 未選択
+- `ValueError` - table 未選択かつ `table_id` 未指定
+- `ValueError` - 指定 table が存在しない
+
+### `bq.table.create(table_id, schema, description='', partitioning_field='', clustering_fields=None)`
+
+選択中 dataset に table を作成します。
+
+**パラメータ:**
+- `table_id` (str) - 作成する table ID
+- `schema` (list[bigquery.SchemaField]) - スキーマ
+- `description` (str) - テーブル説明（任意）
+- `partitioning_field` (str) - 日次パーティション列（任意）
+- `clustering_fields` (list[str] | None) - クラスタリング列（任意）
+
+**戻り値:** `google.cloud.bigquery.table.Table`
+
+**前提条件:**
+- dataset が選択済みであること
+
+**例外:**
+- `ValueError` - dataset 未選択
+
 ---
 
 ## Config 管理

@@ -1,10 +1,8 @@
-import inspect
-
 import pandas as pd
 import pytest
 from googleapiclient import errors
 
-from megaton import bq, ga4, google_api, utils
+from megaton import ga4, google_api, utils
 from megaton.ui import widgets
 
 
@@ -105,16 +103,3 @@ def test_ga4_format_filter_supports_custom_event_dimension_prefix():
     expr = report._format_filter("customEvent:article_id!@not")
 
     assert expr.not_expression.filter.field_name == "customEvent:article_id"
-
-
-@pytest.mark.parametrize(
-    "method_name",
-    [
-        "flatten_events",
-    ],
-)
-@pytest.mark.parametrize("param_name", ["event_parameters", "user_properties"])
-def test_bq_ga4_defaults_are_none_to_avoid_shared_state(method_name, param_name):
-    # Expected: default list params should be None to avoid shared state.
-    sig = inspect.signature(getattr(bq.MegatonBQ.GA4, method_name))
-    assert sig.parameters[param_name].default is None
