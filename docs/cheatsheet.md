@@ -20,6 +20,7 @@
 - `mg.report.set.dates(date_from, date_to)`
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?, max_retries?, backoff_factor?)`
+- `mg.report.run.ranges(date_ranges, d, m, filter_d?, filter_m?, ...)`
 - `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?)`
 - `mg.report.prep(conf, df?, show?)`
 - `mg.report.show()`
@@ -161,6 +162,7 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 ## Sheets (current)
 
 - `mg.sheets.select(name)`
+- `mg.sheets.read(name)`
 - `mg.sheets.create(name)`
 - `mg.sheets.delete(name)`
 - `mg.select.sheet(name)`  # legacy

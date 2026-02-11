@@ -286,6 +286,26 @@ GA4 レポートを実行します。
 - `mg.report.run()` では `("sessions", "sessions", {"filter_d": ...})` のような **メトリクス定義の options dict は解釈されません**。
   - フィルタをメトリクスごとに分けたい場合は、上の **multi-set**（`m=[([...], {...}), ...]`）を使ってください。
 
+### `mg.report.run.ranges(date_ranges, d, m, filter_d=None, filter_m=None, **kwargs)`
+
+複数の日付範囲で GA4 レポートを実行し、結果を結合して返します。
+
+**パラメータ:**
+- `date_ranges` (list[tuple[str, str]]) - 日付範囲のリスト（`(start_date, end_date)`）
+- `d` (list) - ディメンション（`mg.report.run()` と同じ）
+- `m` (list) - 指標（`mg.report.run()` と同じ）
+- `filter_d` (str | None) - ディメンションフィルタ
+- `filter_m` (str | None) - メトリクスフィルタ
+- `**kwargs` - `mg.report.run()` に渡す追加引数
+  - 内部で `show=False` が強制されます
+
+**戻り値:** pd.DataFrame - 各期間の結果を縦結合した DataFrame（取得できる結果がない場合は空 DataFrame）
+
+**挙動:**
+- 各期間ごとに `mg.report.run()` を実行し、取得結果を `concat` します
+- 実行前の `mg.report.start_date` / `mg.report.end_date` は、処理終了後に復元されます
+- 結果が1件以上あれば `mg.report.data` は結合後 DataFrame に更新されます
+
 ### `mg.report.run.all(items, d=None, m=None, dimensions=None, metrics=None, item_key='site', property_key='ga4_property_id', item_filter=None, verbose=True, **kwargs)`
 
 複数プロパティのレポートを一括実行して結合します。
@@ -563,6 +583,25 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
 
 **前提条件・例外:**
 - 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
+
+### `mg.sheets.read(sheet_name)`
+
+シートを選択し、データを `DataFrame` として返します。
+
+**パラメータ:**
+- `sheet_name` (str) - 読み取るシート名
+
+**戻り値:** pd.DataFrame
+
+**挙動:**
+- 内部で `mg.sheets.select(sheet_name)` を実行してからデータを取得します
+- シートデータが既に `DataFrame` の場合はそのまま返します
+- リスト等のデータは `DataFrame` に変換して返します
+- データが空、または変換に失敗した場合は空 `DataFrame` を返します
+
+**前提条件・例外:**
+- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
+- シートが存在しない場合は `mg.sheets.select()` 由来の例外が発生します
 
 ### `mg.sheets.create(sheet_name)`
 

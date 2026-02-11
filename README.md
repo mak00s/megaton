@@ -41,6 +41,23 @@ mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
 mg.save.to.sheet("_ga_data", result.df)
 ```
 
+### Run the same report over multiple date ranges
+
+```python
+df = mg.report.run.ranges(
+    date_ranges=[("2024-01-01", "2024-01-31"), ("2025-01-01", "2025-01-31")],
+    d=["date", "eventName"],
+    m=["eventCount"],
+)
+```
+
+### Read a worksheet as DataFrame
+
+```python
+mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+daily_df = mg.sheets.read("daily")
+```
+
 ### Search Console with method chaining
 
 ```python

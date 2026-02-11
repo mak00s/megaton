@@ -75,9 +75,22 @@ df = mg.report.run.all(
 df = mg.report.run(
     d=[("yearMonth", "month"), ("landingPage", "page")],
     m=[
-        ("sessions", "sessions", {"filter_d": "sessionDefaultChannelGroup==Organic Search"}),
-        ("totalPurchasers", "cv", {"filter_d": "defaultChannelGroup==Organic Search"}),
+        (["sessions"], {"filter_d": "defaultChannelGroup==Organic Search"}),
+        ([("totalPurchasers", "cv")], {"filter_d": "defaultChannelGroup==Organic Search"}),
     ],
+)
+```
+
+## GA4: 複数期間をまとめて取得（`run.ranges`）
+
+```python
+df = mg.report.run.ranges(
+    date_ranges=[
+        ("2024-01-01", "2024-01-31"),
+        ("2025-01-01", "2025-01-31"),
+    ],
+    d=["date", "eventName"],
+    m=["eventCount"],
 )
 ```
 
@@ -225,6 +238,14 @@ mg.sheets.select("daily")
 
 mg.sheet.append(df, auto_width=True, freeze_header=True)
 mg.sheet.upsert(df, keys=["date", "page"], auto_width=True, freeze_header=True)
+```
+
+## Google Sheets: シートを読み込む（`sheets.read`）
+
+```python
+mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+
+daily_df = mg.sheets.read("daily")
 ```
 
 ## Google Sheets: 1行目を残して保存（start_row）
