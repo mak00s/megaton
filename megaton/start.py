@@ -2345,6 +2345,24 @@ class Megaton:
                 self.parent.state.gs_sheet_name = name
             return selected
 
+        def read(self, name: str) -> pd.DataFrame:
+            """シートを選択してデータを DataFrame として返すショートカット。
+
+            Args:
+                name: worksheet name
+
+            Returns:
+                DataFrame of sheet data (empty DataFrame if no data)
+            """
+            self.select(name)
+            data = self.parent.gs.sheet.data
+            if isinstance(data, pd.DataFrame):
+                return data
+            try:
+                return pd.DataFrame(data or [])
+            except Exception:
+                return pd.DataFrame()
+
         def create(self, name: str):
             self._ensure_spreadsheet()
             self.parent.gs.sheet.create(name)
@@ -2930,6 +2948,53 @@ class Megaton:
                 if isinstance(df, pd.DataFrame):
                     return ReportResult(df, dim_cols)
                 return None
+
+            def ranges(
+                self,
+                date_ranges: list,
+                *,
+                d: list,
+                m: list,
+                filter_d=None,
+                filter_m=None,
+                **kwargs,
+            ) -> pd.DataFrame:
+                """複数の日付範囲でレポートを実行し、結果を結合して返す。
+
+                日付範囲ごとに mg.report.run() を実行し、結果を concat する。
+                実行後、日付は元の値に復元される。
+
+                Args:
+                    date_ranges: list of (start_date, end_date) tuples
+                    d: dimensions (same as run())
+                    m: metrics (same as run())
+                    filter_d: dimension filter
+                    filter_m: metric filter
+                    **kwargs: additional args passed to run()
+
+                Returns:
+                    Concatenated DataFrame from all date ranges.
+                """
+                kwargs["show"] = False
+                saved_start = self.parent.start_date
+                saved_end = self.parent.end_date
+                dfs = []
+                try:
+                    for sd, ed in date_ranges:
+                        # _run_single() can return/leave stale parent.data on error paths,
+                        # so clear it per-iteration to avoid accidentally reusing prior results.
+                        self.parent.data = None
+                        self.parent.set_dates(sd, ed)
+                        self(d=d, m=m, filter_d=filter_d, filter_m=filter_m, **kwargs)
+                        if self.parent.data is not None and len(self.parent.data) > 0:
+                            dfs.append(self.parent.data.copy())
+                finally:
+                    self.parent.set_dates(saved_start, saved_end)
+                if dfs:
+                    result = pd.concat(dfs, ignore_index=True)
+                    self.parent.data = result
+                    return result
+                return pd.DataFrame()
 
             def all(
                 self,
