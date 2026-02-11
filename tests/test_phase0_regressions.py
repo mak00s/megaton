@@ -111,8 +111,6 @@ def test_ga4_format_filter_supports_custom_event_dimension_prefix():
     "method_name",
     [
         "flatten_events",
-        "get_query_to_flatten_events",
-        "schedule_query_to_flatten_events",
     ],
 )
 @pytest.mark.parametrize("param_name", ["event_parameters", "user_properties"])

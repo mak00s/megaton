@@ -48,7 +48,6 @@ def _print_install_help():
     print(
         "Megaton requires GA4 packages. Install with:\n"
         "  pip install -U -q google-analytics-admin google-analytics-data\n"
-        "  pip install -U -q google-cloud-bigquery-datatransfer\n"
         "Or set MEGATON_AUTO_INSTALL=1 in Colab."
     )
 
@@ -62,7 +61,6 @@ def _ensure_deps(*, in_colab: bool) -> None:
     required = (
         "google.analytics.data",
         "google.analytics.admin",
-        "google.cloud.bigquery_datatransfer",
     )
     missing = [m for m in required if importlib.util.find_spec(m) is None]
     if not missing:
@@ -71,10 +69,9 @@ def _ensure_deps(*, in_colab: bool) -> None:
     if _auto_install_enabled(in_colab=in_colab):
         clear_output()
         print("Installing packages for GA4...")
-        from .install import install_bigquery, install_ga4
+        from .install import install_ga4
 
         install_ga4.install()
-        install_bigquery.install()
         importlib.invalidate_caches()
         clear_output()
         return

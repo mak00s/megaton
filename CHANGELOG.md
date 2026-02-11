@@ -10,6 +10,10 @@
 - **GA4 複数期間実行ヘルパー**: `mg.report.run.ranges()` を追加。複数の日付範囲で `mg.report.run()` を実行し、結果を結合できます。
 - **Sheets 読み取りショートカット**: `mg.sheets.read()` を追加。シート選択とデータ取得を1ステップで実行し、`DataFrame` として受け取れます。
 
+### 変更
+
+- **依存整理**: `google-cloud-bigquery-datatransfer` 依存を削除。
+
 ## 1.0.0 - 2026-02-07
 
 ### 追加

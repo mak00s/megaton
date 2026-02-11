@@ -33,7 +33,6 @@ def _block_ga_specs(monkeypatch):
     missing = {
         "google.analytics.data",
         "google.analytics.admin",
-        "google.cloud.bigquery_datatransfer",
     }
 
     def fake_find_spec(name, package=None):

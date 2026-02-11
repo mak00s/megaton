@@ -3,12 +3,8 @@ Functions for Google Cloud BigQuery
 """
 
 from typing import List
-import re
-import sys
 
-from google.api_core.exceptions import PermissionDenied
 from google.cloud import bigquery
-from google.cloud import bigquery_datatransfer
 from google.cloud.exceptions import NotFound
 
 from . import constants, ga4
@@ -25,9 +21,6 @@ class MegatonBQ:
         self.credentials = credentials
         self.client = bigquery.Client(
             project=self.id,
-            credentials=self.credentials
-        )
-        self.dts_client = bigquery_datatransfer.DataTransferServiceClient(
             credentials=self.credentials
         )
         self.dataset = self.Dataset(self)
@@ -292,7 +285,7 @@ class MegatonBQ:
             if user_properties is None:
                 user_properties = []
 
-            sql = self.get_query_to_flatten_events(
+            sql = self._build_flatten_events_query(
                 date1,
                 date2,
                 event_parameters=event_parameters,
@@ -326,68 +319,22 @@ class MegatonBQ:
             else:
                 print(f"Unknown destination: {to}")
 
-        def get_query_to_flatten_events(
+        def _build_flatten_events_query(
                 self,
                 date1: str,
                 date2: str,
                 event_parameters: list = None,
                 user_properties: list = None,
-                to: str = 'select'
         ):
-            """Return a query to flatten GA4 event tables exported"""
+            """Return a query to flatten GA4 event tables exported."""
             if event_parameters is None:
                 event_parameters = []
             if user_properties is None:
                 user_properties = []
 
             dataset = self.parent.dataset.id
-            table_id = self.flat_table_id
             schema = self.template_schema()
-
-            if to == 'scheduled_query':
-                query = f'''--未処理のGA4生データを変換しflatテーブルへ追記
-DECLARE last_exported_date DATE;
-DECLARE next_date_to_be_processed DATE;
-DECLARE processing_date STRING;
-
-EXECUTE IMMEDIATE FORMAT("""
-  --最後にエクスポートされたGA4データの日付
-  SELECT CAST(RIGHT(table_name, 8) AS DATE FORMAT 'YYYYMMDD')
-  FROM `{dataset}.INFORMATION_SCHEMA.TABLES`
-  WHERE REGEXP_CONTAINS(table_name, r'^events_2')
-  ORDER BY 1 DESC
-  LIMIT 1
-""") INTO last_exported_date;
-
-EXECUTE IMMEDIATE FORMAT("""
-  --未処理の最初の日付
-  SELECT DATE_ADD(date, INTERVAL 1 DAY)
-  FROM `{dataset}.{table_id}`
-  WHERE date > DATE_SUB('%t', INTERVAL 10 DAY)--節約のため直近に絞る
-  GROUP BY 1
-  ORDER BY 1 DESC
-  LIMIT 1
-""", last_exported_date) INTO next_date_to_be_processed;
-
---処理すべき日付を判定
-IF next_date_to_be_processed = last_exported_date THEN
-  SET processing_date = FORMAT_DATE("%Y%m%d", last_exported_date);
-  SELECT FORMAT('New data for %t found. Processing events_%s...', next_date_to_be_processed, processing_date);
-ELSEIF next_date_to_be_processed < last_exported_date THEN
-  SET processing_date = FORMAT_DATE("%Y%m%d", next_date_to_be_processed);
-  SELECT FORMAT('New data for %t found, but processing events_%s first...', last_exported_date, processing_date);
-ELSE
-  --skip
-  RAISE USING MESSAGE = FORMAT("%t has already been processed. Skipping...", last_exported_date);
-END IF;
-
---go ahead
-INSERT INTO `{dataset}.{table_id}` (
-  '''
-
-            else:
-                query = ''
-            query += f'''--Flatten GA4 events
+            query = f'''--Flatten GA4 events
   SELECT'''
 
             for s in schema:
@@ -415,65 +362,6 @@ INSERT INTO `{dataset}.{table_id}` (
   FROM
     `{dataset}.events_*`
   WHERE
-    '''
-
-            if to == 'scheduled_query':
-                query += f"""_TABLE_SUFFIX = processing_date
-);
-
-SELECT FORMAT("%d rows (%d bytes) of data for %s were successfully inserted.", @@row_count, @@script.bytes_processed, processing_date);
-"""
-
-            else:
-                query += f"""_TABLE_SUFFIX >= '{date1}' AND _TABLE_SUFFIX <= '{date2}'"""
+    _TABLE_SUFFIX >= '{date1}' AND _TABLE_SUFFIX <= '{date2}'''
 
             return query
-
-        def schedule_query_to_flatten_events(
-                self,
-                event_parameters: list = None,
-                user_properties: list = None
-        ):
-            """Save a scheduled query to flatten event tables exported from GA4"""
-            if event_parameters is None:
-                event_parameters = []
-            if user_properties is None:
-                user_properties = []
-            sql = self.get_query_to_flatten_events('', '',
-                                                   event_parameters,
-                                                   user_properties,
-                                                   to='scheduled_query')
-
-            dataset_id = self.parent.dataset.id
-            table_id = self.parent.table.id
-
-            transfer_config = bigquery_datatransfer.TransferConfig(
-                # destination_dataset_id=dataset_id,
-                display_name=f"Flatten GA4 events for {dataset_id}",
-                data_source_id="scheduled_query",
-                params={
-                    "query": sql,
-                },
-                schedule="every 4 hours",
-            )
-
-            request = bigquery_datatransfer.CreateTransferConfigRequest(
-                parent=self.parent.dts_client.common_location_path(
-                    self.parent.id,
-                    self.parent.dataset.instance.location),
-                transfer_config=transfer_config,
-            )
-
-            try:
-                response = self.parent.dts_client.create_transfer_config(request=request)
-                print(f"Scheduled query was created: {response.name}")
-                return response
-            except PermissionDenied as e:
-                print("APIを実行する権限がありません。")
-                m = re.search(r'reason: "([^"]+)', str(sys.exc_info()[1]))
-                if m:
-                    reason = m.group(1)
-                    if reason == 'SERVICE_DISABLED':
-                        print("GCPのプロジェクトでBigQuery Data Transfer APIを有効化してください。")
-                message = getattr(e, 'message', repr(e))
-                print(message)
