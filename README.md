@@ -95,6 +95,15 @@ If you're new, start with the **cookbook** for practical examples, then refer to
 | [cheatsheet.md](docs/cheatsheet.md) | One-line quick reference |
 | [design.md](docs/design.md) | Design philosophy and trade-offs |
 
+## Testing & Coverage
+
+```bash
+pytest --cov=megaton --cov-report=term-missing
+```
+
+- Coverage tracking excludes `megaton/ga3.py`.
+- Rationale: GA3 (Universal Analytics) is a legacy compatibility module and is outside the active quality gate for current GA4/Search Console workflows.
+
 ## Changelog
 
 - [CHANGELOG.md](CHANGELOG.md)

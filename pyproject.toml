@@ -59,3 +59,9 @@ include = ["megaton*"]
 
 [tool.setuptools.package-data]
 megaton = ["py.typed"]
+
+[tool.coverage.run]
+source = ["megaton"]
+omit = [
+    "megaton/ga3.py",
+]
