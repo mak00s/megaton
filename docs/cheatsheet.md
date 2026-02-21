@@ -211,6 +211,7 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `table.normalize_key_cols(df, cols, to_str?, strip?, lower?, remove_trailing_dot0?)`
 - `table.group_sum(df, group_cols, sum_cols)`
 - `table.weighted_avg(df, group_cols, value_col, weight_col, out_col?)`
+- `table.normalize_thresholds_df(df, *, min_default?, max_default?, clinic_col?, min_col?, max_col?)`
 - `table.dedup_by_key(df, key_cols, prefer_by?, prefer_ascending?, keep?)`
 
 ## Files

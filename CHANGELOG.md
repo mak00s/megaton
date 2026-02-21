@@ -1,33 +1,33 @@
 # Changelog
 
-このファイルは `1.0.0` 以降の変更履歴を記録します。  
-`0.x` 系の履歴は `docs/changelog-archive.md` を参照してください。
+Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
 ## 1.0.1 - Unreleased
 
-### 追加
+### Added
 
-- **GA4 複数期間実行ヘルパー**: `mg.report.run.ranges()` を追加。複数の日付範囲で `mg.report.run()` を実行し、結果を結合できます。
-- **Sheets 読み取りショートカット**: `mg.sheets.read()` を追加。シート選択とデータ取得を1ステップで実行し、`DataFrame` として受け取れます。
+- **GA4 multi-range helper**: `mg.report.run.ranges()` — run `mg.report.run()` over multiple date ranges and concatenate the results.
+- **Sheets read shortcut**: `mg.sheets.read()` — select a worksheet and return its data as a `DataFrame` in one step.
 
-### 変更
+### Changed
 
-- **依存整理**: `google-cloud-bigquery-datatransfer` 依存を削除。
+- **BigQuery API streamlined**: Replaced legacy scheduled-query helpers with a cleaner `bq.dataset.select/update` and `bq.table.select/update/create` API.
+- **Dependency cleanup**: Removed `google-cloud-bigquery-datatransfer` dependency.
 
 ## 1.0.0 - 2026-02-07
 
-### 追加
+### Added
 
-- **GA4 report retry**: `mg.report.run()` に `max_retries` / `backoff_factor` を追加し、`ServiceUnavailable` 時に指数バックオフ再試行を実装。
-- **GA4 user properties 表示**: `mg.ga["4"].property.show("user_properties")` を追加。
-- **report prep 表示制御**: `mg.report.prep(show=False)` を追加。
-- **Sheets save 開始行指定**: `mg.save.to.sheet()` / `mg.sheet.save()` に `start_row` を追加。
-- **Sheets save/append 自動作成オプション**: `mg.save.to.sheet()` / `mg.append.to.sheet()` に `create_if_missing` を追加。
-- **CSV upsert**: `mg.upsert.to.csv()` を追加。
-- **Search 日付テンプレート**: `mg.search.set.dates()` で `NdaysAgo` / `yesterday` / `today` をサポート。
+- **GA4 report retry**: Added `max_retries` / `backoff_factor` to `mg.report.run()` for exponential backoff on `ServiceUnavailable`.
+- **GA4 user properties**: Added `mg.ga["4"].property.show("user_properties")`.
+- **Report prep display control**: Added `mg.report.prep(show=False)`.
+- **Sheets save start_row**: Added `start_row` to `mg.save.to.sheet()` / `mg.sheet.save()`.
+- **Sheets save/append auto-create**: Added `create_if_missing` to `mg.save.to.sheet()` / `mg.append.to.sheet()`.
+- **CSV upsert**: Added `mg.upsert.to.csv()`.
+- **Search date templates**: `mg.search.set.dates()` now supports `NdaysAgo` / `yesterday` / `today`.
 
-### 変更
+### Changed
 
-- **pyproject.toml 移行**: `setup.py` / `MANIFEST.in` / `requirements.txt` を廃止し PEP 621 準拠の `pyproject.toml` に統合。
-- **テスト拡充**: `sheets_service` / `gsheet` / `ga4 report` の分岐テストを追加。
-- **ドキュメント整理**: API リファレンス、チートシート、README を現行仕様に合わせて更新。
+- **pyproject.toml migration**: Replaced `setup.py` / `MANIFEST.in` / `requirements.txt` with PEP 621 `pyproject.toml`.
+- **Test coverage**: Added branch tests for `sheets_service` / `gsheet` / `ga4 report`.
+- **Documentation**: Updated API reference, cheatsheet, and README to match current implementation.
