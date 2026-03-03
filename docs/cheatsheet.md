@@ -180,6 +180,7 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `mg.search.run(dimensions, metrics?, limit?, clean?, dimension_filter?)`
 - `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, dimension_filter?)`
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
+- URL-prefix の `site_url` は、400/403/404 時に末尾 `/` あり・なしを自動フォールバック
 - `SearchResult: .decode() -> .clean_url() -> .remove_params() -> .remove_fragment() -> .lower()`
 - `SearchResult: .normalize() -> .categorize(into=...) -> .classify() -> .normalize_queries() -> .aggregate()`
 - `SearchResult: .apply_if(condition, method_name, *args, **kwargs)`

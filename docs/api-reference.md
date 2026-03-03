@@ -108,6 +108,7 @@ Search Console クライアントを明示的に初期化します。
 
 **パラメータ:**
 - `site_url` (str) - サイト URL（例: `'https://example.com/'`）
+  - URL-prefix プロパティは末尾 `/` あり・なしで不一致になる場合がありますが、`mg.search.run()` 実行時に 400/403/404 が返ると自動でスラッシュ違いの候補も試行します。
 
 **戻り値:** str（選択した `site_url`）
 
@@ -159,6 +160,10 @@ Search Console のクエリを実行します。
 - `mg.search.use(site_url)` で対象サイトを先に指定（未指定時は `ValueError`）
 - 日付は `mg.search.set.*` または `mg.report.set.*` で先に指定（未指定時は `ValueError`）
 - `dimension_filter` の文字列演算子は `=~`, `!~`, `=@`, `!@` のみ（不正時は `ValueError`）
+
+**実行時の補足:**
+- `site_url` が URL-prefix（`http://` / `https://`）の場合、最初の候補が 400/403/404 で失敗すると末尾 `/` あり・なしの候補に自動フォールバックします。
+- `sc-domain:` プロパティはそのままの値で実行され、スラッシュ違いのフォールバックは行いません。
 
 ### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, dimension_filter=None, verbose=True, **kwargs)`
 

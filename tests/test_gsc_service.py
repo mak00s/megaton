@@ -5,34 +5,39 @@ from megaton.services.gsc_service import GSCService
 
 
 class _FakeRequest:
-    def __init__(self, parent, start_row):
+    def __init__(self, parent, start_row, site_url):
         self.parent = parent
         self.start_row = start_row
+        self.site_url = site_url
 
     def execute(self):
-        return self.parent.execute(self.start_row)
+        return self.parent.execute(self.start_row, self.site_url)
 
 
 class _FakeSearchAnalytics:
-    def __init__(self, responses, errors=None):
+    def __init__(self, responses, errors=None, errors_by_key=None):
         self.responses = responses
         self.errors = {k: list(v) for k, v in (errors or {}).items()}
+        self.errors_by_key = {k: list(v) for k, v in (errors_by_key or {}).items()}
         self.calls = []
 
     def query(self, siteUrl, body):
         self.calls.append((siteUrl, body))
         start_row = body.get("startRow", 0)
-        return _FakeRequest(self, start_row)
+        return _FakeRequest(self, start_row, siteUrl)
 
-    def execute(self, start_row):
+    def execute(self, start_row, site_url):
+        key = (site_url, start_row)
+        if key in self.errors_by_key and self.errors_by_key[key]:
+            raise self.errors_by_key[key].pop(0)
         if start_row in self.errors and self.errors[start_row]:
             raise self.errors[start_row].pop(0)
         return {"rows": self.responses.get(start_row, [])}
 
 
 class _FakeClient:
-    def __init__(self, responses, errors=None):
-        self.analytics = _FakeSearchAnalytics(responses, errors=errors)
+    def __init__(self, responses, errors=None, errors_by_key=None):
+        self.analytics = _FakeSearchAnalytics(responses, errors=errors, errors_by_key=errors_by_key)
 
     def searchanalytics(self):
         return self.analytics
@@ -124,6 +129,68 @@ def test_query_retries_on_http_error(monkeypatch):
 
     assert len(client.analytics.calls) == 2
     assert not df.empty
+
+
+def test_query_fallbacks_site_url_trailing_slash_variant():
+    responses = {
+        0: [
+            {
+                "keys": ["q1", "https://example.com"],
+                "clicks": 1,
+                "impressions": 10,
+                "position": 2.0,
+            }
+        ]
+    }
+    errors_by_key = {
+        ("https://example.com", 0): [_http_error(status=404)],
+    }
+    client = _FakeClient(responses, errors_by_key=errors_by_key)
+    service = GSCService(app=None, client=client)
+
+    df = service.query(
+        site_url="https://example.com",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        dimensions=["query", "page"],
+        row_limit=25000,
+    )
+
+    assert len(client.analytics.calls) == 2
+    assert client.analytics.calls[0][0] == "https://example.com"
+    assert client.analytics.calls[1][0] == "https://example.com/"
+    assert not df.empty
+
+
+def test_query_does_not_fallback_site_url_after_paging_started():
+    responses = {
+        0: [
+            {
+                "keys": ["q1", "https://example.com/a"],
+                "clicks": 1,
+                "impressions": 10,
+                "position": 2.0,
+            }
+        ],
+    }
+    errors_by_key = {
+        ("https://example.com", 1): [_http_error(status=404)],
+    }
+    client = _FakeClient(responses, errors_by_key=errors_by_key)
+    service = GSCService(app=None, client=client)
+
+    df = service.query(
+        site_url="https://example.com",
+        start_date="2024-01-01",
+        end_date="2024-01-31",
+        dimensions=["query", "page"],
+        row_limit=1,
+    )
+
+    assert df.empty
+    assert len(client.analytics.calls) == 2
+    assert client.analytics.calls[0][0] == "https://example.com"
+    assert client.analytics.calls[1][0] == "https://example.com"
 
 
 def test_query_month_dimension_aggregates_and_converts():

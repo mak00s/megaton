@@ -41,6 +41,32 @@ class GSCService:
         return self._client
 
     @staticmethod
+    def _site_url_candidates(site_url: str) -> list[str]:
+        """Return normalized site_url candidates (preserving order).
+
+        Search Console URL-prefix properties can differ only by trailing slash.
+        This helper keeps the original first, then tries slash/no-slash variants.
+        """
+        raw = str(site_url or "").strip()
+        if not raw:
+            return []
+
+        if raw.startswith("sc-domain:"):
+            return [raw]
+
+        variants = [raw]
+        if raw.startswith("http://") or raw.startswith("https://"):
+            base = raw.rstrip("/")
+            if base:
+                variants.extend([base, f"{base}/"])
+
+        candidates: list[str] = []
+        for value in variants:
+            if value and value not in candidates:
+                candidates.append(value)
+        return candidates
+
+    @staticmethod
     def _clean_page(value: str) -> str:
         """
         URL 正規化
@@ -112,6 +138,9 @@ class GSCService:
         verbose: bool = False,
     ) -> pd.DataFrame:
         client = self._get_client()
+        site_candidates = self._site_url_candidates(site_url)
+        if not site_candidates:
+            return pd.DataFrame()
 
         if metrics is None:
             metrics = ["clicks", "impressions", "ctr", "position"]
@@ -175,96 +204,122 @@ class GSCService:
                 )
 
         all_rows = []
-        current_start = start_row
-        total_rows = 0
+        for idx, site_candidate in enumerate(site_candidates):
+            all_rows = []
+            current_start = start_row
+            total_rows = 0
+            fallback_next = False
 
-        while True:
-            request_body = {
-                "startDate": start_date,
-                "endDate": end_date,
-                "dimensions": api_dimensions,
-                "rowLimit": row_limit,
-                "startRow": current_start,
-            }
+            while True:
+                request_body = {
+                    "startDate": start_date,
+                    "endDate": end_date,
+                    "dimensions": api_dimensions,
+                    "rowLimit": row_limit,
+                    "startRow": current_start,
+                }
 
-            filters = list(dimension_filters)
-            if country:
-                filters.append(
-                    {
-                        "dimension": "country",
-                        "operator": "equals",
-                        "expression": country,
-                    }
-                )
-            if filters:
-                request_body["dimensionFilterGroups"] = [
-                    {
-                        "groupType": "and",
-                        "filters": filters,
-                    }
-                ]
-
-            def _on_retry(attempt_no, max_attempts, wait, exc):
-                if verbose:
-                    logger.warning(
-                        "Search Console API error on startRow=%s; retrying in %.1fs (%s/%s)",
-                        current_start,
-                        wait,
-                        attempt_no,
-                        max_attempts,
+                filters = list(dimension_filters)
+                if country:
+                    filters.append(
+                        {
+                            "dimension": "country",
+                            "operator": "equals",
+                            "expression": country,
+                        }
                     )
+                if filters:
+                    request_body["dimensionFilterGroups"] = [
+                        {
+                            "groupType": "and",
+                            "filters": filters,
+                        }
+                    ]
 
-            def _is_retryable(exc: BaseException) -> bool:
-                if not isinstance(exc, HttpError):
-                    return False
-                resp = getattr(exc, "resp", None)
-                status = getattr(resp, "status", None)
-                return status in {429, 500, 502, 503, 504}
+                def _on_retry(attempt_no, max_attempts, wait, exc):
+                    if verbose:
+                        logger.warning(
+                            "Search Console API error on startRow=%s; retrying in %.1fs (%s/%s)",
+                            current_start,
+                            wait,
+                            attempt_no,
+                            max_attempts,
+                        )
 
-            try:
-                response = retry_utils.expo_retry(
-                    lambda: (
-                        client.searchanalytics()
-                        .query(siteUrl=site_url, body=request_body)
-                        .execute()
-                    ),
-                    max_retries=max_retries,
-                    backoff_factor=backoff_factor,
-                    exceptions=(HttpError,),
-                    is_retryable=_is_retryable,
-                    on_retry=_on_retry,
-                    sleep=time.sleep,
-                )
-            except HttpError as exc:
-                if verbose:
-                    logger.warning(
-                        "Search Console API error on startRow=%s: %s",
-                        current_start,
-                        exc,
+                def _is_retryable(exc: BaseException) -> bool:
+                    if not isinstance(exc, HttpError):
+                        return False
+                    resp = getattr(exc, "resp", None)
+                    status = getattr(resp, "status", None)
+                    return status in {429, 500, 502, 503, 504}
+
+                try:
+                    response = retry_utils.expo_retry(
+                        lambda: (
+                            client.searchanalytics()
+                            .query(siteUrl=site_candidate, body=request_body)
+                            .execute()
+                        ),
+                        max_retries=max_retries,
+                        backoff_factor=backoff_factor,
+                        exceptions=(HttpError,),
+                        is_retryable=_is_retryable,
+                        on_retry=_on_retry,
+                        sleep=time.sleep,
                     )
-                return pd.DataFrame()
-            except Exception as exc:
+                except HttpError as exc:
+                    status = getattr(getattr(exc, "resp", None), "status", None)
+                    fallbackable = status in {400, 403, 404}
+                    first_page_failed = current_start == start_row and total_rows == 0
+                    has_next_candidate = idx < (len(site_candidates) - 1)
+                    if fallbackable and first_page_failed and has_next_candidate:
+                        fallback_next = True
+                        if verbose:
+                            next_site = site_candidates[idx + 1]
+                            logger.info(
+                                "Search Console site_url '%s' failed (%s). Retrying with '%s'.",
+                                site_candidate,
+                                status,
+                                next_site,
+                            )
+                        break
+                    if verbose:
+                        logger.warning(
+                            "Search Console API error on startRow=%s: %s",
+                            current_start,
+                            exc,
+                        )
+                    return pd.DataFrame()
+                except Exception as exc:
+                    if verbose:
+                        logger.error(
+                            "Search Console request failed on startRow=%s: %s",
+                            current_start,
+                            exc,
+                        )
+                    return pd.DataFrame()
+
+                rows = response.get("rows", [])
+                if not rows:
+                    break
+
+                all_rows.extend(rows)
+                total_rows += len(rows)
+
                 if verbose:
-                    logger.error("Search Console request failed on startRow=%s: %s", current_start, exc)
-                return pd.DataFrame()
+                    logger.info("Fetched %s rows (startRow=%s)", len(rows), current_start)
 
-            rows = response.get("rows", [])
-            if not rows:
-                break
+                if len(rows) < row_limit:
+                    break
+                if total_rows >= max_rows:
+                    if verbose:
+                        logger.warning("Reached max_rows limit (%s), stopping.", max_rows)
+                    break
+                current_start += len(rows)
 
-            all_rows.extend(rows)
-            total_rows += len(rows)
-
-            if verbose:
-                logger.info("Fetched %s rows (startRow=%s)", len(rows), current_start)
-
-            if len(rows) < row_limit:
-                break
-            if total_rows >= max_rows:
-                if verbose:
-                    logger.warning("Reached max_rows limit (%s), stopping.", max_rows)
-                break
-            current_start += len(rows)
+            if fallback_next:
+                continue
+            break
 
         if not all_rows:
             return pd.DataFrame()

@@ -13,6 +13,7 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
 - **BigQuery API streamlined**: Replaced legacy scheduled-query helpers with a cleaner `bq.dataset.select/update` and `bq.table.select/update/create` API.
 - **Dependency cleanup**: Removed `google-cloud-bigquery-datatransfer` dependency.
+- **Search Console site URL fallback**: `mg.search.run()` now retries the same query with trailing-slash/no-slash URL-prefix variants when the first `site_url` returns 400/403/404.
 
 ## 1.0.0 - 2026-02-07
 

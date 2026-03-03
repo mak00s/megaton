@@ -21,7 +21,7 @@ sites = [
     {
         "clinic": "tokyo",                       # 識別キー
         "ga4_property_id": "properties/123456",   # GA4 プロパティ
-        "gsc_site_url": "https://example.com",    # GSC サイト URL
+        "gsc_site_url": "https://example.com",    # GSC サイト URL（末尾 / あり・なしどちらでも可）
         "min_impressions": 50,                    # フィルタ閾値（任意）
     },
 ]
@@ -131,6 +131,10 @@ df = (result
     .categorize("page", by=page_map)
     .df)
 ```
+
+## Search Console: `site_url` の末尾 `/` 差分を吸収
+
+`mg.search.run()` / `mg.search.run.all()` は URL-prefix の `site_url` で 400/403/404 が返った場合、末尾 `/` あり・なしの候補を自動で再試行します。設定ファイル側の `gsc_site_url` はどちらの表記でも運用できます。
 
 ## フィルタリングの使い方
 
