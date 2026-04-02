@@ -164,6 +164,14 @@ Search Console のクエリを実行します。
 **実行時の補足:**
 - `site_url` が URL-prefix（`http://` / `https://`）の場合、最初の候補が 400/403/404 で失敗すると末尾 `/` あり・なしの候補に自動フォールバックします。
 - `sc-domain:` プロパティはそのままの値で実行され、スラッシュ違いのフォールバックは行いません。
+- `TimeoutError` / `ConnectionError` / `BrokenPipeError` 発生時は自動リトライします。
+
+**環境変数によるリトライ設定:**
+
+| 環境変数 | 説明 | デフォルト |
+|---|---|---|
+| `MEGATON_GSC_MAX_RETRIES` | 最大リトライ回数 | 3 |
+| `MEGATON_GSC_BACKOFF_FACTOR` | 指数バックオフの係数（秒） | 1.0 |
 
 ### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, dimension_filter=None, verbose=True, **kwargs)`
 
@@ -619,6 +627,28 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
 
 **前提条件・例外:**
 - 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
+
+### `mg.sheets.duplicate(source_name, new_name, cell_update=None)`
+
+既存シートを複製し、必要であれば複製先の 1 セルを更新します。
+
+**パラメータ:**
+- `source_name` (str) - 複製元シート名
+- `new_name` (str) - 複製先シート名
+- `cell_update` (dict | None) - 複製後に更新するセル指定
+  - 形式: `{"cell": "B1", "value": "202402"}`
+
+**戻り値:** bool | None
+
+**挙動:**
+- 複製に成功すると、カレントシート状態は `new_name` に更新されます
+- `cell_update` 指定時は、複製直後のシートに対してそのままセル更新します
+- 複製後の任意セル更新に失敗しても、複製自体は成功として `True` を返します
+- 任意セル更新の失敗はメッセージで別途通知されます
+
+**前提条件・例外:**
+- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
+- 複製元シートが存在しない場合は `None`
 
 ### `mg.sheets.delete(sheet_name)`
 

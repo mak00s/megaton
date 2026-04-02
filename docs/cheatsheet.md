@@ -164,6 +164,7 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `mg.sheets.select(name)`
 - `mg.sheets.read(name)`
 - `mg.sheets.create(name)`
+- `mg.sheets.duplicate(source_name, new_name, cell_update=None)`
 - `mg.sheets.delete(name)`
 - `mg.select.sheet(name)`  # legacy
 - `mg.sheet.save(df?, sort_by?, sort_desc?, start_row?, auto_width?, freeze_header?)`
@@ -181,6 +182,7 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, dimension_filter?)`
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
 - URL-prefix の `site_url` は、400/403/404 時に末尾 `/` あり・なしを自動フォールバック
+- `TimeoutError` / `ConnectionError` / `BrokenPipeError` 時は自動リトライ（env: `MEGATON_GSC_MAX_RETRIES`, `MEGATON_GSC_BACKOFF_FACTOR`）
 - `SearchResult: .decode() -> .clean_url() -> .remove_params() -> .remove_fragment() -> .lower()`
 - `SearchResult: .normalize() -> .categorize(into=...) -> .classify() -> .normalize_queries() -> .aggregate()`
 - `SearchResult: .apply_if(condition, method_name, *args, **kwargs)`
