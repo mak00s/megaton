@@ -285,3 +285,25 @@ def test_cell_select_get_and_set_data():
     cell.select("B2")
     cell.data = "x"
     assert ws.updated["B2"] == "x"
+
+
+def test_cell_data_uses_retry_wrapper(monkeypatch):
+    sheet, _ = _build_sheet()
+    cell = MegatonGS.Sheet.Cell(sheet)
+    cell.select("B2")
+
+    calls = []
+
+    def _fake_retry(op, func, **kwargs):
+        calls.append((op, kwargs))
+        return func()
+
+    monkeypatch.setattr(sheet, "_maybe_retry", _fake_retry)
+
+    assert cell.data == "value:B2"
+    cell.data = "y"
+
+    assert calls[0][0] == "Google Sheets read cell"
+    assert calls[0][1]["retry_on_requests"] is True
+    assert calls[1][0] == "Google Sheets update cell"
+    assert calls[1][1]["retry_on_requests"] is True

@@ -82,6 +82,73 @@ class SheetsService:
         except errors.SheetNotFound:
             print(f"{sheet_name} シートが存在しません。")
 
+    def duplicate_sheet(
+        self,
+        sheet_url: str,
+        source_sheet_name: str,
+        new_sheet_name: str,
+        *,
+        cell_update: Optional[dict] = None,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
+    ) -> Optional[bool]:
+        if not self.open_sheet(sheet_url):
+            return None
+
+        try:
+            duplicated = self.app.gs.sheet.duplicate(
+                source_sheet_name,
+                new_sheet_name,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            )
+            if not duplicated:
+                return None
+            self.app.state.gs_sheet_name = new_sheet_name
+        except errors.SheetNotFound:
+            print(f"{source_sheet_name} シートが存在しません。")
+            return None
+        except Exception as exc:
+            print(
+                f"'{source_sheet_name}' シートの複製に失敗しました: "
+                f"{exc}"
+            )
+            return None
+
+        if cell_update:
+            cell = cell_update.get("cell")
+            value = cell_update.get("value")
+            if cell is not None:
+                try:
+                    call = getattr(self.app.gs, "_call_with_retry", None)
+                    if callable(call):
+                        call(
+                            "Google Sheets update cell",
+                            lambda: self.app.gs.sheet._driver.update_acell(cell, value),
+                            max_retries=max_retries,
+                            backoff_factor=backoff_factor,
+                            retry_on_requests=True,
+                        )
+                    else:
+                        self.app.gs.sheet._driver.update_acell(cell, value)
+                except Exception as exc:
+                    logger.warning(
+                        "Sheet duplicated but optional cell update failed for '%s' (%s): %s",
+                        new_sheet_name,
+                        cell,
+                        exc,
+                    )
+                    print(
+                        f"'{source_sheet_name}' シートを '{new_sheet_name}' として複製しました。"
+                    )
+                    print(
+                        f"ただし、セル {cell} の更新には失敗しました: {exc}"
+                    )
+                    return True
+
+        print(f"'{source_sheet_name}' シートを '{new_sheet_name}' として複製しました。")
+        return True
+
     def _calc_pixel_size(self, value, single_byte_multiplier: int, multi_byte_multiplier: int) -> int:
         total_width = 0
         for char in str(value):

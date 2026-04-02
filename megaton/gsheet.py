@@ -368,6 +368,44 @@ class MegatonGS(object):
             if self._driver and self._driver.title == name:
                 self._driver = None
 
+        def duplicate(
+            self,
+            source_name: str,
+            new_sheet_name: str,
+            *,
+            max_retries: Optional[int] = None,
+            backoff_factor: Optional[float] = None,
+        ):
+            if not self.parent._client:
+                LOGGER.error("Open URL first.")
+                return
+            try:
+                source_ws = self._maybe_retry(
+                    "Google Sheets select worksheet for duplicate",
+                    lambda: self.parent._driver.worksheet(source_name),
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                    retry_on_requests=True,
+                )
+            except gspread.exceptions.WorksheetNotFound:
+                raise errors.SheetNotFound
+
+            self._maybe_retry(
+                "Google Sheets duplicate worksheet",
+                lambda: self.parent._driver.duplicate_sheet(
+                    source_ws.id,
+                    new_sheet_name=new_sheet_name,
+                ),
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+                retry_on_requests=True,
+            )
+            return self.select(
+                new_sheet_name,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            )
+
         def select(self, name: str, *, max_retries: Optional[int] = None, backoff_factor: Optional[float] = None):
             if not self.parent._client:
                 LOGGER.error("Open URL first.")
@@ -679,12 +717,20 @@ class MegatonGS(object):
             @property
             def data(self):
                 if self.address:
-                    return self.parent._driver.acell(self.address).value
+                    return self.parent._maybe_retry(
+                        "Google Sheets read cell",
+                        lambda: self.parent._driver.acell(self.address).value,
+                        retry_on_requests=True,
+                    )
 
             @data.setter
             def data(self, value):
                 if self.address:
-                    self.parent._driver.update(self.address, value)
+                    self.parent._maybe_retry(
+                        "Google Sheets update cell",
+                        lambda: self.parent._driver.update(self.address, value),
+                        retry_on_requests=True,
+                    )
 
             def select(self, row: Union[int, str], col: Optional[int] = None):
                 if not self.parent._driver:

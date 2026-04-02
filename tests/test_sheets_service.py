@@ -14,6 +14,8 @@ class _FakeSheet:
         self._driver = self
         self.updated_cells = {}
         self.updated_ranges = {}
+        self.duplicated = []
+        self.fail_update_acell = False
 
     @property
     def name(self):
@@ -38,6 +40,14 @@ class _FakeSheet:
         self.parent._sheets[name] = []
         self._name = name
 
+    def duplicate(self, source_name: str, new_sheet_name: str, **_kwargs):
+        if source_name not in self.parent._sheets:
+            raise errors.SheetNotFound
+        self.parent._sheets[new_sheet_name] = list(self.parent._sheets[source_name])
+        self.duplicated.append((source_name, new_sheet_name))
+        self._name = new_sheet_name
+        return new_sheet_name
+
     def overwrite_data(self, df, include_index=False, **_kwargs):
         self.parent.last_write = ("overwrite_data", 1, include_index)
         self.parent.last_written = df.copy()
@@ -61,6 +71,8 @@ class _FakeSheet:
         self.parent.frozen = (rows, cols)
 
     def update_acell(self, cell, value):
+        if self.fail_update_acell:
+            raise RuntimeError("cell update failed")
         self.updated_cells[cell] = value
 
     def update(self, a1_range, values):
@@ -358,6 +370,78 @@ def test_open_or_create_sheet_creates_when_missing():
     assert result is True
     assert "new_sheet" in gs.sheets
     assert app.state.gs_sheet_name == "new_sheet"
+
+
+def test_duplicate_sheet_success():
+    gs = _FakeGS("https://example.com/sheet", {"template": [{"a": 1}]})
+    app = _make_app(gs)
+    service = SheetsService(app)
+    monkeypatch = pytest.MonkeyPatch()
+    calls = []
+    monkeypatch.setattr(service, "open_sheet", lambda _url: calls.append(_url) or True)
+
+    result = service.duplicate_sheet(
+        "https://example.com/sheet",
+        "template",
+        "report_2024_02",
+        cell_update={"cell": "B1", "value": "202402"},
+    )
+    monkeypatch.undo()
+
+    assert result is True
+    assert calls == ["https://example.com/sheet"]
+    assert ("template", "report_2024_02") in gs.sheet.duplicated
+    assert gs.sheet.updated_cells["B1"] == "202402"
+    assert app.state.gs_sheet_name == "report_2024_02"
+
+
+def test_duplicate_sheet_returns_true_when_cell_update_fails(capsys):
+    gs = _FakeGS("https://example.com/sheet", {"template": [{"a": 1}]})
+    gs.sheet.fail_update_acell = True
+    app = _make_app(gs)
+    service = SheetsService(app)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(service, "open_sheet", lambda _url: True)
+
+    result = service.duplicate_sheet(
+        "https://example.com/sheet",
+        "template",
+        "report_2024_02",
+        cell_update={"cell": "B1", "value": "202402"},
+    )
+    monkeypatch.undo()
+
+    out = capsys.readouterr().out
+    assert result is True
+    assert ("template", "report_2024_02") in gs.sheet.duplicated
+    assert app.state.gs_sheet_name == "report_2024_02"
+    assert "セル B1 の更新には失敗しました" in out
+
+
+def test_duplicate_sheet_returns_none_when_source_missing():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    app = _make_app(gs)
+    service = SheetsService(app)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(service, "open_sheet", lambda _url: True)
+
+    result = service.duplicate_sheet(
+        "https://example.com/sheet",
+        "missing",
+        "copy",
+    )
+    monkeypatch.undo()
+
+    assert result is None
+
+
+def test_duplicate_sheet_returns_none_when_open_sheet_fails(monkeypatch):
+    gs = _FakeGS("https://example.com/sheet", {"template": []})
+    app = _make_app(gs)
+    service = SheetsService(app)
+    monkeypatch.setattr(service, "open_sheet", lambda _url: False)
+
+    assert service.duplicate_sheet("https://example.com/sheet", "template", "copy") is None
 
 
 def test_open_or_create_sheet_returns_none_when_create_fails(monkeypatch):

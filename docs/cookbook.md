@@ -252,6 +252,18 @@ mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
 daily_df = mg.sheets.read("daily")
 ```
 
+## Google Sheets: テンプレートを複製してセルを書き換える（`sheets.duplicate`）
+
+```python
+mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+
+mg.sheets.duplicate(
+    "template",
+    "report_2024_02",
+    cell_update={"cell": "B1", "value": "202402"},
+)
+```
+
 ## Google Sheets: 1行目を残して保存（start_row）
 
 ```python

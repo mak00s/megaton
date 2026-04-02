@@ -38,9 +38,24 @@ class _FakeSearchAnalytics:
 class _FakeClient:
     def __init__(self, responses, errors=None, errors_by_key=None):
         self.analytics = _FakeSearchAnalytics(responses, errors=errors, errors_by_key=errors_by_key)
+        self.site_calls = 0
+        self.site_errors = []
+        self.site_response = {"siteEntry": []}
 
     def searchanalytics(self):
         return self.analytics
+
+    def sites(self):
+        return self
+
+    def list(self):
+        return self
+
+    def execute(self):
+        self.site_calls += 1
+        if self.site_errors:
+            raise self.site_errors.pop(0)
+        return self.site_response
 
 
 def _http_error(status=500):
@@ -254,3 +269,17 @@ def test_query_month_and_date_not_allowed():
             end_date="2024-01-31",
             dimensions=["month", "date"],
         )
+
+
+def test_list_sites_retries_on_http_error(monkeypatch):
+    client = _FakeClient({})
+    client.site_errors = [_http_error(status=429)]
+    client.site_response = {"siteEntry": [{"siteUrl": "https://example.com/"}]}
+    service = GSCService(app=None, client=client)
+
+    monkeypatch.setattr("megaton.services.gsc_service.time.sleep", lambda _: None)
+
+    sites = service.list_sites()
+
+    assert sites == ["https://example.com/"]
+    assert client.site_calls == 2

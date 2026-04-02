@@ -58,6 +58,17 @@ mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
 daily_df = mg.sheets.read("daily")
 ```
 
+### Duplicate a worksheet and patch a cell
+
+```python
+mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+mg.sheets.duplicate(
+    "template",
+    "report_2024_02",
+    cell_update={"cell": "B1", "value": "202402"},
+)
+```
+
 ### Search Console with method chaining
 
 ```python

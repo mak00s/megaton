@@ -2366,6 +2366,15 @@ class Megaton:
             self.parent.state.gs_sheet_name = name
             return name
 
+        def duplicate(self, source_name: str, new_name: str, *, cell_update: Optional[dict] = None):
+            self._ensure_spreadsheet()
+            return self.parent._sheets.duplicate_sheet(
+                self.parent.state.gs_url,
+                source_name,
+                new_name,
+                cell_update=cell_update,
+            )
+
         def delete(self, name: str):
             self._ensure_spreadsheet()
             if name not in self.parent.gs.sheets:

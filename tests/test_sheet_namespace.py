@@ -19,6 +19,13 @@ class _FakeSheet:
     def create(self, name):
         self._name = name
 
+    def duplicate(self, source_name, new_sheet_name):
+        if source_name not in self._data:
+            raise ValueError("missing source")
+        self._data[new_sheet_name] = list(self._data[source_name])
+        self._name = new_sheet_name
+        return new_sheet_name
+
     def delete(self, name):
         self.deleted.append(name)
         if name in self._data:
@@ -224,3 +231,30 @@ def test_sheets_delete_missing_sheet_raises():
 
     with pytest.raises(ValueError, match="Sheet not found"):
         app.sheets.delete("missing")
+
+
+def test_sheets_duplicate_uses_service(monkeypatch):
+    app = _make_app_with_gs()
+    called = {}
+
+    def fake_duplicate(sheet_url, source_name, new_name, cell_update=None):
+        called["duplicate"] = (sheet_url, source_name, new_name, cell_update)
+        app.state.gs_sheet_name = new_name
+        return True
+
+    monkeypatch.setattr(app._sheets, "duplicate_sheet", fake_duplicate)
+
+    result = app.sheets.duplicate(
+        "config",
+        "config_copy",
+        cell_update={"cell": "B1", "value": "202402"},
+    )
+
+    assert result is True
+    assert called["duplicate"] == (
+        "https://example.com/sheet",
+        "config",
+        "config_copy",
+        {"cell": "B1", "value": "202402"},
+    )
+    assert app.state.gs_sheet_name == "config_copy"

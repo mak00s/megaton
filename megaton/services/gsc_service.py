@@ -1,6 +1,7 @@
 """Google Search Console service wrapper."""
 
 import logging
+import os
 import time
 from typing import Optional
 from urllib.parse import unquote
@@ -17,6 +18,43 @@ class GSCService:
     def __init__(self, app, client=None):
         self.app = app
         self._client = client
+
+    @staticmethod
+    def _resolve_env(value, env_key: str, default, cast):
+        if value is None:
+            env = os.getenv(env_key)
+            if env is not None:
+                try:
+                    value = cast(env)
+                except (ValueError, TypeError):
+                    value = default
+            else:
+                value = default
+        try:
+            value = cast(value)
+        except Exception:  # noqa: BLE001
+            value = default
+        return value
+
+    @classmethod
+    def _resolve_max_retries(cls, value: Optional[int]) -> int:
+        return max(1, cls._resolve_env(value, "MEGATON_GSC_MAX_RETRIES", 3, int))
+
+    @classmethod
+    def _resolve_backoff_factor(cls, value: Optional[float]) -> float:
+        return max(0.0, cls._resolve_env(value, "MEGATON_GSC_BACKOFF_FACTOR", 2.0, float))
+
+    @staticmethod
+    def _is_retryable_http_error(exc: BaseException) -> bool:
+        if not isinstance(exc, HttpError):
+            return False
+        resp = getattr(exc, "resp", None)
+        status = getattr(resp, "status", None)
+        return status in {429, 500, 502, 503, 504}
+
+    @staticmethod
+    def _retryable_exceptions() -> tuple[type[BaseException], ...]:
+        return (HttpError, TimeoutError, ConnectionError, BrokenPipeError)
 
     def _get_client(self):
         if self._client is not None:
@@ -132,12 +170,14 @@ class GSCService:
         row_limit: int = 25000,
         start_row: int = 0,
         max_rows: int = 100000,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
         clean: bool = False,
         verbose: bool = False,
     ) -> pd.DataFrame:
         client = self._get_client()
+        max_retries = self._resolve_max_retries(max_retries)
+        backoff_factor = self._resolve_backoff_factor(backoff_factor)
         site_candidates = self._site_url_candidates(site_url)
         if not site_candidates:
             return pd.DataFrame()
@@ -247,11 +287,9 @@ class GSCService:
                         )
 
                 def _is_retryable(exc: BaseException) -> bool:
-                    if not isinstance(exc, HttpError):
-                        return False
-                    resp = getattr(exc, "resp", None)
-                    status = getattr(resp, "status", None)
-                    return status in {429, 500, 502, 503, 504}
+                    if isinstance(exc, (TimeoutError, ConnectionError, BrokenPipeError)):
+                        return True
+                    return self._is_retryable_http_error(exc)
 
                 try:
                     response = retry_utils.expo_retry(
@@ -262,7 +300,7 @@ class GSCService:
                         ),
                         max_retries=max_retries,
                         backoff_factor=backoff_factor,
-                        exceptions=(HttpError,),
+                        exceptions=self._retryable_exceptions(),
                         is_retryable=_is_retryable,
                         on_retry=_on_retry,
                         sleep=time.sleep,
@@ -427,8 +465,25 @@ class GSCService:
     def list_sites(self) -> list[str]:
         client = self._get_client()
         try:
-            response = client.sites().list().execute()
-        except HttpError as exc:
+            response = retry_utils.expo_retry(
+                lambda: client.sites().list().execute(),
+                max_retries=self._resolve_max_retries(None),
+                backoff_factor=self._resolve_backoff_factor(None),
+                exceptions=self._retryable_exceptions(),
+                is_retryable=lambda exc: (
+                    isinstance(exc, (TimeoutError, ConnectionError, BrokenPipeError))
+                    or self._is_retryable_http_error(exc)
+                ),
+                on_retry=lambda attempt_no, max_attempts, wait, exc: logger.warning(
+                    "Search Console sites fetch failed; retrying in %.1fs (%s/%s): %s",
+                    wait,
+                    attempt_no,
+                    max_attempts,
+                    exc,
+                ),
+                sleep=time.sleep,
+            )
+        except (HttpError, TimeoutError, ConnectionError, BrokenPipeError) as exc:
             logger.warning("Search Console API error while listing sites: %s", exc)
             raise RuntimeError("Search Console sites fetch failed.") from exc
         except Exception as exc:
