@@ -206,6 +206,8 @@ class MegatonGS(object):
             status = _get_status_code(exc)
             return status in _RETRYABLE_STATUS_CODES
 
+        _QUOTA_FLOOR_WAIT = 30.0  # 429 needs at least this many seconds
+
         def _on_retry(attempt_no: int, max_attempts: int, wait: float, exc: BaseException) -> None:
             LOGGER.warning(
                 "%s failed; retrying in %.1fs (%s/%s): %s",
@@ -215,6 +217,13 @@ class MegatonGS(object):
                 max_attempts,
                 exc,
             )
+            # For quota errors, ensure we wait long enough for the quota
+            # window to reset (~60s) even when the calculated backoff is
+            # shorter.
+            if _get_status_code(exc) == 429 and wait < _QUOTA_FLOOR_WAIT:
+                extra = _QUOTA_FLOOR_WAIT - wait
+                LOGGER.info("Quota error: adding %.1fs extra wait", extra)
+                sleep(extra)
 
         return retry_utils.expo_retry(
             func,
