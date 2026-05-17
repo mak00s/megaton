@@ -2,6 +2,15 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## Unreleased
+
+### Changed
+
+- Remaining Sheets network reads now retry internally: `MegatonGS.sheets`
+  (`worksheets()`) and `Sheet.last_row` (`range()`). `open()`, `select()`,
+  `get_records()` were already retry-wrapped — callers no longer need to
+  wrap megaton read methods in `call_with_retry` themselves.
+
 ## 1.3.0 - 2026-05-17
 
 ### Added
@@ -16,10 +25,6 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
 - Renamed `_call_with_retry` → `call_with_retry`. No backward-compat alias is
   kept; update any caller that referenced the private name.
-- Remaining Sheets network reads now retry internally: `MegatonGS.sheets`
-  (`worksheets()`) and `Sheet.last_row` (`range()`). `open()`, `select()`,
-  `get_records()` were already retry-wrapped — callers no longer need to
-  wrap megaton read methods in `call_with_retry` themselves.
 
 ## 1.2.0 - 2026-05-17
 
