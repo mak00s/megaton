@@ -286,6 +286,28 @@ def test_overwrite_data_from_row_resizes_and_writes(monkeypatch):
     assert calls["kwargs"]["include_column_header"] is True
 
 
+def test_last_row_reads_range_via_retry_wrapper(monkeypatch):
+    sheet, _ = _build_sheet()
+    calls = []
+
+    def _fake_retry(op, func, **kwargs):
+        calls.append((op, kwargs))
+        return func()
+
+    monkeypatch.setattr(sheet, "_maybe_retry", _fake_retry)
+
+    # _FakeWorksheet.range() は row 1,2 のセルを返す → last_row = 2
+    assert sheet.last_row == 2
+    assert calls and calls[0][0] == "Google Sheets read range"
+    assert calls[0][1]["retry_on_requests"] is True
+
+
+def test_last_row_returns_zero_when_no_sheet_selected():
+    sheet, _ = _build_sheet()
+    sheet._driver = None
+    assert sheet.last_row == 0
+
+
 def test_cell_select_get_and_set_data():
     sheet, ws = _build_sheet()
     cell = MegatonGS.Sheet.Cell(sheet)

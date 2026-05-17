@@ -254,7 +254,14 @@ class MegatonGS(object):
 
     @property
     def sheets(self):
-        return [s.title for s in self._driver.worksheets()] if self._driver else []
+        if not self._driver:
+            return []
+        worksheets = self.call_with_retry(
+            "Google Sheets list worksheets",
+            lambda: self._driver.worksheets(),
+            retry_on_requests=True,
+        )
+        return [s.title for s in worksheets]
 
     @property
     def title(self):
@@ -464,7 +471,15 @@ class MegatonGS(object):
         def last_row(self):
             """looks for the last row based on values appearing in all columns
             """
-            cols = self._driver.range(1, 1, self._driver.row_count, self._driver.col_count)
+            if not self._driver:
+                return 0
+            cols = self._maybe_retry(
+                "Google Sheets read range",
+                lambda: self._driver.range(
+                    1, 1, self._driver.row_count, self._driver.col_count
+                ),
+                retry_on_requests=True,
+            )
             last = [cell.row for cell in cols if cell.value]
             return max(last) if last else 0
 
