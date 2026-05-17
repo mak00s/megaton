@@ -178,7 +178,7 @@ class MegatonGS(object):
             return 0.99
         return value
 
-    def _call_with_retry(
+    def call_with_retry(
         self,
         op: str,
         func,
@@ -188,6 +188,11 @@ class MegatonGS(object):
         retry_on_requests: bool = False,
         sleep=time.sleep,
     ):
+        """func() を Google API の一時エラー時に指数バックオフで retry 実行する。
+
+        op はログ用のラベル。retry_on_requests=True で requests の例外も
+        retry 対象に含める。任意の callable を retry で包む公開ヘルパー。
+        """
         default_max = getattr(self, "max_retries", 3)
         default_backoff = getattr(self, "backoff_factor", 2.0)
         default_max_wait = getattr(self, "max_wait", None)
@@ -239,6 +244,15 @@ class MegatonGS(object):
         )
 
     @property
+    def workbook(self):
+        """開いている gspread Spreadsheet を返す read-only アクセサ。
+
+        未 open のときは None。外部コンシューマが gspread の Spreadsheet API
+        を直接使いたいとき用の公開 API（内部フィールド _driver の公開窓口）。
+        """
+        return self._driver
+
+    @property
     def sheets(self):
         return [s.title for s in self._driver.worksheets()] if self._driver else []
 
@@ -269,7 +283,7 @@ class MegatonGS(object):
         """
 
         try:
-            self._driver = self._call_with_retry(
+            self._driver = self.call_with_retry(
                 "Google Sheets open",
                 lambda: self._client.open_by_url(url),
                 max_retries=max_retries,
@@ -320,7 +334,7 @@ class MegatonGS(object):
             backoff_factor: Optional[float] = None,
             retry_on_requests: bool = False,
         ):
-            call = getattr(self.parent, "_call_with_retry", None)
+            call = getattr(self.parent, "call_with_retry", None)
             if callable(call):
                 return call(
                     op,

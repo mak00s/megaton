@@ -96,7 +96,7 @@ def test_call_with_retry_passes_retry_arguments(monkeypatch):
 
     monkeypatch.setattr(gsheet_module.retry_utils, "expo_retry", _fake_expo_retry)
 
-    result = gs._call_with_retry("op", lambda: "ok", retry_on_requests=True)
+    result = gs.call_with_retry("op", lambda: "ok", retry_on_requests=True)
 
     assert result == "ok"
     assert captured["max_retries"] == 4
@@ -125,7 +125,7 @@ def test_call_with_retry_marks_api_error_503_as_retryable(monkeypatch):
 
     monkeypatch.setattr(gsheet_module.retry_utils, "expo_retry", _fake_expo_retry)
 
-    assert gs._call_with_retry("op", lambda: "ok") is True
+    assert gs.call_with_retry("op", lambda: "ok") is True
 
 
 def test_authorize_rejects_invalid_credential_type():

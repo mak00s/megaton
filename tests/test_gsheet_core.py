@@ -172,6 +172,17 @@ def test_open_success_with_sheet_selection():
     assert selected == ["Report"]
 
 
+def test_workbook_property_exposes_driver():
+    gs = _new_gs()
+    # 未 open は None
+    gs._driver = None
+    assert gs.workbook is None
+    # open 済みなら下層 Spreadsheet をそのまま返す
+    driver = SimpleNamespace(title="Book", url="u")
+    gs._driver = driver
+    assert gs.workbook is driver
+
+
 def test_sheet_select_raises_sheet_not_found():
     sheet, _ = _build_sheet(worksheet_error=gspread.exceptions.WorksheetNotFound("missing"))
 

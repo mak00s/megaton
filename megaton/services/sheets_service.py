@@ -120,7 +120,7 @@ class SheetsService:
             value = cell_update.get("value")
             if cell is not None:
                 try:
-                    call = getattr(self.app.gs, "_call_with_retry", None)
+                    call = getattr(self.app.gs, "call_with_retry", None)
                     if callable(call):
                         call(
                             "Google Sheets update cell",
@@ -208,7 +208,7 @@ class SheetsService:
                 }
             )
         if requests:
-            call = getattr(self.app.gs, "_call_with_retry", None)
+            call = getattr(self.app.gs, "call_with_retry", None)
             if callable(call):
                 call(
                     "Google Sheets set column widths",
@@ -543,7 +543,7 @@ class SheetsService:
             return None
 
         try:
-            call = getattr(self.app.gs, "_call_with_retry", None)
+            call = getattr(self.app.gs, "call_with_retry", None)
             for cell, value in updates.items():
                 if callable(call):
                     call(
@@ -575,7 +575,7 @@ class SheetsService:
             return None
 
         try:
-            call = getattr(self.app.gs, "_call_with_retry", None)
+            call = getattr(self.app.gs, "call_with_retry", None)
             if callable(call):
                 call(
                     "Google Sheets update range",
