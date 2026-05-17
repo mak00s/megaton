@@ -92,11 +92,16 @@ class _FakeSpreadsheet:
         self._worksheet_error = worksheet_error
         self.batch_updates = []
         self.deleted = None
+        self.worksheets_called = False
 
     def worksheet(self, _name):
         if self._worksheet_error is not None:
             raise self._worksheet_error
         return self._worksheet
+
+    def worksheets(self):
+        self.worksheets_called = True
+        return [self._worksheet]
 
     def add_worksheet(self, title, rows, cols):
         self._worksheet = _FakeWorksheet(title=title, row_count=rows, col_count=cols)
@@ -183,6 +188,28 @@ def test_workbook_property_exposes_driver():
     assert gs.workbook is driver
 
 
+def test_sheets_reads_worksheets_via_retry_wrapper(monkeypatch):
+    sheet, ws = _build_sheet()
+    gs = _new_gs()
+    gs._driver = sheet.parent._driver
+    calls = []
+
+    def _fake_retry(op, func, **kwargs):
+        calls.append((op, kwargs))
+        return func()
+
+    monkeypatch.setattr(gs, "call_with_retry", _fake_retry)
+
+    assert gs.sheets == [ws.title]
+    assert gs._driver.worksheets_called is True
+    assert calls == [
+        (
+            "Google Sheets list worksheets",
+            {"retry_on_requests": True},
+        )
+    ]
+
+
 def test_sheet_select_raises_sheet_not_found():
     sheet, _ = _build_sheet(worksheet_error=gspread.exceptions.WorksheetNotFound("missing"))
 
@@ -198,6 +225,13 @@ def test_sheet_select_maps_api_error():
         sheet, _ = _build_sheet(worksheet_error=_api_error(message))
         with pytest.raises(expected):
             sheet.select("x")
+
+
+def test_sheet_select_reraises_unmapped_api_error():
+    # disabled / PERMISSION_DENIED 以外の APIError (例: 429) は握りつぶさず再送出
+    sheet, _ = _build_sheet(worksheet_error=_api_error("RATE_LIMIT_EXCEEDED", code=429))
+    with pytest.raises(gspread.exceptions.APIError):
+        sheet.select("x")
 
 
 def test_save_data_mode_w_maps_clear_errors(monkeypatch):
@@ -216,6 +250,14 @@ def test_save_data_mode_w_maps_clear_errors(monkeypatch):
 
     monkeypatch.setattr(sheet, "clear", _raise2)
     with pytest.raises(errors.ApiDisabled):
+        sheet.save_data(df, mode="w")
+
+    # 未分類 APIError (例: 429) は握りつぶさず再送出する
+    def _raise3():
+        raise _api_error("RATE_LIMIT_EXCEEDED", code=429)
+
+    monkeypatch.setattr(sheet, "clear", _raise3)
+    with pytest.raises(gspread.exceptions.APIError):
         sheet.save_data(df, mode="w")
 
     assert ws.cleared is False

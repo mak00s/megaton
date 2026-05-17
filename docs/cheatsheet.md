@@ -14,10 +14,6 @@
 - `mg.open.sheet(url)`
 - `mg.launch_gs(url)`
 - `mg.launch_bigquery(project)`
-- `mg.sheet.freeze(rows?, cols?)`
-- `mg.sheet.resize(rows?, cols?, shrink=False)`
-- `mg.sheet.gridlines.hide()` / `mg.sheet.gridlines.show()`
-- `mg.sheet.tab.color("#2f80ed")`
 
 ## GA4
 
@@ -145,6 +141,7 @@ mg.report.run(d=["date"], m=["sessions"], max_retries=5, backoff_factor=1.0)
 ### Sheets API retry
 
 Sheets の保存系は指数バックオフで再試行できます（default: `max_retries=3`, `backoff_factor=2.0`）。
+HTTP 429 quota retry は、backoff が短い場合でも次回試行まで最低 30 秒待ちます。
 
 ```python
 mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
@@ -176,6 +173,12 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `mg.sheet.upsert(df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
 - `mg.sheet.cell.set(cell, value)`
 - `mg.sheet.range.set(a1_range, values)`
+- `mg.sheet.freeze(rows?, cols?)`
+- `mg.sheet.resize(rows?, cols?, shrink=False)`
+- `mg.sheet.gridlines.hide()` / `mg.sheet.gridlines.show()`
+- `mg.sheet.tab.color("#2f80ed")`
+- `mg.gs.call_with_retry(op, func, max_retries?, backoff_factor?, retry_on_requests?)`
+- `mg.gs.workbook`
 
 ## Search Console
 

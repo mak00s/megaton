@@ -579,11 +579,47 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
   - `MEGATON_GS_MAX_WAIT`（1回の待機上限、秒。未指定なら上限なし）
   - `MEGATON_GS_MAX_ELAPSED`（総経過時間上限、秒。未指定なら上限なし）
   - `MEGATON_GS_JITTER`（待機時間に jitter を付与。`0 <= jitter < 1`、default: `0`）
+- HTTP 429 quota retry は、算出された backoff が短い場合でも次回試行まで
+  最低 30 秒待つよう追加待機します
 
 **戻り値:** bool | None
 
 **失敗時:**
 - 認証未完了、権限不足、URL不正、API無効、タイムアウト等で `None`
+
+### `mg.gs.call_with_retry(op, func, max_retries=None, backoff_factor=None, retry_on_requests=False)`
+
+任意の callable を Google API の一時エラーに対する指数バックオフ付きで実行します。
+
+**パラメータ:**
+- `op` (str) - retry ログに出す操作名
+- `func` (callable) - 実行する関数
+- `max_retries` (int | None) - 最大試行回数。`None` の場合は環境変数または既定値
+- `backoff_factor` (float | None) - retry 間隔の係数。`None` の場合は環境変数または既定値
+- `retry_on_requests` (bool) - `requests` 由来のネットワーク例外も retry 対象に含めるか
+
+**戻り値:** `func()` の戻り値
+
+**挙動:**
+- gspread の一時的な `APIError`（HTTP 429/5xx）を retry します
+- `retry_on_requests=True` の場合は `requests.exceptions.RequestException` も retry します
+- HTTP 429 quota retry は、算出された backoff が短い場合でも次回試行まで最低 30 秒待つよう追加待機します
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` または `mg.launch_gs(url)` で `mg.gs` を初期化していること
+
+### `mg.gs.workbook`
+
+開いている gspread `Spreadsheet` を返す read-only property です。
+
+**戻り値:** gspread `Spreadsheet` | None
+
+**用途:**
+- megaton の高水準 API にない gspread の Spreadsheet API を直接使う場合
+- 未接続時は `None`
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` または `mg.launch_gs(url)` で `mg.gs` を初期化していること
 
 ### `mg.sheets.select(sheet_name)`
 

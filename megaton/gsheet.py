@@ -188,10 +188,11 @@ class MegatonGS(object):
         retry_on_requests: bool = False,
         sleep=time.sleep,
     ):
-        """func() を Google API の一時エラー時に指数バックオフで retry 実行する。
+        """Run ``func`` with exponential-backoff retry for transient Google API errors.
 
-        op はログ用のラベル。retry_on_requests=True で requests の例外も
-        retry 対象に含める。任意の callable を retry で包む公開ヘルパー。
+        ``op`` is used as the log label. Set ``retry_on_requests=True`` to also
+        retry ``requests`` exceptions. HTTP 429 quota retries add enough extra
+        sleep to wait at least 30 seconds before the next attempt.
         """
         default_max = getattr(self, "max_retries", 3)
         default_backoff = getattr(self, "backoff_factor", 2.0)
@@ -455,6 +456,7 @@ class MegatonGS(object):
                     raise errors.ApiDisabled
                 elif 'PERMISSION_DENIED' in str(e):
                     raise errors.BadPermission
+                raise
             return self.name
 
         @property
@@ -749,6 +751,7 @@ class MegatonGS(object):
                         raise errors.ApiDisabled
                     elif 'PERMISSION_DENIED' in str(e):
                         raise errors.BadPermission
+                    raise
 
                 self._maybe_retry(
                     "Google Sheets overwrite (set_with_dataframe)",

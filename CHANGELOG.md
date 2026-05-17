@@ -2,22 +2,15 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## Unreleased
-
-### Changed
-
-- Remaining Sheets network reads now retry internally: `MegatonGS.sheets`
-  (`worksheets()`) and `Sheet.last_row` (`range()`). `open()`, `select()`,
-  `get_records()` were already retry-wrapped — callers no longer need to
-  wrap megaton read methods in `call_with_retry` themselves.
-
 ## 1.3.0 - 2026-05-17
 
 ### Added
 
 - **`MegatonGS.call_with_retry(op, func, ...)`**: Public helper that runs any
   callable with exponential-backoff retry on transient Google API errors
-  (promoted from the private `_call_with_retry`).
+  (promoted from the private `_call_with_retry`). HTTP 429 quota retries add a
+  minimum 30-second wait before the next attempt when the calculated backoff is
+  shorter.
 - **`MegatonGS.workbook`**: Public read-only property returning the open
   gspread `Spreadsheet` (window onto the internal `_driver`).
 
@@ -25,6 +18,17 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
 - Renamed `_call_with_retry` → `call_with_retry`. No backward-compat alias is
   kept; update any caller that referenced the private name.
+- Remaining Sheets network reads now retry internally: `MegatonGS.sheets`
+  (`worksheets()`) and `Sheet.last_row` (`range()`). `open()`, `select()`,
+  `get_records()` were already retry-wrapped — callers no longer need to
+  wrap megaton read methods in `call_with_retry` themselves.
+
+### Fixed
+
+- `Sheet.select()` and `save_data(mode="w")` no longer silently swallow
+  unrecognized `APIError`s (e.g. HTTP 429 / 5xx). Errors other than
+  `disabled` / `PERMISSION_DENIED` are now re-raised instead of being
+  dropped, matching `open()`'s behavior.
 
 ## 1.2.0 - 2026-05-17
 
