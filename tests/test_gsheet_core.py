@@ -7,7 +7,7 @@ import pytest
 import requests
 
 from megaton import errors
-from megaton.gsheet import MegatonGS
+from megaton.gsheet import MegatonGS, _raise_for_api_error
 
 
 def _new_gs():
@@ -232,6 +232,26 @@ def test_sheet_select_reraises_unmapped_api_error():
     sheet, _ = _build_sheet(worksheet_error=_api_error("RATE_LIMIT_EXCEEDED", code=429))
     with pytest.raises(gspread.exceptions.APIError):
         sheet.select("x")
+
+
+def test_raise_for_api_error_classifies_known_and_reraises_unknown():
+    for message, expected in [
+        ("disabled", errors.ApiDisabled),
+        ("PERMISSION_DENIED", errors.BadPermission),
+        ("NOT_FOUND", errors.UrlNotFound),
+    ]:
+        try:
+            raise _api_error(message)
+        except gspread.exceptions.APIError as e:
+            with pytest.raises(expected):
+                _raise_for_api_error(e)
+
+    # 未分類 APIError は errors.* に変換せずそのまま再送出
+    try:
+        raise _api_error("RATE_LIMIT_EXCEEDED", code=429)
+    except gspread.exceptions.APIError as e:
+        with pytest.raises(gspread.exceptions.APIError):
+            _raise_for_api_error(e)
 
 
 def test_save_data_mode_w_maps_clear_errors(monkeypatch):

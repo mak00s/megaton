@@ -2,7 +2,7 @@
 Functions for Google Sheets
 """
 
-from typing import Optional, Union
+from typing import NoReturn, Optional, Union
 import logging
 import os
 import time
@@ -28,6 +28,24 @@ def _get_status_code(exc) -> Optional[int]:
     if resp is None:
         return None
     return getattr(resp, "status_code", None)
+
+
+def _raise_for_api_error(exc: gspread.exceptions.APIError) -> NoReturn:
+    """gspread APIError をプロジェクトの errors.* に分類して送出する。
+
+    既知パターン (disabled / PERMISSION_DENIED / NOT_FOUND) は対応する
+    errors.* へ変換し、未知の APIError はそのまま再送出する
+    (silent swallow しない)。必ず ``except`` 節の中から呼ぶこと —
+    末尾の bare ``raise`` は処理中の例外を再送出する。
+    """
+    text = str(exc)
+    if 'disabled' in text:
+        raise errors.ApiDisabled
+    if 'PERMISSION_DENIED' in text:
+        raise errors.BadPermission
+    if 'NOT_FOUND' in text:
+        raise errors.UrlNotFound
+    raise
 
 
 class MegatonGS(object):
@@ -312,14 +330,7 @@ class MegatonGS(object):
         except RefreshError:
             raise errors.BadCredentialScope
         except gspread.exceptions.APIError as e:
-            if 'disabled' in str(e):
-                raise errors.ApiDisabled
-            elif 'PERMISSION_DENIED' in str(e):
-                raise errors.BadPermission
-            elif 'NOT_FOUND' in str(e):
-                raise errors.UrlNotFound
-            else:
-                raise
+            _raise_for_api_error(e)
 
         if sheet:
             self.sheet.select(sheet)
@@ -452,11 +463,7 @@ class MegatonGS(object):
             except gspread.exceptions.WorksheetNotFound:
                 raise errors.SheetNotFound
             except gspread.exceptions.APIError as e:
-                if 'disabled' in str(e):
-                    raise errors.ApiDisabled
-                elif 'PERMISSION_DENIED' in str(e):
-                    raise errors.BadPermission
-                raise
+                _raise_for_api_error(e)
             return self.name
 
         @property
@@ -747,11 +754,7 @@ class MegatonGS(object):
                 try:
                     self.clear()
                 except gspread.exceptions.APIError as e:
-                    if 'disabled' in str(e):
-                        raise errors.ApiDisabled
-                    elif 'PERMISSION_DENIED' in str(e):
-                        raise errors.BadPermission
-                    raise
+                    _raise_for_api_error(e)
 
                 self._maybe_retry(
                     "Google Sheets overwrite (set_with_dataframe)",
@@ -852,11 +855,7 @@ class MegatonGS(object):
                     retry_on_requests=True,
                 )
             except gspread.exceptions.APIError as e:
-                if 'disabled' in str(e):
-                    raise errors.ApiDisabled
-                elif 'PERMISSION_DENIED' in str(e):
-                    raise errors.BadPermission
-                raise
+                _raise_for_api_error(e)
 
             header_rows = 1
             required_last_row = row + len(df) + header_rows - 1
