@@ -307,3 +307,63 @@ def test_cell_data_uses_retry_wrapper(monkeypatch):
     assert calls[0][1]["retry_on_requests"] is True
     assert calls[1][0] == "Google Sheets update cell"
     assert calls[1][1]["retry_on_requests"] is True
+
+
+def test_sheet_resize_dimensions_is_expand_only_by_default():
+    sheet, _ws = _build_sheet(worksheet=_FakeWorksheet(row_count=10, col_count=5))
+
+    sheet.resize_dimensions(rows=8, cols=7)
+
+    payload = sheet.parent._driver.batch_updates[-1]
+    request = payload["requests"][0]["updateSheetProperties"]
+    assert request["properties"]["gridProperties"] == {"columnCount": 7}
+    assert request["fields"] == "gridProperties.columnCount"
+
+
+def test_sheet_resize_dimensions_returns_none_for_noop():
+    sheet, _ws = _build_sheet(worksheet=_FakeWorksheet(row_count=10, col_count=5))
+
+    assert sheet.resize_dimensions() is None
+    assert sheet.resize_dimensions(rows=8, cols=4) is None
+    assert sheet.parent._driver.batch_updates == []
+
+
+def test_sheet_resize_dimensions_can_shrink():
+    sheet, _ws = _build_sheet(worksheet=_FakeWorksheet(row_count=10, col_count=5))
+
+    sheet.resize_dimensions(rows=8, cols=4, shrink=True)
+
+    payload = sheet.parent._driver.batch_updates[-1]
+    request = payload["requests"][0]["updateSheetProperties"]
+    assert request["properties"]["gridProperties"] == {
+        "rowCount": 8,
+        "columnCount": 4,
+    }
+
+
+def test_sheet_gridlines_and_tab_color_build_batch_update_requests():
+    sheet, _ws = _build_sheet()
+
+    sheet.set_gridlines(False)
+    sheet.set_tab_color("#2f80ed")
+
+    grid_payload = sheet.parent._driver.batch_updates[-2]
+    grid_request = grid_payload["requests"][0]["updateSheetProperties"]
+    assert grid_request["properties"]["gridProperties"] == {"hideGridlines": True}
+    assert grid_request["fields"] == "gridProperties.hideGridlines"
+
+    color_payload = sheet.parent._driver.batch_updates[-1]
+    color_request = color_payload["requests"][0]["updateSheetProperties"]
+    assert color_request["properties"]["tabColor"] == {
+        "red": 47 / 255,
+        "green": 128 / 255,
+        "blue": 237 / 255,
+    }
+    assert color_request["fields"] == "tabColor"
+
+
+def test_sheet_tab_color_dict_rejects_out_of_range_values():
+    sheet, _ws = _build_sheet()
+
+    with pytest.raises(ValueError, match="between 0.0 and 1.0"):
+        sheet.set_tab_color({"red": 1.5})

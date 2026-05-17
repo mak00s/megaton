@@ -14,6 +14,10 @@
 - `mg.open.sheet(url)`
 - `mg.launch_gs(url)`
 - `mg.launch_bigquery(project)`
+- `mg.sheet.freeze(rows?, cols?)`
+- `mg.sheet.resize(rows?, cols?, shrink=False)`
+- `mg.sheet.gridlines.hide()` / `mg.sheet.gridlines.show()`
+- `mg.sheet.tab.color("#2f80ed")`
 
 ## GA4
 

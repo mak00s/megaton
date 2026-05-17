@@ -11,6 +11,13 @@ class _FakeSheet:
         self._name = None
         self._data = {"config": [{"a": 1}]}
         self.deleted = []
+        self.frozen = None
+        self.freeze_kwargs = None
+        self.resized = None
+        self.gridlines = None
+        self.gridline_calls = []
+        self.tab_color = None
+        self.tab_color_kwargs = None
 
     def select(self, name):
         self._name = name
@@ -35,6 +42,21 @@ class _FakeSheet:
 
     def clear(self):
         self._data[self._name] = []
+
+    def freeze(self, rows=None, cols=None, **kwargs):
+        self.frozen = (rows, cols)
+        self.freeze_kwargs = kwargs
+
+    def resize_dimensions(self, **kwargs):
+        self.resized = kwargs
+
+    def set_gridlines(self, visible, **_kwargs):
+        self.gridlines = visible
+        self.gridline_calls.append(visible)
+
+    def set_tab_color(self, color, **kwargs):
+        self.tab_color = color
+        self.tab_color_kwargs = kwargs
 
     @property
     def name(self):
@@ -117,6 +139,37 @@ def test_sheet_cell_and_range_use_selected_sheet(monkeypatch):
         "L1:N1",
         [["2024-01-01", "2024-01-31"]],
     )
+
+
+def test_sheet_formatting_helpers_use_selected_sheet():
+    app = _make_app_with_gs()
+    app.state.gs_sheet_name = "CV"
+
+    app.sheet.gridlines.hide()
+    app.sheet.gridlines.show()
+    app.sheet.tab.color("#2f80ed")
+    app.sheet.freeze(rows=1)
+    app.sheet.resize(rows=1000, cols=20)
+
+    assert app.gs.sheet.gridline_calls == [False, True]
+    assert app.gs.sheet.gridlines is True
+    assert app.gs.sheet.tab_color == "#2f80ed"
+    assert app.gs.sheet.tab_color_kwargs == {
+        "max_retries": None,
+        "backoff_factor": None,
+    }
+    assert app.gs.sheet.frozen == (1, None)
+    assert app.gs.sheet.freeze_kwargs == {
+        "max_retries": None,
+        "backoff_factor": None,
+    }
+    assert app.gs.sheet.resized == {
+        "rows": 1000,
+        "cols": 20,
+        "shrink": False,
+        "max_retries": None,
+        "backoff_factor": None,
+    }
 
 
 def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):

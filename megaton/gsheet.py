@@ -348,7 +348,7 @@ class MegatonGS(object):
 
         def create(self, name: str, *, max_retries: Optional[int] = None, backoff_factor: Optional[float] = None):
             if not self.parent._client:
-                LOGGER.warn("Open URL first.")
+                LOGGER.warning("Open URL first.")
                 return
             self._maybe_retry(
                 "Google Sheets create worksheet",
@@ -530,6 +530,151 @@ class MegatonGS(object):
                 retry_on_requests=True,
             )
 
+        def resize_dimensions(
+            self,
+            *,
+            rows: Optional[int] = None,
+            cols: Optional[int] = None,
+            shrink: bool = False,
+            max_retries: Optional[int] = None,
+            backoff_factor: Optional[float] = None,
+        ):
+            """Resize worksheet grid dimensions.
+
+            By default this is expand-only: values smaller than the current
+            row/column count are ignored. Pass ``shrink=True`` to allow reducing
+            grid size.
+            """
+            if rows is None and cols is None:
+                return None
+            if not self._driver:
+                LOGGER.warning("Please select a sheet first.")
+                return
+
+            grid = {}
+            fields = []
+            if rows is not None:
+                rows = int(rows)
+                if rows < 1:
+                    raise ValueError("rows must be >= 1")
+                if shrink or rows > self._driver.row_count:
+                    grid["rowCount"] = rows
+                    fields.append("gridProperties.rowCount")
+            if cols is not None:
+                cols = int(cols)
+                if cols < 1:
+                    raise ValueError("cols must be >= 1")
+                if shrink or cols > self._driver.col_count:
+                    grid["columnCount"] = cols
+                    fields.append("gridProperties.columnCount")
+
+            if not fields:
+                return None
+
+            request = {
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": self.id,
+                        "gridProperties": grid,
+                    },
+                    "fields": ",".join(fields),
+                }
+            }
+            return self._maybe_retry(
+                "Google Sheets resize grid",
+                lambda: self.parent._driver.batch_update({"requests": [request]}),
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+                retry_on_requests=True,
+            )
+
+        def set_gridlines(
+            self,
+            visible: bool,
+            *,
+            max_retries: Optional[int] = None,
+            backoff_factor: Optional[float] = None,
+        ):
+            """Show or hide worksheet gridlines."""
+            if not self._driver:
+                LOGGER.warning("Please select a sheet first.")
+                return
+            request = {
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": self.id,
+                        "gridProperties": {"hideGridlines": not bool(visible)},
+                    },
+                    "fields": "gridProperties.hideGridlines",
+                }
+            }
+            return self._maybe_retry(
+                "Google Sheets set gridlines",
+                lambda: self.parent._driver.batch_update({"requests": [request]}),
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+                retry_on_requests=True,
+            )
+
+        @staticmethod
+        def _normalize_tab_color(color):
+            if isinstance(color, str):
+                value = color.strip()
+                if value.startswith("#"):
+                    value = value[1:]
+                if len(value) != 6:
+                    raise ValueError("tab color must be '#RRGGBB' or 'RRGGBB'")
+                try:
+                    red = int(value[0:2], 16) / 255
+                    green = int(value[2:4], 16) / 255
+                    blue = int(value[4:6], 16) / 255
+                except ValueError as exc:
+                    raise ValueError("tab color must be '#RRGGBB' or 'RRGGBB'") from exc
+                return {"red": red, "green": green, "blue": blue}
+            if isinstance(color, dict):
+                allowed = {"red", "green", "blue", "alpha"}
+                unknown = set(color) - allowed
+                if unknown:
+                    raise ValueError(f"unknown tab color keys: {sorted(unknown)}")
+                normalized = {}
+                for key, value in color.items():
+                    value = float(value)
+                    if not 0.0 <= value <= 1.0:
+                        raise ValueError(
+                            "tab color dict values must be between 0.0 and 1.0"
+                        )
+                    normalized[key] = value
+                return normalized
+            raise TypeError("tab color must be a hex string or Google Sheets color dict")
+
+        def set_tab_color(
+            self,
+            color,
+            *,
+            max_retries: Optional[int] = None,
+            backoff_factor: Optional[float] = None,
+        ):
+            """Set worksheet tab color from '#RRGGBB' or a Sheets color dict."""
+            if not self._driver:
+                LOGGER.warning("Please select a sheet first.")
+                return
+            request = {
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": self.id,
+                        "tabColor": self._normalize_tab_color(color),
+                    },
+                    "fields": "tabColor",
+                }
+            }
+            return self._maybe_retry(
+                "Google Sheets set tab color",
+                lambda: self.parent._driver.batch_update({"requests": [request]}),
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+                retry_on_requests=True,
+            )
+
         def freeze(
             self,
             rows: Optional[int] = None,
@@ -539,6 +684,9 @@ class MegatonGS(object):
             backoff_factor: Optional[float] = None,
         ):
             """Freeze rows and/or columns on the worksheet"""
+            if not self._driver:
+                LOGGER.warning("Please select a sheet first.")
+                return
             return self._maybe_retry(
                 "Google Sheets freeze",
                 lambda: self._driver.freeze(rows=rows, cols=cols),
@@ -562,7 +710,7 @@ class MegatonGS(object):
                 LOGGER.info("no data to write.")
                 return
             elif not self._driver:
-                LOGGER.warn("Please select a sheet first.")
+                LOGGER.warning("Please select a sheet first.")
                 return
             elif mode == 'w':
                 try:
@@ -659,7 +807,7 @@ class MegatonGS(object):
                 LOGGER.info("no data to write.")
                 return
             if not self._driver:
-                LOGGER.warn("Please select a sheet first.")
+                LOGGER.warning("Please select a sheet first.")
                 return
 
             try:

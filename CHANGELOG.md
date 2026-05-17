@@ -2,6 +2,15 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 1.2.0 - 2026-05-17
+
+### Added
+
+- **Sheets formatting helpers**: Added `mg.sheet.freeze()`, `mg.sheet.resize()`,
+  `mg.sheet.gridlines.hide()`, `mg.sheet.gridlines.show()`, and
+  `mg.sheet.tab.color()` for selected worksheet formatting without direct
+  gspread calls.
+
 ## 1.1.0 - 2026-04-02
 
 ### Added

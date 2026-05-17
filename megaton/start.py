@@ -2390,6 +2390,8 @@ class Megaton:
             self.parent = parent
             self.cell = self.Cell(self)
             self.range = self.Range(self)
+            self.gridlines = self.Gridlines(self)
+            self.tab = self.Tab(self)
 
         def _ensure_spreadsheet(self):
             if not self.parent.gs or not self.parent.state.gs_url:
@@ -2417,6 +2419,48 @@ class Megaton:
             self._ensure_spreadsheet()
             self._ensure_sheet_selected()
             return self.parent.gs.sheet.clear()
+
+        def freeze(
+            self,
+            rows: Optional[int] = None,
+            cols: Optional[int] = None,
+            *,
+            max_retries: Optional[int] = None,
+            backoff_factor: Optional[float] = None,
+        ):
+            """Freeze rows and/or columns on the selected worksheet."""
+            self._ensure_spreadsheet()
+            self._ensure_sheet_selected()
+            return self.parent.gs.sheet.freeze(
+                rows=rows,
+                cols=cols,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            )
+
+        def resize(
+            self,
+            *,
+            rows: Optional[int] = None,
+            cols: Optional[int] = None,
+            shrink: bool = False,
+            max_retries: Optional[int] = None,
+            backoff_factor: Optional[float] = None,
+        ):
+            """Resize the selected worksheet grid.
+
+            Defaults to expand-only; pass ``shrink=True`` to allow reducing row
+            or column counts.
+            """
+            self._ensure_spreadsheet()
+            self._ensure_sheet_selected()
+            return self.parent.gs.sheet.resize_dimensions(
+                rows=rows,
+                cols=cols,
+                shrink=shrink,
+                max_retries=max_retries,
+                backoff_factor=backoff_factor,
+            )
 
         @property
         def data(self):
@@ -2539,6 +2583,60 @@ class Megaton:
                     sheet_name,
                     a1_range,
                     values,
+                )
+
+        class Gridlines:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def hide(
+                self,
+                *,
+                max_retries: Optional[int] = None,
+                backoff_factor: Optional[float] = None,
+            ):
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                app.sheet._ensure_sheet_selected()
+                return app.gs.sheet.set_gridlines(
+                    False,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                )
+
+            def show(
+                self,
+                *,
+                max_retries: Optional[int] = None,
+                backoff_factor: Optional[float] = None,
+            ):
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                app.sheet._ensure_sheet_selected()
+                return app.gs.sheet.set_gridlines(
+                    True,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                )
+
+        class Tab:
+            def __init__(self, parent):
+                self.parent = parent
+
+            def color(
+                self,
+                color,
+                *,
+                max_retries: Optional[int] = None,
+                backoff_factor: Optional[float] = None,
+            ):
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                app.sheet._ensure_sheet_selected()
+                return app.gs.sheet.set_tab_color(
+                    color,
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
                 )
 
     class Select:

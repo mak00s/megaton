@@ -831,6 +831,46 @@ DataFrame を既存データの末尾に追記します。
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 - DataFrame 以外を渡した場合は `TypeError`
 
+#### `mg.sheet.freeze(rows=None, cols=None, max_retries=3, backoff_factor=2.0)`
+
+現在のシートの行・列を固定します。
+
+```python
+mg.sheet.freeze(rows=1)
+mg.sheet.freeze(rows=1, cols=1)
+```
+
+#### `mg.sheet.resize(rows=None, cols=None, shrink=False, max_retries=3, backoff_factor=2.0)`
+
+現在のシートの行数・列数を変更します。デフォルトでは expand-only で、
+現在より小さい `rows` / `cols` は無視します。縮小したい場合のみ
+`shrink=True` を指定します。変更が不要な場合は API 呼び出しを行わず
+`None` を返します。
+
+```python
+mg.sheet.resize(rows=1000, cols=20)
+mg.sheet.resize(rows=100, cols=10, shrink=True)
+```
+
+#### `mg.sheet.gridlines.hide()` / `mg.sheet.gridlines.show()`
+
+現在のシートのグリッド線を非表示 / 表示にします。
+
+```python
+mg.sheet.gridlines.hide()
+mg.sheet.gridlines.show()
+```
+
+#### `mg.sheet.tab.color(color)`
+
+現在のシートのタブ色を設定します。`"#RRGGBB"` または Google Sheets API
+形式の color dict を受け取ります。
+
+```python
+mg.sheet.tab.color("#2f80ed")
+mg.sheet.tab.color({"red": 0.18, "green": 0.50, "blue": 0.93})
+```
+
 ---
 
 ## BigQuery API

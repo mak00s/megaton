@@ -39,6 +39,11 @@ result = mg.report.run(d=["date", "eventName"], m=["eventCount"])
 # Save to Google Sheets
 mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
 mg.save.to.sheet("_ga_data", result.df)
+mg.sheets.select("_ga_data")
+mg.sheet.freeze(rows=1)
+mg.sheet.resize(rows=1000, cols=20)
+mg.sheet.gridlines.hide()
+mg.sheet.tab.color("#2f80ed")
 ```
 
 ### Run the same report over multiple date ranges
