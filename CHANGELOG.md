@@ -2,6 +2,21 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 1.3.0 - 2026-05-17
+
+### Added
+
+- **`MegatonGS.call_with_retry(op, func, ...)`**: Public helper that runs any
+  callable with exponential-backoff retry on transient Google API errors
+  (promoted from the private `_call_with_retry`).
+- **`MegatonGS.workbook`**: Public read-only property returning the open
+  gspread `Spreadsheet` (window onto the internal `_driver`).
+
+### Changed
+
+- Renamed `_call_with_retry` → `call_with_retry`. No backward-compat alias is
+  kept; update any caller that referenced the private name.
+
 ## 1.2.0 - 2026-05-17
 
 ### Added
