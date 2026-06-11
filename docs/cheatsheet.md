@@ -5,6 +5,9 @@
 ## Start
 
 - `mg = start.Megaton(creds, use_ga3?, cache_key?, headless?)`
+- `mg = Megaton.for_property(property_id, creds?)`  # v1.4+ script/CI向け（headless・property選択込み）
+- `mg = Megaton.for_site(site_url, creds?)`  # v1.4+
+- `mg.properties()` / `mg.sites()` / `mg.use_property(id, refresh_metadata?)`  # v1.4+
 - `mg.auth(credential?, cache_key?)`
 - `mg.enabled`
 - `mg.ga_ver`
@@ -19,7 +22,11 @@
 
 - `mg.report.set.dates(date_from, date_to)`
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
-- `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?, max_retries?, backoff_factor?)`
+- `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?, max_retries?, backoff_factor?, timeout?, on_exhausted?)`
+- `filter_d={"and": [...], "or": [...], "not": ...}` の複合フィルタ可（v1.4+、葉は文字列書式）
+- `megaton.wrap(df)` 任意のDataFrameをチェーンAPIへ（v1.4+）
+- `result.month_key("date", into="month", fmt="%Y-%m")` 月キー生成（v1.4+）
+- `mg.save.to.sheet(name, result)` Result直渡し可（v1.4+、.df不要）
 - `mg.report.run.ranges(date_ranges, d, m, filter_d?, filter_m?, ...)`
 - `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?)`
 - `mg.report.prep(conf, df?, show?)`
@@ -119,13 +126,15 @@ mg.report.run(d=["date"], m=["sessions"], sort="-sessions")   # 降順
 mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 ```
 
-### GA4 API retry
+### GA4 API retry / timeout
 
-`mg.report.run()` は GA4 Data API の `ServiceUnavailable` に対して指数バックオフで再試行します。
+`mg.report.run()` は一時エラー（`ServiceUnavailable` / `DeadlineExceeded` / `ResourceExhausted`）に指数バックオフで再試行します。
+リトライ枯渇時は**例外を送出**します（v1.4+。旧来の「空を返す」は `on_exhausted='empty'`）。
+1試行あたりの期限は `timeout`（default 180秒）。重いクエリ（長期間×containsフィルタ等）はこの引き上げが効きます。
 
 ```python
-# default: max_retries=3, backoff_factor=2.0
-mg.report.run(d=["date"], m=["sessions"], max_retries=5, backoff_factor=1.0)
+# default: max_retries=5, backoff_factor=2.0, timeout=180, on_exhausted='raise'
+mg.report.run(d=["date"], m=["sessions"], max_retries=5, timeout=300)
 ```
 
 ### Search の日付テンプレート
