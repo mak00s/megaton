@@ -12,7 +12,7 @@ class _FakeDataClient:
         self._responses = list(responses)
         self.calls = 0
 
-    def run_report(self, request):
+    def run_report(self, request, timeout=None):
         self.calls += 1
         result = self._responses.pop(0)
         if isinstance(result, Exception):

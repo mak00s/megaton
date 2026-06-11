@@ -833,6 +833,7 @@ class MegatonGA4(object):
             max_retries: int = 5,
             backoff_factor: float = 2.0,
             on_exhausted: str = 'raise',
+            timeout: float = 180.0,
         ):
             if offset:
                 request.offset = offset
@@ -850,7 +851,7 @@ class MegatonGA4(object):
 
             try:
                 response = retry_utils.expo_retry(
-                    lambda: self.parent.data_client.run_report(request),
+                    lambda: self.parent.data_client.run_report(request, timeout=timeout),
                     max_retries=max_retries,
                     backoff_factor=backoff_factor,
                     exceptions=(ServiceUnavailable, DeadlineExceeded, ResourceExhausted),
@@ -909,6 +910,7 @@ class MegatonGA4(object):
             on_exhausted = kwargs.get('on_exhausted', 'raise')
             if on_exhausted not in ('raise', 'empty'):
                 raise ValueError("on_exhausted must be 'raise' or 'empty'")
+            timeout = float(kwargs.get('timeout', 180.0))
             LOGGER.info(f"Requesting a report ({start_date} - {end_date})")
 
             request = self._format_request(
@@ -932,6 +934,7 @@ class MegatonGA4(object):
                     max_retries=max_retries,
                     backoff_factor=backoff_factor,
                     on_exhausted=on_exhausted,
+                    timeout=timeout,
                 )
                 if len(data) > 0:
                     all_rows.extend(data)

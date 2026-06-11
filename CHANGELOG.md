@@ -2,6 +2,18 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 1.4.1 - 2026-06-11
+
+### Fixed
+
+- **GA4 `report.run(timeout=...)`** (default 180s): the per-attempt request
+  deadline is now configurable and passed to `run_report`. Previously the
+  gRPC client default (~60s) applied, so heavy queries (e.g. 13-month
+  windows with `linkUrl` contains-filters) hit client-side
+  `DeadlineExceeded` on every retry during slow API periods — retrying could
+  never help because each attempt was cut off at the same 60s wall. This was
+  initially misdiagnosed as an API outage; light queries were fine all along.
+
 ## 1.4.0 - 2026-06-11
 
 Programmatic (script/CI) public API. All changes are additive; no breaking
