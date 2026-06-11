@@ -1433,6 +1433,107 @@ class Megaton:
         """APIでGoogle Sheetsにアクセスする準備"""
         return self._sheets.launch_gs(url)
 
+    # ------------------------------------------------------------------
+    # Programmatic (script/CI) public API — no UI side effects
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def for_property(cls,
+                     property_id: str,
+                     credential: Optional[str] = None,
+                     *,
+                     headless: bool = True,
+                     cache_key: Optional[str] = None) -> "Megaton":
+        """Create an authenticated client with a GA4 property pre-selected.
+
+        Programmatic entry point: defaults to headless (no widgets/menus),
+        so it is safe in scripts and CI. Raises if the credential cannot
+        access the property.
+
+        Usage::
+
+            mg = Megaton.for_property("254800682", "sa.json")
+            mg.report.set.dates("2026-05-01", "2026-05-31")
+            result = mg.report.run(d=["date"], m=["sessions"], show=False)
+        """
+        mg = cls(credential, headless=headless, cache_key=cache_key)
+        mg.use_property(property_id)
+        return mg
+
+    @classmethod
+    def for_site(cls,
+                 site_url: str,
+                 credential: Optional[str] = None,
+                 *,
+                 headless: bool = True,
+                 cache_key: Optional[str] = None) -> "Megaton":
+        """Create an authenticated client with a Search Console site pre-selected.
+
+        Programmatic entry point: defaults to headless (no widgets/menus).
+        Site accessibility is verified lazily at query time (GSC applies
+        URL-variant fallback there).
+        """
+        mg = cls(credential, headless=headless, cache_key=cache_key)
+        mg.search.use(site_url)
+        return mg
+
+    def _ga_client(self, ver: Optional[str] = None):
+        """Resolve a GA client without relying on notebook UI state."""
+        if ver is None:
+            ver = next(iter(self.ga)) if len(self.ga) == 1 else '4'
+        return ver, self.ga.get(ver)
+
+    def properties(self, ver: Optional[str] = None) -> list:
+        """List GA properties accessible with the current credential.
+
+        Returns a flat list of dicts:
+        ``{"id", "name", "account_id", "account_name"}``.
+        Empty list when GA clients are not initialized.
+        """
+        _, client = self._ga_client(ver)
+        if client is None:
+            return []
+        result = []
+        for account in getattr(client, 'accounts', None) or []:
+            for prop in account.get('properties', []):
+                result.append({
+                    'id': prop.get('id'),
+                    'name': prop.get('name'),
+                    'account_id': account.get('id'),
+                    'account_name': account.get('name'),
+                })
+        return result
+
+    def sites(self) -> list:
+        """List Search Console sites accessible with the current credential."""
+        return self.search.sites
+
+    def use_property(self, property_id: str, ver: Optional[str] = None) -> "Megaton":
+        """Select a GA4 property (and its account) by ID. Returns self.
+
+        Raises:
+            RuntimeError: GA clients are not initialized (authenticate first).
+            ValueError: the property is not accessible with this credential.
+        """
+        resolved_ver, client = self._ga_client(ver)
+        if client is None:
+            raise RuntimeError(
+                f"GA{resolved_ver} client is not initialized. "
+                "Authenticate with a valid credential first."
+            )
+        target = str(property_id).strip()
+        for account in getattr(client, 'accounts', None) or []:
+            for prop in account.get('properties', []):
+                if str(prop.get('id')) == target:
+                    client.account.select(account['id'])
+                    client.property.select(target)
+                    return self
+        available = [p['id'] for p in self.properties(ver)]
+        raise ValueError(
+            f"GA4 property {target} is not accessible with this credential. "
+            f"Accessible properties: {available or '(none)'}"
+        )
+
     class AuthMenu:
         """認証用のメニュー生成と選択時の処理"""
         def __init__(self, parent, json_files: dict):

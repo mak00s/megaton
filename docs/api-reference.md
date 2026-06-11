@@ -40,6 +40,38 @@ Megaton インスタンスを作成します。
 
 **戻り値:** Megaton インスタンス
 
+### `Megaton.for_property(property_id, credential=None, *, headless=True, cache_key=None)`
+
+認証と GA4 プロパティ選択を 1 回で行うクラスメソッド（スクリプト/CI 向けの推奨入口）。
+デフォルトで headless のため、ウィジェット UI は一切表示されません。
+
+```python
+mg = Megaton.for_property("254800682", "sa.json")
+mg.report.set.dates("2026-05-01", "2026-05-31")
+result = mg.report.run(d=["date"], m=["sessions"], show=False)
+```
+
+**例外:** 認証情報でプロパティにアクセスできない場合は `ValueError`（アクセス可能な ID 一覧つき）。
+
+### `Megaton.for_site(site_url, credential=None, *, headless=True, cache_key=None)`
+
+認証と Search Console サイト選択を 1 回で行うクラスメソッド。サイトの実在検証はクエリ時に行われます（URL バリアントのフォールバックあり）。
+
+### `mg.properties(ver=None)`
+
+現在の認証情報でアクセスできる GA プロパティの一覧（フラットな dict のリスト:
+`{"id", "name", "account_id", "account_name"}`）。クライアント未初期化なら空リスト。
+
+### `mg.sites()`
+
+現在の認証情報でアクセスできる Search Console サイトの一覧（`mg.search.sites` の公開ラッパー）。
+
+### `mg.use_property(property_id, ver=None)`
+
+プロパティ ID からアカウント＋プロパティを選択します。`self` を返すためチェーン可能。
+
+**例外:** GA クライアント未初期化なら `RuntimeError`、アクセス不可なら `ValueError`。
+
 ### `mg.auth(credential=None, cache_key=None)`
 
 認証情報を読み込み、利用可能なクライアントを初期化します。
@@ -248,8 +280,9 @@ GA4 レポートを実行します。
 - `m` (list) - 指標（省略形）
   - 文字列または `(api_name, alias)` のタプルのリスト
   - もしくは `[(metrics, options), ...]` のメトリクスセット配列（`options` は `filter_d` / `filter_m`）
-- `filter_d` (str | None) - ディメンションフィルタ（`<field><op><value>`、`;` 区切りで AND）
-- `filter_m` (str | None) - メトリクスフィルタ（`<field><op><value>`、`;` 区切りで AND）
+- `filter_d` (str | dict | None) - ディメンションフィルタ（`<field><op><value>`、`;` 区切りで AND）。
+  dict 形式で AND/OR/NOT の複合条件も指定可能（下記「複合フィルタ」参照）
+- `filter_m` (str | dict | None) - メトリクスフィルタ（`<field><op><value>`、`;` 区切りで AND）。dict 形式も可
 - `sort` (str | None) - ソート順（例: `"date,-sessions"`）
 - `merge` (str | None) - メトリクスセット一括モードの結合方法（`left` / `outer`）
 - `show` (bool) - 実行結果を表示するか（default: True）
@@ -268,6 +301,22 @@ GA4 レポートを実行します。
 
 **`filter_d` / `filter_m` の演算子:**
 - `==`, `!=`, `=@`, `!@`, `=~`, `!~`, `>`, `>=`, `<`, `<=`
+
+**複合フィルタ（dict 形式、v1.4+）:**
+
+`and` / `or` / `not` をキーとする dict ツリーで複合条件を表現できます。葉は従来の文字列形式です。
+
+```python
+filter_d={"and": [
+    "date==2026-05-01",
+    {"or": ["country==Japan", "country==Taiwan"]},
+    {"not": "pagePath=@/test/"},
+]}
+```
+
+- `and` / `or` は非空リスト、`not` は単一ノードを取ります（ネスト可）
+- dict のキーは 1 つだけ。不正なキーや空リストは `BadRequest`
+- 文字列形式の挙動は従来と完全互換（`;` = AND）
 
 **失敗時の扱い:**
 - 不正なフィルタや抽出条件ではエラーメッセージを表示し、結果が更新されない場合があります

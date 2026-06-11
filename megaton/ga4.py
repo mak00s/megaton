@@ -623,9 +623,22 @@ class MegatonGA4(object):
                 return FilterExpression(filter=filter)
 
         def _format_filter(self, conditions):
-            """Convert legacy filters format from Core Reporting API v3 to Filter object"""
+            """Convert a filter into a FilterExpression.
+
+            Accepts either:
+            - legacy string format (Core Reporting API v3 style):
+              ``"field==value;field2>10"`` — ``;`` joins conditions with AND.
+            - dict tree for composite logic (programmatic use):
+              ``{"or": ["country==Japan", "country==Taiwan"]}``
+              ``{"and": ["date==2024-01-01", {"or": [...]}]}``
+              ``{"not": "pagePath=@/test/"}``
+              Leaves are legacy-format strings; ``and``/``or`` take a list,
+              ``not`` takes a single node. Nesting is allowed.
+            """
             if not conditions:
                 return
+            if isinstance(conditions, dict):
+                return self._format_filter_node(conditions)
 
             parsed = utils.parse_filter_conditions(
                 conditions,
@@ -645,6 +658,39 @@ class MegatonGA4(object):
                         expressions=expressions
                     )
                 )
+
+        def _format_filter_node(self, node):
+            """Build a FilterExpression from a dict tree (and/or/not) or a leaf string."""
+            if isinstance(node, str):
+                expr = self._format_filter(node)
+                if expr is None:
+                    raise errors.BadRequest("Empty filter condition in composite filter.")
+                return expr
+            if isinstance(node, dict):
+                if len(node) != 1:
+                    raise errors.BadRequest(
+                        "Composite filter dict must have exactly one key: 'and', 'or', or 'not'."
+                    )
+                key, value = next(iter(node.items()))
+                op = str(key).lower()
+                if op == 'not':
+                    return FilterExpression(not_expression=self._format_filter_node(value))
+                if op in ('and', 'or'):
+                    if not isinstance(value, (list, tuple)) or not value:
+                        raise errors.BadRequest(f"'{op}' must map to a non-empty list of conditions.")
+                    expressions = [self._format_filter_node(child) for child in value]
+                    if len(expressions) == 1:
+                        return expressions[0]
+                    group = FilterExpressionList(expressions=expressions)
+                    if op == 'and':
+                        return FilterExpression(and_group=group)
+                    return FilterExpression(or_group=group)
+                raise errors.BadRequest(
+                    f"Unknown composite filter key: '{key}'. Use 'and', 'or', or 'not'."
+                )
+            raise errors.BadRequest(
+                "Filter must be a string or a dict tree of 'and'/'or'/'not'."
+            )
 
         def _convert_metric(self, value, type: str):
             """Metric's Value types for GA4 are

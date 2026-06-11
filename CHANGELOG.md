@@ -2,6 +2,39 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 1.4.0 - 2026-06-11
+
+Programmatic (script/CI) public API. All changes are additive; no breaking
+changes. Goal: scripts and downstream libraries no longer need to reach into
+internal attributes (`mg.ga["4"].accounts`, `account.select()`,
+`search.get.sites()`).
+
+### Added
+
+- **`Megaton.for_property(property_id, credential=None, *, headless=True)`**:
+  classmethod that authenticates and pre-selects a GA4 property in one call.
+  Headless by default — safe in scripts and CI.
+- **`Megaton.for_site(site_url, credential=None, *, headless=True)`**:
+  classmethod that authenticates and pre-selects a Search Console site.
+- **`mg.properties(ver=None)`**: flat list of accessible GA properties
+  (`{"id", "name", "account_id", "account_name"}`). Replaces iterating
+  internal `mg.ga["4"].accounts`.
+- **`mg.sites()`**: list of accessible Search Console sites (public wrapper
+  of `mg.search.sites`).
+- **`mg.use_property(property_id)`**: select account + property by ID.
+  Raises `RuntimeError` if GA clients are not initialized, `ValueError`
+  (listing accessible IDs) if the property is not accessible.
+- **Composite GA4 filters**: `report.run(filter_d=...)` /
+  `filter_m=...` now also accept a dict tree for AND/OR/NOT logic, e.g.
+  `{"and": ["date==2024-01-01", {"or": ["country==Japan", "country==Taiwan"]}]}`.
+  Leaves use the existing legacy string syntax. String filters are unchanged.
+
+### Error contract
+
+Public query APIs raise exceptions from `megaton.errors` (`BadRequest`,
+`ApiDisabled`, `BadPermission`, ...). Downstream code is encouraged to catch
+these instead of generic `Exception`.
+
 ## 1.3.0 - 2026-05-17
 
 ### Added
