@@ -830,8 +830,9 @@ class MegatonGA4(object):
             offset: int,
             request: dict,
             *,
-            max_retries: int = 3,
+            max_retries: int = 5,
             backoff_factor: float = 2.0,
+            on_exhausted: str = 'raise',
         ):
             if offset:
                 request.offset = offset
@@ -858,7 +859,13 @@ class MegatonGA4(object):
                 )
                 total_rows = response.row_count
             except (ServiceUnavailable, DeadlineExceeded, ResourceExhausted) as e:
-                LOGGER.warning("GA4 Data API error: %s", e)
+                if on_exhausted == 'raise':
+                    LOGGER.error(
+                        "GA4 Data API failed after %s attempts: %s", max_retries, e)
+                    raise
+                LOGGER.warning(
+                    "GA4 Data API error: %s -- returning EMPTY result "
+                    "(on_exhausted='empty'); downstream data may be incomplete", e)
                 response = None
             except PermissionDenied as e:
                 LOGGER.error("権限がありません。")
@@ -897,8 +904,11 @@ class MegatonGA4(object):
             limit = kwargs.get('limit', 10000)
             start_date = kwargs.get('start_date', self.start_date)
             end_date = kwargs.get('end_date', self.end_date)
-            max_retries = kwargs.get('max_retries', 3)
+            max_retries = kwargs.get('max_retries', 5)
             backoff_factor = kwargs.get('backoff_factor', 2.0)
+            on_exhausted = kwargs.get('on_exhausted', 'raise')
+            if on_exhausted not in ('raise', 'empty'):
+                raise ValueError("on_exhausted must be 'raise' or 'empty'")
             LOGGER.info(f"Requesting a report ({start_date} - {end_date})")
 
             request = self._format_request(
@@ -921,6 +931,7 @@ class MegatonGA4(object):
                     request,
                     max_retries=max_retries,
                     backoff_factor=backoff_factor,
+                    on_exhausted=on_exhausted,
                 )
                 if len(data) > 0:
                     all_rows.extend(data)

@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from google.api_core.exceptions import ServiceUnavailable
 
 from megaton import ga4
@@ -49,7 +51,7 @@ def test_request_report_api_retries_service_unavailable_then_succeeds(monkeypatc
     assert types == ["TYPE_INTEGER"]
 
 
-def test_request_report_api_returns_empty_after_retry_exhaustion(monkeypatch):
+def test_request_report_api_raises_after_retry_exhaustion_by_default(monkeypatch):
     client = _FakeDataClient([
         ServiceUnavailable("temporary-1"),
         ServiceUnavailable("temporary-2"),
@@ -60,15 +62,37 @@ def test_request_report_api_returns_empty_after_retry_exhaustion(monkeypatch):
     waits = []
     monkeypatch.setattr("megaton.ga4.time.sleep", waits.append)
 
+    with pytest.raises(ServiceUnavailable):
+        report._request_report_api(
+            0,
+            SimpleNamespace(),
+            max_retries=3,
+            backoff_factor=2.0,
+        )
+
+    assert client.calls == 3
+    assert waits == [2.0, 4.0]
+
+
+def test_request_report_api_returns_empty_when_on_exhausted_empty(monkeypatch):
+    client = _FakeDataClient([
+        ServiceUnavailable("temporary-1"),
+        ServiceUnavailable("temporary-2"),
+        ServiceUnavailable("temporary-3"),
+    ])
+    report = ga4.MegatonGA4.Report(_DummyParent(client))
+
+    monkeypatch.setattr("megaton.ga4.time.sleep", lambda *_: None)
+
     data, total_rows, headers, types = report._request_report_api(
         0,
         SimpleNamespace(),
         max_retries=3,
         backoff_factor=2.0,
+        on_exhausted="empty",
     )
 
     assert client.calls == 3
-    assert waits == [2.0, 4.0]
     assert total_rows == 0
     assert data == []
     assert headers == []

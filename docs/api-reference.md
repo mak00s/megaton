@@ -321,7 +321,8 @@ filter_d={"and": [
 **失敗時の扱い:**
 - 不正なフィルタや抽出条件ではエラーメッセージを表示し、結果が更新されない場合があります
 - `show=False` を指定しない限り、実行後に結果表示を試みます
-- GA4 Data API が一時的に利用不可（`ServiceUnavailable`）の場合は指数バックオフで再試行し、枯渇時は空結果を返します
+- GA4 Data API の一時エラー（`ServiceUnavailable` / `DeadlineExceeded` / `ResourceExhausted`）は指数バックオフで再試行します（default: 5回）
+- リトライ枯渇時は **デフォルトで例外を送出**します（v1.4+）。`on_exhausted='empty'` を渡すと旧来どおり空結果を返しますが、列欠落など「静かな部分欠損」の原因になるため非推奨
 
 **m の複数セット一括取得（run）**
 

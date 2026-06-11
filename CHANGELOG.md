@@ -53,6 +53,16 @@ internal attributes (`mg.ga["4"].accounts`, `account.select()`,
   `normalize` / `categorize` and the value-mapping helpers (internal
   dedup; behavior unchanged).
 
+### Changed (behavior)
+
+- **GA4 retry exhaustion now raises** instead of silently returning an empty
+  result. Transient API errors (`ServiceUnavailable` / `DeadlineExceeded` /
+  `ResourceExhausted`) are retried with exponential backoff (default attempts
+  3 -> 5); when retries are exhausted, the original exception propagates so
+  reports fail loudly instead of writing partially-empty data (columns went
+  missing silently before). Opt back into the old behavior per call with
+  ``report.run(..., on_exhausted='empty')``.
+
 ### Error contract
 
 Public query APIs raise exceptions from `megaton.errors` (`BadRequest`,
