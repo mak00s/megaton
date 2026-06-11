@@ -28,6 +28,20 @@ internal attributes (`mg.ga["4"].accounts`, `account.select()`,
   `filter_m=...` now also accept a dict tree for AND/OR/NOT logic, e.g.
   `{"and": ["date==2024-01-01", {"or": ["country==Japan", "country==Taiwan"]}]}`.
   Leaves use the existing legacy string syntax. String filters are unchanged.
+- **`megaton.wrap(df, dimensions=None)`**: wrap any DataFrame (BigQuery,
+  Sheets, CSV, ...) in a chainable `ReportResult` so all data can use the
+  same chain vocabulary (`normalize` / `categorize` / `group` / `to_int` /
+  `sort` / `month_key` / ...). Dimensions default to non-numeric columns.
+- **Results accepted by save/append/upsert**: `mg.save.to.sheet/csv`,
+  `mg.append.to.csv`, `mg.upsert.to.sheet/csv`, and `mg.sheet.save/append/upsert`
+  now accept a `ReportResult`/`SearchResult` directly (the underlying
+  DataFrame is extracted automatically) — fetch → transform → save in one chain.
+- **`ReportResult.month_key(dimension='date', into=None, fmt='%Y-%m')`**:
+  standardized month-key derivation from date-like columns.
+- **`transform.fillna_int(df, cols)`**: fill NaN + convert to int
+  (promoted from megaton-notebooks `lib/pd_utils.py`).
+- `megaton.wrap` / `megaton.Megaton` are importable from the package root
+  (lazy; `import megaton` stays light).
 
 ### Error contract
 

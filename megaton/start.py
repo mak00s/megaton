@@ -976,7 +976,29 @@ class ReportResult:
                 df[col] = df[col].fillna(fill_value).astype(int)
         
         return ReportResult(df, self.dimensions)
-    
+
+    def month_key(self, dimension: str = 'date', *, into: str | None = None, fmt: str = '%Y-%m') -> Self:
+        """Derive a month-key column from a date-like dimension.
+
+        Standardizes month formatting (replaces hand-rolled "%Y/%m/1",
+        "%Y%m", "%Y-%m-01" variants in reports).
+
+        Args:
+            dimension: source column (GA4 'YYYYMMDD' strings, datetime, or date).
+            into: output column name (default: overwrite ``dimension``).
+            fmt: strftime format, e.g. '%Y-%m', '%Y%m', '%Y/%m/1'.
+        """
+        if dimension not in self._df.columns:
+            raise KeyError(f"column not found: {dimension}")
+        df = self._df.copy()
+        series = pd.to_datetime(df[dimension], errors='coerce')
+        target = into or dimension
+        df[target] = series.dt.strftime(fmt)
+        new_dimensions = list(self.dimensions)
+        if target not in new_dimensions:
+            new_dimensions.append(target)
+        return ReportResult(df, new_dimensions)
+
     def replace(self, dimension: str, by: dict[str, str], *, regex: bool = True) -> Self:
         """
         ディメンション列の値を辞書マッピングで置換
@@ -1052,6 +1074,41 @@ class ReportResult:
         )
 
         return ReportResult(df, self.dimensions)
+
+
+def _extract_df(data):
+    """Return the underlying DataFrame when given a ReportResult/SearchResult.
+
+    DataFrames and other values pass through unchanged.
+    """
+    if isinstance(data, (ReportResult, SearchResult)):
+        return data.df
+    return data
+
+
+def wrap(df: pd.DataFrame, dimensions: list[str] | None = None) -> ReportResult:
+    """Wrap any DataFrame in a chainable ReportResult.
+
+    Lets data from BigQuery, Sheets, CSV, etc. use the same chainable
+    vocabulary as GA4 query results::
+
+        from megaton import wrap
+        wrap(df).normalize('source', rules).group('month').to_int().sort('month')
+
+    Args:
+        df: Source DataFrame (copied; the original is not mutated).
+        dimensions: Optional dimension column names. Defaults to all
+            non-numeric columns (numeric columns are treated as metrics
+            by group()/to_int()).
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("wrap() requires a pandas DataFrame.")
+    if dimensions is None:
+        dimensions = [
+            col for col in df.columns
+            if not pd.api.types.is_numeric_dtype(df[col])
+        ]
+    return ReportResult(df.copy(), list(dimensions))
 
 
 class Megaton:
@@ -1508,8 +1565,18 @@ class Megaton:
         """List Search Console sites accessible with the current credential."""
         return self.search.sites
 
-    def use_property(self, property_id: str, ver: Optional[str] = None) -> "Megaton":
+    def use_property(self, property_id: str, ver: Optional[str] = None, *,
+                     refresh_metadata: bool = True) -> "Megaton":
         """Select a GA4 property (and its account) by ID. Returns self.
+
+        Args:
+            property_id: GA4 property ID.
+            ver: GA version key ('4' by default).
+            refresh_metadata: when False, switch the property WITHOUT
+                refreshing account/property metadata (no extra API calls).
+                Use for batch loops over many properties of the same
+                credential. Note: ``property.api_metadata`` stays stale, so
+                only standard dimensions/metrics resolve reliably.
 
         Raises:
             RuntimeError: GA clients are not initialized (authenticate first).
@@ -1525,8 +1592,17 @@ class Megaton:
         for account in getattr(client, 'accounts', None) or []:
             for prop in account.get('properties', []):
                 if str(prop.get('id')) == target:
-                    client.account.select(account['id'])
-                    client.property.select(target)
+                    if refresh_metadata:
+                        client.account.select(account['id'])
+                        client.property.select(target)
+                    else:
+                        client.account.id = account['id']
+                        client.property.id = target
+                        state = getattr(client, '_state', None)
+                        if state is not None:
+                            state.ga_version = getattr(client, '_ga_version', None)
+                            state.ga_account_id = account['id']
+                            state.ga_property_id = target
                     return self
         available = [p['id'] for p in self.properties(ver)]
         raise ValueError(
@@ -1760,6 +1836,7 @@ class Megaton:
                     include_dates: when True, start_date and end_date is added to the filename
                     quiet: when True, message won't be displayed
                 """
+                df = _extract_df(df)
                 if df is None:
                     df = self.parent.parent.report.data
                 if not isinstance(df, pd.DataFrame):
@@ -1789,6 +1866,7 @@ class Megaton:
                     auto_width: adjust column widths to fit contents
                     freeze_header: freeze the first row
                 """
+                df = _extract_df(df)
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
@@ -1823,6 +1901,7 @@ class Megaton:
                     include_dates: if True, "_" + start date + "_" + end date is added to the filename
                     quiet: when True, message won't be displayed
                 """
+                df = _extract_df(df)
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
@@ -1854,6 +1933,7 @@ class Megaton:
                     auto_width: adjust column widths to fit contents
                     freeze_header: freeze the first row
                 """
+                df = _extract_df(df)
                 if not isinstance(df, pd.DataFrame):
                     df = self.parent.parent.report.data
 
@@ -1902,6 +1982,7 @@ class Megaton:
                     include_dates: if True, "_" + start date + "_" + end date is added to the filename
                     quiet: when True, message won't be displayed
                 """
+                df = _extract_df(df)
                 if df is None:
                     df = self.parent.parent.report.data
                 if not isinstance(df, pd.DataFrame):
@@ -1994,6 +2075,7 @@ class Megaton:
                     auto_width: adjust column widths to fit contents
                     freeze_header: freeze the first row
                 """
+                df = _extract_df(df)
                 if df is None:
                     df = self.parent.parent.report.data
                 if not isinstance(df, pd.DataFrame):
@@ -2571,6 +2653,7 @@ class Megaton:
 
 
         def _coerce_df(self, df):
+            df = _extract_df(df)
             if df is None:
                 df = self.parent.report.data
             if not isinstance(df, pd.DataFrame):

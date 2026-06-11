@@ -2,6 +2,7 @@ from .classify import classify_by_regex, infer_label_by_domain
 from .ga4 import classify_channel, convert_filter_to_event_scope
 from .table import (
     dedup_by_key,
+    fillna_int,
     ensure_columns,
     group_sum,
     normalize_key_cols,
@@ -16,6 +17,7 @@ __all__ = [
     "normalize_whitespace",
     "force_text_if_numeric",
     "ensure_columns",
+    "fillna_int",
     "normalize_key_cols",
     "normalize_thresholds_df",
     "dedup_by_key",

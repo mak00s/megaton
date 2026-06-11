@@ -9,7 +9,16 @@ from __future__ import annotations
 
 import sys
 
-__all__ = ["mount_google_drive"]
+__all__ = ["mount_google_drive", "wrap", "Megaton"]
+
+
+def __getattr__(name):
+    # Lazy exports: keep `import megaton` light (no pandas) until first use.
+    if name in ("wrap", "Megaton"):
+        from . import start
+
+        return getattr(start, name)
+    raise AttributeError(f"module 'megaton' has no attribute {name!r}")
 
 
 def _is_colab() -> bool:

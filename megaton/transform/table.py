@@ -61,6 +61,18 @@ def dedup_by_key(df, key_cols, prefer_by=None, prefer_ascending=False, keep="fir
     return result.drop_duplicates(subset=key_cols, keep=keep)
 
 
+def fillna_int(df, cols):
+    """Fill NaN and convert to int for the given columns, in-place.
+
+    Uses ``pd.to_numeric`` + ``fillna(0).astype(int)`` to avoid FutureWarning
+    on implicit downcasting. Missing columns are skipped.
+    """
+    for col in cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+    return df
+
+
 def group_sum(df, group_cols, sum_cols):
     missing = [col for col in list(group_cols) + list(sum_cols) if col not in df.columns]
     if missing:

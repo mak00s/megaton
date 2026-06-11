@@ -1285,13 +1285,35 @@ result.filter_position(max=10, keep_clicked=True)
 
 ## ReportResult メソッドチェーン
 
-`mg.report.run.all()` が返す ReportResult オブジェクトは、メソッドチェーンで段階的な処理が可能です。
+`mg.report.run()` / `mg.report.run.all()` が返す ReportResult オブジェクトは、メソッドチェーンで段階的な処理が可能です。
+
+**任意の DataFrame をチェーンに乗せる（v1.4+）:** BigQuery・Sheets・CSV 由来のデータも `megaton.wrap()` で同じ語彙が使えます。
+
+```python
+from megaton import wrap
+result = wrap(df).month_key("date", into="month").group("month").to_int().sort("month")
+mg.save.to.sheet("monthly", result)   # Result をそのまま保存できる
+```
+
+- `wrap(df, dimensions=None)`: dimensions 省略時は非数値列をディメンションとして推定
+- `mg.save.to.sheet/csv`、`mg.append.to.csv`、`mg.upsert.to.sheet/csv`、`mg.sheet.save/append/upsert` は ReportResult / SearchResult を直接受け取ります（`.df` の取り出し不要）
 
 ### 主要メソッド
 
 #### `.df`
 
 DataFrame にアクセスするプロパティ。
+
+#### `.month_key(dimension='date', into=None, fmt='%Y-%m')` (v1.4+)
+
+日付系列から月キー列を生成します（`%Y%m` / `%Y/%m/1` などの手書きフォーマット分岐を置き換える標準手段）。
+
+**パラメータ:**
+- `dimension` (str) - 元になる日付列（GA4 の `YYYYMMDD` 文字列・datetime・date に対応）
+- `into` (str | None) - 出力列名（default: `dimension` を上書き）
+- `fmt` (str) - strftime フォーマット（default: `'%Y-%m'`）
+
+**戻り値:** ReportResult
 
 #### `.normalize(dimension, by, lower=True, strip=True)`
 

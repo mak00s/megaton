@@ -81,6 +81,15 @@ def test_use_property_accepts_int_like_input(app):
     assert app.ga['4'].property.selected == '222'
 
 
+def test_use_property_fast_switch_skips_metadata_refresh(app):
+    app.use_property('333', refresh_metadata=False)
+    # select() was NOT called; ids were assigned directly
+    assert app.ga['4'].account.selected is None
+    assert app.ga['4'].property.selected is None
+    assert app.ga['4'].account.id == 'acc-2'
+    assert app.ga['4'].property.id == '333'
+
+
 def test_use_property_unknown_id_raises_with_available_list(app):
     with pytest.raises(ValueError) as exc:
         app.use_property('999')
