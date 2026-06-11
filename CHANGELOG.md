@@ -42,6 +42,16 @@ internal attributes (`mg.ga["4"].accounts`, `account.select()`,
   (promoted from megaton-notebooks `lib/pd_utils.py`).
 - `megaton.wrap` / `megaton.Megaton` are importable from the package root
   (lazy; `import megaton` stays light).
+- **`transform.traffic`**: traffic-source primitives promoted from
+  megaton-app `megaton_lib/traffic.py` — `normalize_domain`, `source_host`,
+  `is_non_public_dev_source`, `ensure_trailing_slash`,
+  `apply_source_normalization` (all exported from `megaton.transform`).
+
+### Changed
+
+- `SearchResult` / `ReportResult` now share `_ResultBase` for
+  `normalize` / `categorize` and the value-mapping helpers (internal
+  dedup; behavior unchanged).
 
 ### Error contract
 

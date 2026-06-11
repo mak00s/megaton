@@ -107,7 +107,81 @@ KNOWN_GA4_DIMENSIONS = {
 MappingRule = dict[str, str] | Callable[[object], object | None]
 
 
-class SearchResult:
+class _ResultBase:
+    """Shared chainable transforms for SearchResult/ReportResult.
+
+    Subclasses implement ``_with_df(df, dimensions)`` to clone themselves
+    with a new DataFrame; the shared methods below stay implementation-free
+    of the concrete result type.
+    """
+
+    def _with_df(self, df: pd.DataFrame, dimensions: list[str]) -> Self:
+        raise NotImplementedError
+
+    def _normalize_value(self, value: object, *, lower: bool, strip: bool) -> object:
+        if pd.isna(value):
+            return value
+        if not isinstance(value, str):
+            return value
+        text = value
+        if strip:
+            text = text.strip()
+        if lower:
+            text = text.lower()
+        return text
+
+    def _map_value(self, value: object, by: MappingRule, *, default: str | None = None) -> object:
+        if pd.isna(value):
+            return default if default is not None else value
+        if callable(by):
+            mapped = by(value)
+            return default if mapped is None else mapped
+        if isinstance(by, dict):
+            if isinstance(value, str):
+                for pattern, mapped in by.items():
+                    try:
+                        if re.search(pattern, value):
+                            return mapped
+                    except re.error:
+                        continue
+            return default if default is not None else value
+        raise TypeError("by must be a dict or callable.")
+
+    def normalize(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
+        """
+        既存ディメンションの値を正規化（上書き、集約なし）
+        """
+        df = self._df.copy()
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        def _apply(value):
+            normalized = self._normalize_value(value, lower=lower, strip=strip)
+            return self._map_value(normalized, by, default=None)
+
+        df[dimension] = df[dimension].apply(_apply)
+        return self._with_df(df, self.dimensions)
+
+    def categorize(self, dimension: str, by: MappingRule, *, into: str | None = None, default: str = "(other)") -> Self:
+        """
+        既存ディメンションからカテゴリ列を追加（集約なし）
+        """
+        df = self._df.copy()
+        if dimension not in df.columns:
+            raise ValueError(f"Column '{dimension}' not found in DataFrame")
+
+        if into is None:
+            into = f"{dimension}_category"
+
+        df[into] = df[dimension].apply(lambda value: self._map_value(value, by, default=default))
+
+        new_dimensions = list(self.dimensions)
+        if into not in new_dimensions:
+            new_dimensions.append(into)
+        return self._with_df(df, new_dimensions)
+
+
+class SearchResult(_ResultBase):
     """Search Console データをラップし、メソッドチェーンで処理を行うクラス"""
 
     def __init__(self, df: pd.DataFrame, parent: Megaton.Search, dimensions: list[str]) -> None:
@@ -321,67 +395,8 @@ class SearchResult:
         
         return SearchResult(df, self.parent, self.dimensions)
     
-    def _normalize_value(self, value: object, *, lower: bool, strip: bool) -> object:
-        if pd.isna(value):
-            return value
-        if not isinstance(value, str):
-            return value
-        text = value
-        if strip:
-            text = text.strip()
-        if lower:
-            text = text.lower()
-        return text
-
-    def _map_value(self, value: object, by: MappingRule, *, default: str | None = None) -> object:
-        if pd.isna(value):
-            return default if default is not None else value
-        if callable(by):
-            mapped = by(value)
-            return default if mapped is None else mapped
-        if isinstance(by, dict):
-            if isinstance(value, str):
-                for pattern, mapped in by.items():
-                    try:
-                        if re.search(pattern, value):
-                            return mapped
-                    except re.error:
-                        continue
-            return default if default is not None else value
-        raise TypeError("by must be a dict or callable.")
-
-    def normalize(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
-        """
-        既存ディメンションの値を正規化（上書き、集約なし）
-        """
-        df = self._df.copy()
-        if dimension not in df.columns:
-            raise ValueError(f"Column '{dimension}' not found in DataFrame")
-
-        def _apply(value):
-            normalized = self._normalize_value(value, lower=lower, strip=strip)
-            return self._map_value(normalized, by, default=None)
-
-        df[dimension] = df[dimension].apply(_apply)
-        return SearchResult(df, self.parent, self.dimensions)
-
-    def categorize(self, dimension: str, by: MappingRule, *, into: str | None = None, default: str = "(other)") -> Self:
-        """
-        既存ディメンションからカテゴリ列を追加（集約なし）
-        """
-        df = self._df.copy()
-        if dimension not in df.columns:
-            raise ValueError(f"Column '{dimension}' not found in DataFrame")
-
-        if into is None:
-            into = f"{dimension}_category"
-
-        df[into] = df[dimension].apply(lambda value: self._map_value(value, by, default=default))
-
-        new_dimensions = list(self.dimensions)
-        if into not in new_dimensions:
-            new_dimensions.append(into)
-        return SearchResult(df, self.parent, new_dimensions)
+    def _with_df(self, df: pd.DataFrame, dimensions: list[str]) -> "SearchResult":
+        return SearchResult(df, self.parent, dimensions)
 
     def classify(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
         """
@@ -681,7 +696,7 @@ class SearchResult:
         return self
 
 
-class ReportResult:
+class ReportResult(_ResultBase):
     """GA4 レポートデータをラップし、メソッドチェーンで処理を行うクラス"""
 
     def __init__(self, df: pd.DataFrame, dimensions: list[str] | None = None) -> None:
@@ -739,67 +754,8 @@ class ReportResult:
         """df[key] として列にアクセス（後方互換性）"""
         return self._df[key]
 
-    def _normalize_value(self, value: object, *, lower: bool, strip: bool) -> object:
-        if pd.isna(value):
-            return value
-        if not isinstance(value, str):
-            return value
-        text = value
-        if strip:
-            text = text.strip()
-        if lower:
-            text = text.lower()
-        return text
-
-    def _map_value(self, value: object, by: MappingRule, *, default: str | None = None) -> object:
-        if pd.isna(value):
-            return default if default is not None else value
-        if callable(by):
-            mapped = by(value)
-            return default if mapped is None else mapped
-        if isinstance(by, dict):
-            if isinstance(value, str):
-                for pattern, mapped in by.items():
-                    try:
-                        if re.search(pattern, value):
-                            return mapped
-                    except re.error:
-                        continue
-            return default if default is not None else value
-        raise TypeError("by must be a dict or callable.")
-
-    def normalize(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
-        """
-        既存ディメンションの値を正規化（上書き、集約なし）
-        """
-        df = self._df.copy()
-        if dimension not in df.columns:
-            raise ValueError(f"Column '{dimension}' not found in DataFrame")
-
-        def _apply(value):
-            normalized = self._normalize_value(value, lower=lower, strip=strip)
-            return self._map_value(normalized, by, default=None)
-
-        df[dimension] = df[dimension].apply(_apply)
-        return ReportResult(df, self.dimensions)
-
-    def categorize(self, dimension: str, by: MappingRule, *, into: str | None = None, default: str = "(other)") -> Self:
-        """
-        既存ディメンションからカテゴリ列を追加（集約なし）
-        """
-        df = self._df.copy()
-        if dimension not in df.columns:
-            raise ValueError(f"Column '{dimension}' not found in DataFrame")
-
-        if into is None:
-            into = f"{dimension}_category"
-
-        df[into] = df[dimension].apply(lambda value: self._map_value(value, by, default=default))
-
-        new_dimensions = list(self.dimensions)
-        if into not in new_dimensions:
-            new_dimensions.append(into)
-        return ReportResult(df, new_dimensions)
+    def _with_df(self, df: pd.DataFrame, dimensions: list[str]) -> "ReportResult":
+        return ReportResult(df, dimensions)
 
     def classify(self, dimension: str, by: MappingRule, *, lower: bool = True, strip: bool = True) -> Self:
         """
