@@ -2,6 +2,18 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 1.4.3 - 2026-06-12
+
+### Fixed
+
+- **`ReportResult.to_int()` is now robust to object-dtype columns**: uses
+  `pd.to_numeric(errors="coerce")` before `astype(int)` (same as
+  `transform.fillna_int`), so columns that arrive as object/strings with NaN
+  (e.g. GA4 `advertiserAdCost`) convert correctly instead of raising. This
+  makes the chain `wrap(df).to_int(cols).group(...)` a true drop-in for the
+  legacy `fillna_int(df, cols)` + `groupby(...).sum()` ordering. Verified by
+  an all-cells-equal diff on a real shibuya `_ch-m` frame (1141 rows).
+
 ## 1.4.2 - 2026-06-12
 
 ### Added

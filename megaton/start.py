@@ -969,11 +969,13 @@ class ReportResult(_ResultBase):
         elif isinstance(metrics, str):
             metrics = [metrics]
         
-        # 型変換実行
+        # 型変換実行: object/文字列混在の列でも壊れないよう pd.to_numeric で強制
+        # （transform.fillna_int と同じ堅牢化。GA4 の advertiserAdCost 等は
+        # object dtype で返ることがあり、素の .astype(int) では失敗する）
         for col in metrics:
             if col in df.columns:
-                df[col] = df[col].fillna(fill_value).astype(int)
-        
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(fill_value).astype(int)
+
         return ReportResult(df, self.dimensions)
 
     def month_key(self, dimension: str = 'date', *, into: str | None = None, fmt: str = '%Y-%m') -> Self:

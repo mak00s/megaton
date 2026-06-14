@@ -859,3 +859,18 @@ def test_select_does_not_mutate_source():
     df = pd.DataFrame({"a": [1], "b": [2]})
     ReportResult(df, ["a"]).select(["a"])
     assert df.columns.tolist() == ["a", "b"]
+
+
+def test_to_int_robust_on_object_dtype_column():
+    """object dtype（数値文字列+NaN混在）でも pd.to_numeric で安全に int 化。
+
+    GA4 の advertiserAdCost 等は object で返ることがある。素の .astype(int)
+    では壊れる入力で 1.4.3 の堅牢化を検証する。
+    """
+    df = pd.DataFrame({
+        "k": ["a", "b", "c"],
+        "ad_cost": ["10", "2.5", None],  # object: 文字列 + None
+    })
+    out = ReportResult(df, ["k"]).to_int("ad_cost").df
+    assert out["ad_cost"].tolist() == [10, 2, 0]
+    assert str(out["ad_cost"].dtype) == "int64"
