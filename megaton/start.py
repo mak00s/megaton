@@ -764,7 +764,8 @@ class ReportResult(_ResultBase):
         normalized = self.normalize(dimension, by, lower=lower, strip=strip)
         return normalized.group(by=normalized.dimensions)
     
-    def group(self, by: str | list[str], metrics: str | list[str] | None = None, method: str = 'sum') -> Self:
+    def group(self, by: str | list[str], metrics: str | list[str] | None = None, method: str = 'sum',
+              *, dropna: bool = True, min_count: int | None = None) -> Self:
         """
         指定したディメンションで集計
 
@@ -772,16 +773,24 @@ class ReportResult(_ResultBase):
             by: 集計キーとなるディメンション列名または列名のリスト
             metrics: 集計する指標列名のリスト（または単一の列名文字列）
             method: 集計方法（'sum', 'mean', 'count', 'min', 'max'）
-        
+            dropna: False にすると集計キーの NaN もグループとして残す
+                （pandas groupby の dropna に対応、default True）。
+            min_count: sum/prod のときのみ有効。全要素が NaN のグループを
+                0 ではなく NaN にする（旧コードの ``.sum(min_count=1)`` 互換。
+                直後に ``.to_int()`` で 0 化する用途）。
+
         Returns:
             ReportResult（集計後のデータ）
-        
+
         Example:
             # sessionSource でセッション数を集計
             result.group(by='sessionSource', metrics=['sessions'])
-            
+
             # 複数ディメンションで集計
             result.group(by=['date', 'sessionSource'])
+
+            # 旧 .groupby(..., dropna=False)[...].sum(min_count=1) 互換
+            result.group(['month', 'clinic'], dropna=False, min_count=1).to_int()
         """
         df = self._df.copy()
         
@@ -818,13 +827,47 @@ class ReportResult(_ResultBase):
             return ReportResult(pd.DataFrame(columns=by), by)
         
         # 集計実行
-        agg_dict = {col: method for col in metrics}
-        grouped = df.groupby(by, as_index=False).agg(agg_dict)
-        
+        # min_count は sum/prod でのみ有効。全 NaN グループを 0 ではなく NaN にしたい
+        # （その後 .to_int() で 0 化する）ケースで、旧コードの .sum(min_count=1) と一致させる。
+        if min_count is not None and method in ("sum", "prod"):
+            grouped = (
+                df.groupby(by, as_index=False, dropna=dropna)[metrics]
+                .agg(method, min_count=min_count)
+            )
+        else:
+            agg_dict = {col: method for col in metrics}
+            grouped = df.groupby(by, as_index=False, dropna=dropna).agg(agg_dict)
+
         # dimensions を更新
         new_dimensions = by
-        
+
         return ReportResult(grouped, new_dimensions)
+
+    def select(self, columns: list[str], *, strict: bool = True) -> Self:
+        """列を指定順に選択（並べ替え）する。
+
+        手書きの ``df[key_cols]`` を置き換える。dimensions は選択後の
+        列のうち元 dimensions に含まれていたものへ更新される。
+
+        Args:
+            columns: 残す列名を出力順に並べたリスト。
+            strict: True なら存在しない列があると ``KeyError``。
+                False なら存在する列のみを残す。
+
+        Example:
+            result.group([...]).to_int().select(key_cols)
+        """
+        df = self._df
+        if strict:
+            missing = [c for c in columns if c not in df.columns]
+            if missing:
+                raise KeyError(f"columns not found: {missing}")
+            selected = list(columns)
+        else:
+            selected = [c for c in columns if c in df.columns]
+        new_df = df[selected].copy()
+        new_dimensions = [d for d in self.dimensions if d in selected]
+        return ReportResult(new_df, new_dimensions)
     
     def sort(self, by: str | list[str], ascending: bool | list[bool] = True) -> Self:
         """

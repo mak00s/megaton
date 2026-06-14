@@ -779,3 +779,83 @@ def test_report_result_custom_metrics_not_in_dimensions():
     assert classified['cv'].iloc[0] == 15  # 10 + 5
     assert classified['ad_cost'].iloc[0] == 1500.75  # 1000.5 + 500.25
     assert classified['totalPurchasers'].iloc[0] == 12  # 8 + 4
+
+
+# --- group(dropna=, min_count=) and select() (1.4.1+) ---
+
+import numpy as np
+
+
+def test_group_min_count_keeps_all_nan_group_as_nan():
+    """min_count=1 で全 NaN グループは NaN（旧 .sum(min_count=1) 互換）。"""
+    df = pd.DataFrame({
+        "k": ["a", "a", "b"],
+        "v": [np.nan, np.nan, 3.0],
+    })
+    out = ReportResult(df, ["k"]).group("k", min_count=1).df
+    by_k = dict(zip(out["k"], out["v"]))
+    assert pd.isna(by_k["a"])
+    assert by_k["b"] == 3.0
+
+
+def test_group_default_sum_treats_all_nan_as_zero():
+    """min_count 未指定（既定）は全 NaN グループが 0。"""
+    df = pd.DataFrame({"k": ["a", "a"], "v": [np.nan, np.nan]})
+    out = ReportResult(df, ["k"]).group("k").df
+    assert out.loc[out["k"] == "a", "v"].iloc[0] == 0
+
+
+def test_group_min_count_then_to_int_matches_legacy():
+    """.group(min_count=1).to_int() は旧 groupby.sum(min_count=1)+fillna_int と同値。"""
+    df = pd.DataFrame({
+        "month": ["2026-05", "2026-05", "2026-06"],
+        "users": [np.nan, np.nan, 5.0],
+        "cv": [1.0, 2.0, np.nan],
+    })
+    chained = (
+        ReportResult(df, ["month"])
+        .group("month", dropna=False, min_count=1)
+        .to_int(["users", "cv"])
+        .sort("month").df
+    )
+    legacy = (
+        df.groupby(["month"], as_index=False, dropna=False)[["users", "cv"]]
+        .sum(min_count=1)
+    )
+    for col in ["users", "cv"]:
+        legacy[col] = pd.to_numeric(legacy[col], errors="coerce").fillna(0).astype(int)
+    legacy = legacy.sort_values("month").reset_index(drop=True)
+    pd.testing.assert_frame_equal(chained, legacy)
+
+
+def test_group_dropna_false_keeps_nan_key_group():
+    df = pd.DataFrame({"k": ["a", None, None], "v": [1, 2, 3]})
+    kept = ReportResult(df, ["k"]).group("k", dropna=False).df
+    dropped = ReportResult(df, ["k"]).group("k", dropna=True).df
+    assert kept["v"].sum() == 6  # NaN group retained
+    assert dropped["v"].sum() == 1  # NaN group dropped
+
+
+def test_select_reorders_and_updates_dimensions():
+    df = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
+    out = ReportResult(df, ["a", "b"]).select(["c", "a"])
+    assert out.df.columns.tolist() == ["c", "a"]
+    assert out.dimensions == ["a"]  # only surviving original dimension
+
+
+def test_select_strict_raises_on_missing():
+    df = pd.DataFrame({"a": [1]})
+    with pytest.raises(KeyError):
+        ReportResult(df, ["a"]).select(["a", "nope"])
+
+
+def test_select_non_strict_skips_missing():
+    df = pd.DataFrame({"a": [1], "b": [2]})
+    out = ReportResult(df, ["a"]).select(["a", "nope"], strict=False).df
+    assert out.columns.tolist() == ["a"]
+
+
+def test_select_does_not_mutate_source():
+    df = pd.DataFrame({"a": [1], "b": [2]})
+    ReportResult(df, ["a"]).select(["a"])
+    assert df.columns.tolist() == ["a", "b"]

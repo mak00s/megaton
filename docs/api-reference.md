@@ -1317,6 +1317,22 @@ DataFrame にアクセスするプロパティ。
 
 **戻り値:** ReportResult
 
+#### `.group(by, metrics=None, method='sum', dropna=True, min_count=None)`
+
+集計キーで集約します。`dropna=False` で集計キーの NaN もグループとして残し、
+`min_count=1`（sum/prod のみ）で全要素 NaN のグループを 0 ではなく NaN にします
+（旧 `df.groupby(keys, dropna=False)[cols].sum(min_count=1)` の置換。`.to_int()` と
+組み合わせると同一出力）。
+
+```python
+result.group(["month", "clinic"], dropna=False, min_count=1).to_int().select(key_cols)
+```
+
+#### `.select(columns, strict=True)` (v1.4.2+)
+
+列を指定順に選択・並べ替えます（手書きの `df[key_cols]` の置換）。`dimensions` は
+選択後に残った元 dimension へ更新。`strict=False` で存在しない列はスキップ。
+
 #### `.normalize(dimension, by, lower=True, strip=True)`
 
 既存ディメンションを正規化して上書きします（集約しません）。

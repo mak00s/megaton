@@ -2,6 +2,20 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 1.4.2 - 2026-06-12
+
+### Added
+
+- **`ReportResult.group(..., dropna=False, min_count=None)`**: expose pandas
+  groupby's `dropna` (keep NaN-key groups) and a `min_count` for sum/prod
+  (all-NaN group stays NaN instead of 0). Makes the chain API a drop-in for
+  the hand-written `df.groupby(keys, dropna=False)[cols].sum(min_count=1)`
+  + `fillna_int` pattern in reports (chain with `.to_int()` for identical
+  output).
+- **`ReportResult.select(columns, *, strict=True)`**: pick/reorder columns
+  (replaces hand-written `df[key_cols]`); updates `dimensions` to the
+  surviving subset. `strict=False` skips missing columns.
+
 ## 1.4.1 - 2026-06-11
 
 ### Fixed
