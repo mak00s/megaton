@@ -20,7 +20,8 @@
 
 ## GA4
 
-- `mg.report.set.dates(date_from, date_to)`
+- `mg.report.set.dates(date_from, date_to)`  # v1.5+ カレンダートークン可: "prev-month-start" 等
+- `dates.resolve_date("prev-month-start")` / `dates.resolve_month("prev-month")`  # v1.5+ 統合日付語彙
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?, max_retries?, backoff_factor?, timeout?, on_exhausted?)`
 - `filter_d={"and": [...], "or": [...], "not": ...}` の複合フィルタ可（v1.4+、葉は文字列書式）

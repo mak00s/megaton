@@ -1122,6 +1122,15 @@ class Megaton:
                  cache_key: Optional[str] = None,
                  headless: bool = False):
         _ensure_deps(in_colab=self.in_colab)
+        if use_ga3:
+            import warnings
+
+            warnings.warn(
+                "use_ga3=True (Universal Analytics support) is deprecated and "
+                "will be removed in megaton 2.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
         self.creds = None
@@ -1134,7 +1143,18 @@ class Megaton:
         self.bq = None  # BigQuery
         self.state = MegatonState()
         self.state.headless = headless
-        self.recipes = SimpleNamespace(load_config=lambda sheet_url: recipes.load_config(self, sheet_url))
+        def _deprecated_load_config(sheet_url):
+            import warnings
+
+            warnings.warn(
+                "megaton.recipes is deprecated and will be removed in "
+                "megaton 2.0 (no known consumers).",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return recipes.load_config(self, sheet_url)
+
+        self.recipes = SimpleNamespace(load_config=_deprecated_load_config)
         self.bq_service = None  # lazy init (avoid importing BigQuery modules on start import)
         self._gsc_service = GSCService(self)
         self._sheets = SheetsService(self)

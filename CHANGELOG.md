@@ -2,6 +2,45 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 1.5.0 - 2026-07-03
+
+Unified date vocabulary (merged down from megaton-app's megaton_lib date
+stack) + deprecation notices. All functional changes are additive.
+
+### Added
+
+- **`dates.resolve_date(expr, *, reference=None, tz=None)`** (strict) — one
+  resolver for absolute dates (YYYY-MM-DD / YYYYMMDD), GA-style tokens
+  (today / yesterday / NdaysAgo) and calendar tokens (today±Nd,
+  month-start/end, year-start/end, week-start, prev-month-start/end,
+  prev-prev-month-start/end).
+- **`dates.resolve_month(expr)`** — this-month / prev-month /
+  prev-prev-month / YYYYMM -> "YYYYMM".
+- **Calendar tokens work natively in queries**:
+  `mg.report.set.dates("prev-month-start", "prev-month-end")` and
+  `mg.search.set.dates(...)` now resolve calendar tokens client-side.
+  GA-native tokens (today / NdaysAgo) keep passing through to the API
+  unchanged, so existing behavior is untouched.
+- **Date-object API**: `today_in_timezone`, `previous_month_window`,
+  `month_before_window`, `resolve_period_date`, `resolve_period_month`,
+  `previous_month_label`.
+- **Month-range / DataFrame helpers**: `month_ranges_for_year`,
+  `month_ranges_between`, `months_between`, `previous_month_range`,
+  `month_start_months_ago`, `previous_year_start`, `month_suffix_months_ago`,
+  `parse_year_month_series`, `drop_current_month_rows`,
+  `select_recent_months`, `now_in_tz`.
+- **Timezone contract**: new-vocabulary functions resolve tz as
+  explicit arg > `MEGATON_TZ` env > Asia/Tokyo (invalid names fall back to
+  Asia/Tokyo). Pre-existing functions keep their explicit
+  `tz="Asia/Tokyo"` defaults.
+
+### Deprecated
+
+- **`Megaton(use_ga3=True)`** (Universal Analytics support): emits
+  `DeprecationWarning`; `ga3.py` will be removed in megaton 2.0.
+- **`mg.recipes`** (Sheets config loader): emits `DeprecationWarning` on
+  use; will be removed in megaton 2.0 (no known consumers).
+
 ## 1.4.3 - 2026-06-12
 
 ### Fixed

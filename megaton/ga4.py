@@ -38,7 +38,7 @@ from google.api_core.exceptions import Unauthenticated
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 
-from . import errors, retry_utils, utils
+from . import dates, errors, retry_utils, utils
 
 LOGGER = logging.getLogger(__name__)
 
@@ -905,6 +905,12 @@ class MegatonGA4(object):
             limit = kwargs.get('limit', 10000)
             start_date = kwargs.get('start_date', self.start_date)
             end_date = kwargs.get('end_date', self.end_date)
+            # Calendar tokens (prev-month-start etc., v1.5+) are resolved
+            # client-side; GA-native tokens (today/NdaysAgo) still go to the API.
+            if isinstance(start_date, str):
+                start_date = dates.resolve_calendar_token(start_date) or start_date
+            if isinstance(end_date, str):
+                end_date = dates.resolve_calendar_token(end_date) or end_date
             max_retries = kwargs.get('max_retries', 5)
             backoff_factor = kwargs.get('backoff_factor', 2.0)
             on_exhausted = kwargs.get('on_exhausted', 'raise')

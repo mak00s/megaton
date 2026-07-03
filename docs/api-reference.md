@@ -257,10 +257,24 @@ Search Console のクエリを実行します。
 レポート期間を日付で設定します。
 
 **パラメータ:**
-- `date_from` (str) - 開始日（YYYY-MM-DD）
-- `date_to` (str) - 終了日（YYYY-MM-DD）
+- `date_from` (str) - 開始日（YYYY-MM-DD、GAトークン、またはカレンダートークン）
+- `date_to` (str) - 終了日（同上）
 
 **戻り値:** None
+
+**日付テンプレート（v1.5+）:** カレンダートークンをそのまま指定できます:
+
+```python
+mg.report.set.dates("prev-month-start", "prev-month-end")   # 先月まるごと
+mg.report.set.dates("year-start", "yesterday")              # 年初来
+```
+
+対応語彙: `today` / `yesterday` / `NdaysAgo`（GA API側で解釈）、
+`today±Nd` / `month-start` / `month-end` / `year-start` / `year-end` /
+`week-start` / `prev-month-start` / `prev-month-end` /
+`prev-prev-month-start` / `prev-prev-month-end`（クライアント側で解決、
+TZは `MEGATON_TZ` env → Asia/Tokyo）。厳密な解決は `dates.resolve_date()`、
+月キーは `dates.resolve_month()`（`prev-month` → "YYYYMM"）を参照。
 
 ### `mg.report.set.months(ago=1, window_months=13, tz='Asia/Tokyo', now=None, min_ymd=None)`
 
