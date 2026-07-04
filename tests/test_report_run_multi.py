@@ -156,49 +156,22 @@ def test_report_run_multi_combines_filters():
     ]
 
 
-def test_report_filter_routes_dimension_and_metric():
+def test_report_filter_d_and_filter_m_reach_ga4_slots():
+    # Explicit dimension/metric filters go to the matching GA4 request slots.
     app = _make_app()
     app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())
 
     app.report.run(
         d=["date", "country"],
         m=["sessions"],
-        filter="country==Japan;sessions>100",
+        filter_d="country==Japan",
+        filter_m="sessions>100",
         show=False,
     )
 
     _, kwargs = app.ga["4"].report.run.call_args
     assert kwargs["dimension_filter"] == "country==Japan"
     assert kwargs["metric_filter"] == "sessions>100"
-
-
-def test_report_filter_defaults_unknown_field_to_dimension():
-    app = _make_app()
-    app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())
-
-    # deviceCategory is not selected/known-metric and uses ==, so -> dimension.
-    app.report.run(d=["date"], m=["sessions"], filter="deviceCategory==mobile", show=False)
-
-    _, kwargs = app.ga["4"].report.run.call_args
-    assert kwargs["dimension_filter"] == "deviceCategory==mobile"
-    assert kwargs["metric_filter"] is None
-
-
-def test_report_filter_conflicts_with_filter_d():
-    app = _make_app()
-    app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())
-
-    with pytest.raises(TypeError, match="either filter="):
-        app.report.run(d=["date"], m=["sessions"], filter="country==Japan", filter_d="x==y")
-
-
-def test_split_filter_classification():
-    app = _make_app()
-    split = app.report.run._split_filter
-    # numeric op -> metric; known metric field -> metric; else -> dimension
-    assert split("country==Japan;sessions>100", ["sessions"]) == ("country==Japan", "sessions>100")
-    assert split("sessions==100", ["sessions"]) == (None, "sessions==100")  # known metric even with ==
-    assert split("query=@brand", []) == ("query=@brand", None)
 
 
 def test_report_run_multi_duplicate_metric_alias_error():

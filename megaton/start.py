@@ -1184,7 +1184,7 @@ class Megaton:
                 metrics: list[str] | None = None,
                 limit: int = 5000,
                 *,
-                filter=None,
+                filter_d: str | list | tuple | None = None,
                 dimension_filter: str | list | tuple | None = None,
                 clean: bool = False,
                 **kwargs,
@@ -1192,19 +1192,17 @@ class Megaton:
                 if not self.parent.site:
                     raise ValueError("Search Console site is not set. Call mg.search.use(site_url) first.")
 
-                if filter is not None:
-                    # GSC has no metric filter, so filter= is the dimension filter.
-                    if dimension_filter is not None:
-                        raise TypeError(
-                            "Pass either filter= or dimension_filter=, not both."
-                        )
-                    dimension_filter = filter
+                # filter_d is the canonical name (same as report); dimension_filter
+                # is kept as a backward-compatible alias.
+                if filter_d is not None and dimension_filter is not None:
+                    raise TypeError("Pass either filter_d= or dimension_filter=, not both.")
+                dim_filter = filter_d if filter_d is not None else dimension_filter
 
                 if metrics is None:
                     metrics = ["clicks", "impressions", "ctr", "position"]
 
                 start_date, end_date = self.parent._resolve_dates()
-                filters = self.parent._parse_dimension_filter(dimension_filter)
+                filters = self.parent._parse_dimension_filter(dim_filter)
 
                 result = self.parent.parent._gsc_service.query(
                     site_url=self.parent.site,
@@ -1234,6 +1232,7 @@ class Megaton:
                 dimensions: list,
                 metrics: list[str] | None = None,
                 *,
+                filter_d: str | list | tuple | None = None,
                 dimension_filter: str | list | tuple | None = None,
                 item_key: str = "site",
                 site_url_key: str = "gsc_site_url",
@@ -1312,6 +1311,7 @@ class Megaton:
                         result = self(
                             dimensions=dimensions,
                             metrics=metrics,
+                            filter_d=filter_d,
                             dimension_filter=dimension_filter,
                             **run_kwargs,
                         )
@@ -2072,50 +2072,6 @@ class Megaton:
                     raise ValueError(f"filter_{label} must be str when combining filters in multi-set mode.")
                 return f"{global_filter};{set_filter}"
 
-            @staticmethod
-            def _metric_field_names(m):
-                """Best-effort set of metric api_names from an ``m`` spec.
-
-                Handles plain names, ``(api_name, display_name)`` pairs, and the
-                multi-set ``([metrics], options)`` form.
-                """
-                names = set()
-                for item in (m or []):
-                    if isinstance(item, str):
-                        names.add(item)
-                    elif isinstance(item, (tuple, list)) and item:
-                        head = item[0]
-                        if isinstance(head, str):
-                            names.add(head)
-                        elif isinstance(head, (tuple, list)):
-                            for sub in head:
-                                if isinstance(sub, str):
-                                    names.add(sub)
-                                elif isinstance(sub, (tuple, list)) and sub and isinstance(sub[0], str):
-                                    names.add(sub[0])
-                return names
-
-            def _split_filter(self, filter_str, m):
-                """Route a unified ``filter=`` string into (filter_d, filter_m).
-
-                A condition goes to the metric filter when it uses a numeric
-                comparison (``> >= < <=``) or names a selected/known GA4 metric;
-                otherwise it goes to the dimension filter. Malformed conditions
-                raise ``ValueError``. This routing is deterministic and documented
-                (not inferred from data).
-                """
-                conditions = utils.parse_filter_conditions(filter_str, error_class=ValueError)
-                metric_fields = self._metric_field_names(m) | KNOWN_GA4_METRICS
-                numeric_ops = {">", ">=", "<", "<="}
-                dim_parts, metric_parts = [], []
-                for c in conditions:
-                    raw = f"{c['field']}{c['operator']}{c['value']}"
-                    if c["field"] in metric_fields or c["operator"] in numeric_ops:
-                        metric_parts.append(raw)
-                    else:
-                        dim_parts.append(raw)
-                return (";".join(dim_parts) or None, ";".join(metric_parts) or None)
-
             def _apply_sort(self, df, sort, alias_map, ambiguous):
                 if sort is None:
                     return df
@@ -2194,7 +2150,7 @@ class Megaton:
                     logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
                 return self.parent.data
 
-            def __call__(self, d: list, m: list, filter=None, filter_d=None, filter_m=None, sort=None, **kwargs):
+            def __call__(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):
                 """レポートを実行
 
                 Args:
@@ -2202,13 +2158,8 @@ class Megaton:
                         or a tuple of api_name and a new column name.
                     m: list of metrics. Item can be an api_name or a display_name
                         or a tuple of api_name and a new column name.
-                    filter: one filter string for both dimensions and metrics; each
-                        condition is routed automatically (numeric compare `> >= < <=`
-                        or a known/selected metric -> metric filter, else dimension
-                        filter). Same string format as `filter_d`. Cannot be combined
-                        with `filter_d` / `filter_m`.
-                    filter_d: dimension filter (advanced; explicit alternative to `filter`)
-                    filter_m: metric filter (advanced; explicit alternative to `filter`)
+                    filter_d: dimension filter (`<field><op><value>`, `;` = AND)
+                    filter_m: metric filter (`<field><op><value>`, `;` = AND)
                     sort: dimension or metric to order by
                     merge: merge strategy for multi-set mode ("left" or "outer")
                     show: when True, show the result table
@@ -2224,13 +2175,6 @@ class Megaton:
                 show = kwargs.pop("show", True)
                 if not isinstance(m, list):
                     raise ValueError("m must be a list.")
-
-                if filter is not None:
-                    if filter_d is not None or filter_m is not None:
-                        raise TypeError(
-                            "Pass either filter= or filter_d=/filter_m=, not both."
-                        )
-                    filter_d, filter_m = self._split_filter(filter, m)
 
                 is_set_flags = [self._is_metric_set_entry(item) for item in m]
                 if any(is_set_flags) and not all(is_set_flags):
@@ -2271,18 +2215,9 @@ class Megaton:
                     for metrics_list, options in m:
                         if not isinstance(options, dict):
                             raise ValueError("Metric set options must be a dict.")
-                        unsupported = set(options.keys()) - {"filter", "filter_d", "filter_m"}
+                        unsupported = set(options.keys()) - {"filter_d", "filter_m"}
                         if unsupported:
                             raise ValueError(f"Unsupported metric set options: {unsupported}")
-                        if "filter" in options:
-                            if options.get("filter_d") is not None or options.get("filter_m") is not None:
-                                raise ValueError(
-                                    "Metric set: pass either 'filter' or 'filter_d'/'filter_m', not both."
-                                )
-                            options = dict(options)
-                            opt_fd, opt_fm = self._split_filter(options.pop("filter"), metrics_list)
-                            options["filter_d"] = opt_fd
-                            options["filter_m"] = opt_fm
 
                         metrics, aliases, _, metric_pairs = self._split_defs(metrics_list)
                         for alias in aliases:

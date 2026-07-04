@@ -53,13 +53,13 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
 ### Added
 
-- **Unified `filter=` for report and search.** `mg.report.run(filter="...")`
-  routes each condition to the dimension or metric filter by a deterministic,
-  documented rule (numeric compare `> >= < <=` or a known/selected metric →
-  metric, else dimension); `mg.search.run(filter="...")` is the dimension
-  filter (GSC has no metric filter). Replaces the divergent `filter_d` /
-  `filter_m` / `dimension_filter`, which stay as advanced/compat aliases;
-  passing a new and an old name together raises `TypeError`.
+- **Unified dimension-filter name across report and search.**
+  `mg.search.run(...)` / `mg.search.run.all(...)` now take `filter_d=`, the same
+  name report uses (report keeps `filter_d` / `filter_m`). The old
+  `dimension_filter=` is a backward-compatible alias; passing both raises
+  `TypeError`. (Dimension and metric filters stay separate on purpose — GA4
+  requires each in its own request slot, so they are not merged into one
+  auto-routed argument.)
 - **`mg.sheet.cell.get(cell)`** to read a cell by A1, pairing with
   `mg.sheet.cell.set(...)`.
 - **`mg.set.retry(max_retries=, backoff_factor=, timeout=)`** — session-level

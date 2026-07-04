@@ -23,7 +23,7 @@
 - `mg.report.set.dates(date_from, date_to)`  # v1.5+ カレンダートークン可: "prev-month-start" 等
 - `dates.resolve_date("prev-month-start")` / `dates.resolve_month("prev-month")`  # v1.5+ 統合日付語彙
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
-- `mg.report.run(d, m, filter?, sort?, show?)`  # filter_d/filter_m は Advanced、retry/timeout は「GA4 API retry / timeout」参照
+- `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?)`  # retry/timeout は「GA4 API retry / timeout」参照
 - `megaton.wrap(df)` 任意のDataFrameをチェーンAPIへ（v1.4+）
 - `result.month_key("date", into="month", fmt="%Y-%m")` 月キー生成（v1.4+）
 - `mg.save.to.sheet(name, result)` Result直渡し可（v1.4+、.df不要）
@@ -67,20 +67,16 @@ mg.report.prep(conf, show=False)  # displayを抑制してDataFrameを返す
 
 ### filter の書式
 
-`filter=` に条件を書くと、各条件を dimension / metric に**自動で振り分け**ます。
+dimension で絞るのは `filter_d`、metric で絞るのは `filter_m`（`d=`/`m=` と対）。
 書式: `<フィールド名><演算子><値>`、複数はセミコロン(;)区切り（AND）。
-`mg.search.run(..., filter=...)` も同じ語彙（GSC は dimension のみ）。
-
-振り分け規則（決定的・明文）: **数値比較（`> >= < <=`）または既知/選択メトリクス → metric、それ以外 → dimension**。
+`mg.search.run(..., filter_d=...)` も同じ名前（GSC は dimension のみ）。
 
 ```python
-mg.report.run(d=["date"], m=["sessions"], filter="country==Japan;sessions>100")
-# country==Japan → dimension, sessions>100 → metric に自動振り分け
+mg.report.run(d=["date"], m=["sessions"], filter_d="country==Japan", filter_m="sessions>100")
+mg.search.run(dimensions=["query"], filter_d="query=@brand")
 ```
 
-Advanced: 明示的に分けたい / 未選択フィールドで絞るときは `filter_d=` / `filter_m=`（従来どおり）。
-複合条件が必要な場合も Advanced として `filter_d={"and": [...]}` / `filter_m={"or": [...]}` の dict 形式を使えます（葉は文字列書式）。
-`filter=` と `filter_d=`/`filter_m=` の同時指定は `TypeError`。
+複合条件は dict 形式も可: `filter_d={"and": [...]}` / `filter_m={"or": [...]}`（葉は文字列書式）。
 
 **演算子:**
 | 演算子 | 説明 |
@@ -201,8 +197,8 @@ mg.save.to.sheet("daily", df, max_retries=5)      # per-call override（Advanced
 - `mg.search.use(site_url)`
 - `mg.search.set.dates(date_from, date_to)`
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)`
-- `mg.search.run(dimensions, metrics?, limit?, clean?, filter?)`  # dimension_filter は互換alias
-- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, filter?)`  # dimension_filter は互換alias
+- `mg.search.run(dimensions, metrics?, limit?, clean?, filter_d?)`  # dimension_filter は互換alias
+- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, filter_d?)`  # dimension_filter は互換alias
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
 - URL-prefix の `site_url` は、400/403/404 時に末尾 `/` あり・なしを自動フォールバック
 - `TimeoutError` / `ConnectionError` / `BrokenPipeError` 時は自動リトライ（env: `MEGATON_GSC_MAX_RETRIES`, `MEGATON_GSC_BACKOFF_FACTOR`）

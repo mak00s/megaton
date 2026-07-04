@@ -169,7 +169,7 @@ Search Console クライアントを明示的に初期化します。
 
 **戻り値:** DateWindow - 期間情報を含む namedtuple
 
-### `mg.search.run(dimensions, metrics=None, limit=5000, clean=False, filter=None, **kwargs)`
+### `mg.search.run(dimensions, metrics=None, limit=5000, clean=False, filter_d=None, **kwargs)`
 
 Search Console のクエリを実行します。
 
@@ -181,8 +181,8 @@ Search Console のクエリを実行します。
 - `limit` (int) - 取得行数上限（default: 5000）
 - `clean` (bool) - URL 正規化と集計を実行（default: False）
   - `True`: `page` 列に対してデコード + パラメータ/フラグメント除去 + 小文字化を行い、必要に応じて集計
-- `filter` (str | list | tuple | None) - ディメンションフィルタ（AND 条件のみ、GSC に metric filter は無い）。
-  `report.run` と同じ語彙。旧 `dimension_filter=` は互換 alias（同時指定は `TypeError`）
+- `filter_d` (str | list | tuple | None) - ディメンションフィルタ（AND 条件のみ、GSC に metric filter は無い）。
+  `report.run` と同じ引数名。旧 `dimension_filter=` は互換 alias（同時指定は `TypeError`）
   - 形式: `"dimension=~pattern;dimension2=@text"`
   - 演算子: `=~` (RE2 正規表現)、`!~` (正規表現否定)、`=@` (部分一致)、`!@` (部分一致否定)
 
@@ -205,7 +205,7 @@ Search Console のクエリを実行します。
 | `MEGATON_GSC_MAX_RETRIES` | 最大リトライ回数 | 3 |
 | `MEGATON_GSC_BACKOFF_FACTOR` | 指数バックオフの係数（秒） | 1.0 |
 
-### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, filter=None, verbose=True, **kwargs)`
+### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, filter_d=None, verbose=True, **kwargs)`
 
 複数サイトのデータを一括取得して結合します。
 
@@ -221,7 +221,7 @@ Search Console のクエリを実行します。
   - `list`: `item[item_key]` がリスト内にあるものを含める
   - `callable`: `item_filter(item)` が True を返すものを含める
   - `None`: すべて含める
-- `filter` (str | list | tuple | None) - ディメンションフィルタ。`mg.search.run()` と同じ語彙
+- `filter_d` (str | list | tuple | None) - ディメンションフィルタ。`mg.search.run()` と同じ引数名
   - 旧 `dimension_filter=` は互換 alias（同時指定は `TypeError`）
 - `verbose` (bool) - 進捗メッセージを表示（default: True）
 - `**kwargs` - `mg.search.run()` に渡す追加引数（例: `limit`, `country`, `clean`）
@@ -285,7 +285,7 @@ TZは `MEGATON_TZ` env → Asia/Tokyo）。厳密な解決は `dates.resolve_dat
 
 **戻り値:** DateWindow
 
-### `mg.report.run(d, m, filter=None, sort=None, **kwargs)`
+### `mg.report.run(d, m, filter_d=None, filter_m=None, sort=None, **kwargs)`
 
 GA4 レポートを実行します。
 
@@ -294,13 +294,10 @@ GA4 レポートを実行します。
   - 文字列または `(api_name, alias)` のタプルのリスト
 - `m` (list) - 指標（省略形）
   - 文字列または `(api_name, alias)` のタプルのリスト
-  - もしくは `[(metrics, options), ...]` のメトリクスセット配列（`options` は `filter` / `filter_d` / `filter_m`）
-- `filter` (str | None) - 主導線の絞り込み。各条件を dimension / metric へ自動振り分け
-  （数値比較 `> >= < <=` または既知/選択メトリクス → metric、それ以外 → dimension）。
-  書式は `<field><op><value>`、`;` 区切りで AND。`filter_d` / `filter_m` との同時指定は `TypeError`
-- `filter_d` (str | dict | None) - **Advanced**: ディメンションフィルタを明示指定（`filter` の代替）。
+  - もしくは `[(metrics, options), ...]` のメトリクスセット配列（`options` は `filter_d` / `filter_m`）
+- `filter_d` (str | dict | None) - ディメンションフィルタ（`<field><op><value>`、`;` 区切りで AND）。
   dict 形式で AND/OR/NOT の複合条件も指定可能（下記「複合フィルタ」参照）
-- `filter_m` (str | dict | None) - **Advanced**: メトリクスフィルタを明示指定（`filter` の代替）。dict 形式も可
+- `filter_m` (str | dict | None) - メトリクスフィルタ（`<field><op><value>`、`;` 区切りで AND）。dict 形式も可
 - `sort` (str | None) - ソート順（例: `"date,-sessions"`）
 - `merge` (str | None) - メトリクスセット一括モードの結合方法（`left` / `outer`）
 - `show` (bool) - 実行結果を表示するか（default: True）
@@ -334,7 +331,7 @@ mg.set.retry(max_retries=5, backoff_factor=1.5, timeout=300)
 
 **Advanced: 複合フィルタ（dict 形式、v1.4+）:**
 
-`filter=` は文字列の単純条件を主導線にします。`and` / `or` / `not` をキーとする dict ツリーが必要な場合は、Advanced として `filter_d` / `filter_m` に指定します。葉は従来の文字列形式です。
+`filter_d` / `filter_m` は文字列の単純条件（`<field><op><value>`、`;` = AND）が基本です。`and` / `or` / `not` をキーとする dict ツリーで複合条件も指定できます（葉は文字列形式）。
 
 ```python
 filter_d={"and": [

@@ -40,14 +40,14 @@ Notebook 上で人間が分析作業を進めるための stateful app として
 - **読み書きの動詞を対称にする**: 書き（`set` / `save`）を用意したら、読み
   （`get` / `read`）も同じ語彙で対にする。例: `mg.sheet.cell.set` には
   `mg.sheet.cell.get` を揃える。private helper の直呼びを主導線に露出しない。
-- **クロスソースで語彙を揃える**: 同じ意味の操作は source を跨いで同じ引数名に
-  する。API 由来名（例: GSC の `dimension_filter`）や実装都合の分割（GA4 の
-  `filter_d` / `filter_m`）をそのまま主導線にせず、共通の 1 語彙に寄せる。
-  絞り込みは `filter=` に統一し、report では各条件を dimension / metric へ
-  **決定的な規則で自動振り分け**する（数値比較 `> >= < <=` または既知/選択
-  メトリクス → metric、それ以外 → dimension）。この振り分けは明文化・fail-loud
-  にして「隠れた推論」にしない。旧名（`filter_d` / `filter_m` /
-  `dimension_filter`）は互換 alias・Advanced に降格し、新旧同時指定は `TypeError`。
+- **クロスソースで「引数名」を揃える（型の区別は隠さない）**: 同じ意味の操作は
+  source を跨いで同じ引数名にする。API 由来名（例: GSC の `dimension_filter`）は
+  共通名に寄せ、旧名は互換 alias に降格する。絞り込みは report・search とも
+  `filter_d`（dimension）で統一し、metric 絞り込みは report の `filter_m`
+  （GSC に metric filter は無い）。`d=`/`m=` と対の自明な名前にする。
+  ただし **dimension と metric の区別は GA4 が別スロットで要求する本物の区別**
+  なので、1 引数に融合して自動振り分けしない（フィールド型はメタデータでしか
+  正しく判定できず、推測は API エラーになる）。新旧同時指定は `TypeError`。
 - **運用パラメータは作業語彙ではない**: `max_retries` / `backoff_factor` /
   `timeout` などの retry・timeout は通常操作のノイズ。引数として受けてよいが、
   主 signature・cheatsheet 主導線には出さない。session 設定に寄せ、解決順は
