@@ -1091,20 +1091,19 @@ table を選択します。`None` または空文字の場合は選択をクリ�
 
 ## Config 管理
 
-### `megaton.recipes.load_config(mg, sheet_url)`
+### `mg.load.config(sheet_url)`
 
-設定ファイルを読み込みます。
+設定シートを読み込んで `Config` を返します。開いているスプレッドシートの
+接続は `mg` が保持するので、URL を渡すだけです。
 
 ```python
-from megaton.recipes import load_config
-
-cfg = load_config(mg, sheet_url)
+cfg = mg.load.config(sheet_url)
 ```
 
-（旧 `mg.recipes.load_config(sheet_url)` インスタンス経由ショートカットは 2.0 で削除されました）
+（旧 `mg.recipes.load_config(sheet_url)` は 2.0 で `mg.load.config(...)` に統合。
+低レベルに直接呼びたい場合は `megaton.recipes.load_config(mg, sheet_url)` も利用可）
 
 **パラメータ:**
-- `mg` (Megaton) - シートを開くための Megaton インスタンス
 - `sheet_url` (str) - Google Sheets の URL
 
 **戻り値:** Config - 設定オブジェクト

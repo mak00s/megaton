@@ -30,9 +30,12 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   (`Megaton(..., headless=True)`, `for_property`, `for_site`) needs nothing
   extra. The widget code paths already raised a clear error when ipywidgets
   was absent; only the packaging default changed.
-- **`mg.recipes` instance shortcut removed.** The deprecated
-  `mg.recipes.load_config(url)` accessor is gone. The feature itself remains:
-  call `megaton.recipes.load_config(mg, url)` directly (same `Config` result).
+- **`mg.recipes` replaced by `mg.load.config(url)`.** The deprecated
+  `mg.recipes.load_config(url)` accessor is gone; config loading now lives in
+  the existing `mg.load` family (alongside `mg.load.csv` / `mg.load.cell`) as
+  `mg.load.config(sheet_url)`, returning the same `Config`. Still stateful —
+  `mg` holds the sheet connection, so you pass only the URL. The low-level
+  `megaton.recipes.load_config(mg, url)` remains available.
 
 ### Fixed
 

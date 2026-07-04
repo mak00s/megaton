@@ -1858,6 +1858,15 @@ class Megaton:
                 print(f"{what}は{value}")
             return value
 
+        def config(self, sheet_url: str):
+            """Config シートを読み込んで Config オブジェクトを返す。
+
+            開いているスプレッドシートの接続は ``mg`` が保持するので、URL を
+            渡すだけでよい。閾値・分類マップ等をまとめた ``Config`` を返す。
+            """
+            from .recipes import load_config
+            return load_config(self.parent, sheet_url)
+
     class Show:
         def __init__(self, parent):
             self.parent = parent
