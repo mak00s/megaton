@@ -41,9 +41,13 @@ Notebook 上で人間が分析作業を進めるための stateful app として
   （`get` / `read`）も同じ語彙で対にする。例: `mg.sheet.cell.set` には
   `mg.sheet.cell.get` を揃える。private helper の直呼びを主導線に露出しない。
 - **クロスソースで語彙を揃える**: 同じ意味の操作は source を跨いで同じ引数名に
-  する。API 由来名（例: GSC の `dimension_filter`）をそのまま主導線にせず、
-  report / search で共通の絞り込み語彙（`where=` / `filter=` 方向）に寄せ、
-  内部で GA4 / GSC 形式へ変換する。旧 API 由来名は互換 alias に降格する。
+  する。API 由来名（例: GSC の `dimension_filter`）や実装都合の分割（GA4 の
+  `filter_d` / `filter_m`）をそのまま主導線にせず、共通の 1 語彙に寄せる。
+  絞り込みは `filter=` に統一し、report では各条件を dimension / metric へ
+  **決定的な規則で自動振り分け**する（数値比較 `> >= < <=` または既知/選択
+  メトリクス → metric、それ以外 → dimension）。この振り分けは明文化・fail-loud
+  にして「隠れた推論」にしない。旧名（`filter_d` / `filter_m` /
+  `dimension_filter`）は互換 alias・Advanced に降格し、新旧同時指定は `TypeError`。
 - **運用パラメータは作業語彙ではない**: `max_retries` / `backoff_factor` /
   `timeout` などの retry・timeout は通常操作のノイズ。引数として受けてよいが、
   主 signature・cheatsheet 主導線には出さず、instance / env 設定または
