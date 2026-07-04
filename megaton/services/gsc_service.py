@@ -36,13 +36,22 @@ class GSCService:
             value = default
         return value
 
-    @classmethod
-    def _resolve_max_retries(cls, value: Optional[int]) -> int:
-        return max(1, cls._resolve_env(value, "MEGATON_GSC_MAX_RETRIES", 3, int))
+    def _session_retry(self, key):
+        """Session retry default from mg.set.retry (mg._retry), or None."""
+        app = getattr(self, "app", None)
+        cfg = getattr(app, "_retry", None) if app is not None else None
+        return cfg.get(key) if isinstance(cfg, dict) else None
 
-    @classmethod
-    def _resolve_backoff_factor(cls, value: Optional[float]) -> float:
-        return max(0.0, cls._resolve_env(value, "MEGATON_GSC_BACKOFF_FACTOR", 2.0, float))
+    def _resolve_max_retries(self, value: Optional[int]) -> int:
+        # Resolution: explicit -> session (mg.set.retry) -> env -> default.
+        if value is None:
+            value = self._session_retry("max_retries")
+        return max(1, self._resolve_env(value, "MEGATON_GSC_MAX_RETRIES", 3, int))
+
+    def _resolve_backoff_factor(self, value: Optional[float]) -> float:
+        if value is None:
+            value = self._session_retry("backoff_factor")
+        return max(0.0, self._resolve_env(value, "MEGATON_GSC_BACKOFF_FACTOR", 2.0, float))
 
     @staticmethod
     def _is_retryable_http_error(exc: BaseException) -> bool:

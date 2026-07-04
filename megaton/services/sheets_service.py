@@ -23,7 +23,13 @@ class SheetsService:
         if mount_drive and self.app.in_colab:
             mount_google_drive()
         try:
-            self.app.gs = gsheet.MegatonGS(self.app.creds, url)
+            _retry = getattr(self.app, "_retry", {}) or {}
+            self.app.gs = gsheet.MegatonGS(
+                self.app.creds,
+                url,
+                max_retries=_retry.get("max_retries"),
+                backoff_factor=_retry.get("backoff_factor"),
+            )
         except errors.BadCredentialFormat:
             print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
         except errors.BadCredentialScope:
@@ -89,8 +95,8 @@ class SheetsService:
         new_sheet_name: str,
         *,
         cell_update: Optional[dict] = None,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
     ) -> Optional[bool]:
         if not self.open_sheet(sheet_url):
             return None
@@ -170,8 +176,8 @@ class SheetsService:
         width_max: int,
         single_byte_multiplier: int,
         multi_byte_multiplier: int,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
     ) -> None:
         if df is None or len(df.columns) == 0:
             return
@@ -237,8 +243,8 @@ class SheetsService:
         width_max: int,
         single_byte_multiplier: int,
         multi_byte_multiplier: int,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
     ) -> None:
         if auto_width:
             self._apply_column_widths(
@@ -282,8 +288,8 @@ class SheetsService:
         create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,
@@ -332,8 +338,8 @@ class SheetsService:
         create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,
@@ -409,8 +415,8 @@ class SheetsService:
         create_if_missing: bool = True,
         auto_width: bool = False,
         freeze_header: bool = False,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,

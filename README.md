@@ -22,15 +22,25 @@ See [Google Cloud docs](https://cloud.google.com/iam/docs/creating-managing-serv
 ### Install
 
 ```bash
-pip install megaton
+pip install megaton              # core (headless / programmatic use)
+pip install megaton[notebook]    # + ipywidgets for the interactive selection UI
 ```
+
+`ipywidgets` is no longer a core dependency (since 2.0). Install the
+`notebook` extra when you want the widget-based credential/account/property
+picker used by `Megaton(...)` in Jupyter/Colab. For scripts, CI, or headless
+runs, the core install is enough — use `Megaton(..., headless=True)`,
+`Megaton.for_property(...)`, or `Megaton.for_site(...)`.
 
 ### Run a GA4 report and save to Google Sheets
 
 ```python
 from megaton.start import Megaton
 
+# Interactive (Jupyter/Colab): needs megaton[notebook] for the picker UI.
 mg = Megaton("/path/to/service_account.json")
+# Scripts/CI (core install, no widgets): select the property up front.
+# mg = Megaton.for_property("YOUR_GA4_PROPERTY_ID", "/path/to/service_account.json")
 
 # GA4: fetch event data
 mg.report.set.dates("2024-01-01", "2024-01-31")
@@ -116,9 +126,6 @@ If you're new, start with the **cookbook** for practical examples, then refer to
 ```bash
 pytest --cov=megaton --cov-report=term-missing
 ```
-
-- Coverage tracking excludes `megaton/ga3.py`.
-- Rationale: GA3 (Universal Analytics) is a legacy compatibility module and is outside the active quality gate for current GA4/Search Console workflows.
 
 ## Changelog
 

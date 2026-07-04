@@ -2,6 +2,105 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.0.0 - 2026-07-04
+
+### Removed
+
+- **GA3 / Universal Analytics support removed.** The `megaton/ga3.py` module
+  and the `MegatonUA` client are deleted. UA was sunset by Google and the
+  support was already deprecated (the `use_ga3=True` deprecation warning
+  promised removal in 2.0).
+- **`segments` report plumbing removed.** GA4's Data API (`RunReportRequest`)
+  has no segment concept, so the `segments=` pass-through in `report.run` and
+  the unused `Report.segment` attribute were dead UA-era residue and are gone.
+  `mg.report.run(..., segments=...)` now raises `TypeError` (rather than
+  silently ignoring it) pointing users to dimension filters / GA4 audiences.
+- **`mg.select.sheet()` removed; use `mg.sheets.select()`.** The legacy
+  verb-first alias duplicated the canonical `mg.sheets.select(name)` worksheet
+  selector. `mg.select` is now purely the interactive picker namespace
+  (`mg.select.ga()`).
+- **`dates.get_report_range()` removed; use `dates.get_month_window()`.** It
+  was a thin compatibility wrapper for a fixed 13-month window
+  (`get_month_window(window_months=13)`).
+- **`mg.show.ga.properties` renamed to `mg.show.ga.property`** (singular). It
+  shows the *current* property's info, not a list, so the plural name was
+  misleading and collided with `mg.properties()` (which lists accessible
+  properties). Mirrors the `mg.sheets` (all) / `mg.sheet` (current) idiom.
+
+### Changed (breaking)
+
+- `Megaton(...)` no longer accepts the `use_ga3` argument. Passing it now
+  raises `TypeError`. Remove `use_ga3=...` from all call sites; GA4 is
+  initialized unconditionally.
+- `mg.enabled` no longer reports `ga3`; it returns a subset of `ga4`, `gs`, `sc`.
+- `mg.ga_ver` now resolves to the single active GA (`'4'`) or `None`; the
+  GA3/GA4 tab-switching path is gone.
+- **`ipywidgets` is no longer a core dependency.** It moved to a `notebook`
+  extra: `pip install megaton[notebook]` for the widget-based auth/selection
+  UI. The core install is lighter; headless/programmatic use
+  (`Megaton(..., headless=True)`, `for_property`, `for_site`) needs nothing
+  extra. In Colab, non-headless `Megaton(...)` auto-installs ipywidgets (same
+  mechanism as the GA4 deps) so the picker just works without the extra. The
+  widget code paths already raised a clear error when ipywidgets was absent;
+  only the packaging default changed.
+- **`mg.recipes` replaced by `mg.load.config(url)`.** The deprecated
+  `mg.recipes.load_config(url)` accessor is gone; config loading now lives in
+  the existing `mg.load` family (alongside `mg.load.csv` / `mg.load.cell`) as
+  `mg.load.config(sheet_url)`, returning the same `Config`. Still stateful —
+  `mg` holds the sheet connection, so you pass only the URL. The low-level
+  `megaton.recipes.load_config(mg, url)` remains available.
+- **`mg.report.set_dates()` removed; use `mg.report.set.dates()`.** The flat
+  method duplicated the canonical `mg.report.set.dates(...)` namespace (search
+  only ever had `mg.search.set.dates()`). One canonical date-setting path now,
+  symmetric across report and search. (The low-level `mg.ga["4"].report.set_dates`
+  client method is unaffected.)
+
+### Added
+
+- **Unified dimension-filter name across report and search.**
+  `mg.search.run(...)` / `mg.search.run.all(...)` now take `filter_d=`, the same
+  name report uses (report keeps `filter_d` / `filter_m`). The old
+  `dimension_filter=` is a backward-compatible alias; passing both raises
+  `TypeError`. (Dimension and metric filters stay separate on purpose — GA4
+  requires each in its own request slot, so they are not merged into one
+  auto-routed argument.)
+- **`mg.sheet.cell.get(cell)`** to read a cell by A1, pairing with
+  `mg.sheet.cell.set(...)`.
+- **`mg.set.retry(max_retries=, backoff_factor=, timeout=)`** — session-level
+  retry config applied across GA4, Sheets, and Search Console, so you set it
+  once instead of per call. Resolution order is per-call arg → `mg.set.retry`
+  → env (`MEGATON_GS_*` / `MEGATON_GSC_*`) → default. Per-call `max_retries` /
+  `backoff_factor` / `timeout` still override (now advanced/escape-hatch).
+
+### Fixed
+
+- **Sheet write retry settings now honor instance configuration.** The
+  `mg.save` / `mg.append` / `mg.upsert` / `mg.sheet.*` facades and
+  `SheetsService` hardcoded `max_retries=3` / `backoff_factor=2.0`, which
+  overrode any instance-level retry config on the way down to
+  `_call_with_retry`. These layers now pass `None` and let the single
+  resolver decide, so a configured `max_retries` / `backoff_factor` is
+  actually used. Default behavior is unchanged (`None` still resolves to
+  3 / 2.0).
+- **`mg.report.run(...)` now forwards `limit` / `max_retries` /
+  `backoff_factor` / `timeout` / `on_exhausted` / `start_date` / `end_date`
+  to the GA4 call.** They were silently dropped before reaching
+  `MegatonGA4.report.run`, so documented per-call options (e.g. `limit=`) had
+  no effect and the defaults (`limit=10000`, etc.) always applied.
+
+### Internal
+
+- **Result objects extracted to `megaton/_result.py`.** `SearchResult`,
+  `ReportResult`, `_ResultBase`, `wrap`, and the `KNOWN_GA4_*` sets moved out
+  of the ~3900-line `start.py` (now ~2870). Public import paths are unchanged:
+  `from megaton.start import SearchResult / ReportResult / wrap` still work
+  via re-export.
+- **Public API surface declared via `__all__`.** `megaton.start` and
+  `megaton._result` now list their stable names
+  (`Megaton`, `SearchResult`, `ReportResult`, `MappingRule`, `wrap`).
+  Everything else (`_ResultBase`, `_extract_df`, `KNOWN_GA4_*`, service
+  classes) is internal and may change without notice.
+
 ## 1.5.0 - 2026-07-03
 
 Unified date vocabulary (merged down from megaton-app's megaton_lib date

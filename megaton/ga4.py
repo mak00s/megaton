@@ -540,7 +540,6 @@ class MegatonGA4(object):
             self.parent = parent
             self.start_date = '7daysAgo'
             self.end_date = 'yesterday'
-            self.segment = None
 
         def set_dates(self, start_date: str, end_date: str):
             self.start_date = start_date.strip()

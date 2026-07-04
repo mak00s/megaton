@@ -93,6 +93,36 @@ def _run_query(client, filters):
     )
 
 
+def test_search_filter_d_matches_dimension_filter_alias(monkeypatch):
+    # filter_d is the canonical name; dimension_filter is a compat alias.
+    import pandas as pd
+
+    app = Megaton(None, headless=True)
+    app.search.site = "https://example.com"
+    monkeypatch.setattr(app.search, "_resolve_dates", lambda: ("2024-01-01", "2024-01-31"))
+    captured = {}
+    monkeypatch.setattr(
+        app.search, "_parse_dimension_filter", lambda df: captured.update({"df": df}) or []
+    )
+    app._gsc_service = mock.Mock()
+    app._gsc_service.query.return_value = pd.DataFrame()
+
+    app.search.run(dimensions=["query"], filter_d="query=@brand")
+    assert captured["df"] == "query=@brand"
+
+    app.search.run(dimensions=["query"], dimension_filter="query=@brand")
+    assert captured["df"] == "query=@brand"
+
+
+def test_search_filter_d_conflicts_with_dimension_filter():
+    import pytest
+
+    app = Megaton(None, headless=True)
+    app.search.site = "https://example.com"
+    with pytest.raises(TypeError, match="either filter_d="):
+        app.search.run(dimensions=["query"], filter_d="a", dimension_filter="b")
+
+
 def test_dimension_filter_none_returns_all():
     rows = _sample_rows()
     client = _make_client(rows)

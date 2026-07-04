@@ -4,7 +4,7 @@
 
 ## Start
 
-- `mg = start.Megaton(creds, use_ga3?, cache_key?, headless?)`
+- `mg = start.Megaton(creds, cache_key?, headless?)`
 - `mg = Megaton.for_property(property_id, creds?)`  # v1.4+ script/CI向け（headless・property選択込み）
 - `mg = Megaton.for_site(site_url, creds?)`  # v1.4+
 - `mg.properties()` / `mg.sites()` / `mg.use_property(id, refresh_metadata?)`  # v1.4+
@@ -12,19 +12,18 @@
 - `mg.enabled`
 - `mg.ga_ver`
 - `mg.select.ga()`  # UI selector
-- `mg.sc` (=`mg.search`)
-- `mg.launch_sc(site_url?)`
-- `mg.open.sheet(url)`
-- `mg.launch_gs(url)`
-- `mg.launch_bigquery(project)`
+- `mg.sc` (=`mg.search`)  # 便利 alias
+- `mg.open.sheet(url)`  # Sheets を開く主導線（新規 client）
+- `mg.launch_gs(url)`  # 既存 client を再利用（reset なし）
+- `mg.launch_sc(site_url?)`  # Search Console client を初期化
+- `mg.launch_bigquery(project)`  # BigQuery client を初期化
 
 ## GA4
 
 - `mg.report.set.dates(date_from, date_to)`  # v1.5+ カレンダートークン可: "prev-month-start" 等
 - `dates.resolve_date("prev-month-start")` / `dates.resolve_month("prev-month")`  # v1.5+ 統合日付語彙
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
-- `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?, max_retries?, backoff_factor?, timeout?, on_exhausted?)`
-- `filter_d={"and": [...], "or": [...], "not": ...}` の複合フィルタ可（v1.4+、葉は文字列書式）
+- `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?)`  # retry/timeout は「GA4 API retry / timeout」参照
 - `megaton.wrap(df)` 任意のDataFrameをチェーンAPIへ（v1.4+）
 - `result.month_key("date", into="month", fmt="%Y-%m")` 月キー生成（v1.4+）
 - `mg.save.to.sheet(name, result)` Result直渡し可（v1.4+、.df不要）
@@ -36,9 +35,8 @@
 - `mg.report.to.csv(filename?, quiet?)`
 - `mg.report.to.sheet(name)`
 - `mg.report.data`
-- `mg.ga["4"].property.show("custom_dimensions")`
-- `mg.ga["4"].property.show("user_properties")`
-- `mg.ga["4"].property.show("custom_metrics")`
+- `mg.show.ga.dimensions` / `mg.show.ga.metrics`  # 選択中propertyの項目一覧
+- `mg.show.ga.property`  # 選択中property1つのinfo（全一覧は `mg.properties()`。生アクセスは Advanced 参照）
 
 ### `mg.report.run(..., show=...)`
 
@@ -68,20 +66,18 @@ mg.report.prep(conf, show=False)  # displayを抑制してDataFrameを返す
 - カスタム項目は `parameter_name` 単体ではなく `api_name` で指定。
 - 例: `customEvent:my_param`, `customUser:my_param`
 
-### filter_d / filter_m の書式
+### filter の書式
 
-フィルタは文字列で指定。書式: `<フィールド名><演算子><値>`
+dimension で絞るのは `filter_d`、metric で絞るのは `filter_m`（`d=`/`m=` と対）。
+書式: `<フィールド名><演算子><値>`、複数はセミコロン(;)区切り（AND）。
+`mg.search.run(..., filter_d=...)` も同じ名前（GSC は dimension のみ）。
 
 ```python
-# 単一フィルタ
-mg.report.run(d=["date"], m=["sessions"], filter_d="defaultChannelGroup==Organic Search")
-
-# 複数フィルタはセミコロン(;)で区切る（AND条件）
-mg.report.run(d=["date"], m=["sessions"], filter_d="country==Japan;deviceCategory==mobile")
-
-# メトリクスのフィルタは filter_m
-mg.report.run(d=["date"], m=["sessions"], filter_m="sessions>100")
+mg.report.run(d=["date"], m=["sessions"], filter_d="country==Japan", filter_m="sessions>100")
+mg.search.run(dimensions=["query"], filter_d="query=@brand")
 ```
+
+複合条件は dict 形式も可: `filter_d={"and": [...]}` / `filter_m={"or": [...]}`（葉は文字列書式）。
 
 **演算子:**
 | 演算子 | 説明 |
@@ -133,28 +129,36 @@ mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 リトライ枯渇時は**例外を送出**します（v1.4+。旧来の「空を返す」は `on_exhausted='empty'`）。
 1試行あたりの期限は `timeout`（default 180秒）。重いクエリ（長期間×containsフィルタ等）はこの引き上げが効きます。
 
+**推奨**: retry は session で一度だけ設定（`mg.set.retry(...)`）。per-call 引数は escape hatch。
+解決順は per-call → `mg.set.retry` → env → 既定。
+
 ```python
-# default: max_retries=5, backoff_factor=2.0, timeout=180, on_exhausted='raise'
-mg.report.run(d=["date"], m=["sessions"], max_retries=5, timeout=300)
+mg.set.retry(max_retries=5, backoff_factor=2.0, timeout=300)   # session（GA4/Sheets/GSC共通）
+mg.report.run(d=["date"], m=["sessions"], timeout=600)         # per-call override（Advanced）
 ```
 
 ### Search の日付テンプレート
 
 `mg.search.set.dates()` は `YYYY-MM-DD` のほか `NdaysAgo` / `yesterday` / `today` を指定可能（`run` 前に ISO 日付へ展開）。
 
-## Sheets (by name)
+## Sheets — 便利（one-shot: 名前指定で1発保存）
 
-- `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, start_row?, create_if_missing?, auto_width?, freeze_header?, max_retries?, backoff_factor?)`
-- `mg.append.to.sheet(name, df?, create_if_missing?, auto_width?, freeze_header?, max_retries?, backoff_factor?)`
-- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?, auto_width?, freeze_header?, max_retries?, backoff_factor?)`
+> 主導線は下の「Sheets — 主導線」（`mg.open.sheet` → `mg.sheets.select` → `mg.sheet.*`）。
+> `*.to.sheet(name, ...)` は開く/選ぶを省く one-shot 便利 API。retry 引数は Advanced 参照。
+
+- `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, start_row?, create_if_missing?, auto_width?, freeze_header?)`
+- `mg.append.to.sheet(name, df?, create_if_missing?, auto_width?, freeze_header?)`
+- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
 
 ### Sheets API retry
 
 Sheets の保存系は指数バックオフで再試行できます（default: `max_retries=3`, `backoff_factor=2.0`）。
 HTTP 429 quota retry は、backoff が短い場合でも次回試行まで最低 30 秒待ちます。
+session 一括設定は `mg.set.retry(max_retries=5, backoff_factor=1.0)`（GA4/GSC と共通）。
 
 ```python
-mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
+mg.set.retry(max_retries=5, backoff_factor=1.0)   # 推奨（session）
+mg.save.to.sheet("daily", df, max_retries=5)      # per-call override（Advanced）
 ```
 
 ### `start_row` の挙動（save系）
@@ -170,33 +174,32 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `mg.append.to.csv(df?, filename?, include_dates?, quiet?)`
 - `mg.upsert.to.csv(df?, filename?, keys, columns?, sort_by?, include_dates?, quiet?)`
 
-## Sheets (current)
+## Sheets — 主導線（stateful: 開く → 選ぶ → 操作）
+
+`mg.open.sheet(url)` → `mg.sheets.select(name)` → `mg.sheet.*` が canonical。
 
 - `mg.sheets.select(name)`
 - `mg.sheets.read(name)`
 - `mg.sheets.create(name)`
 - `mg.sheets.duplicate(source_name, new_name, cell_update=None)`
 - `mg.sheets.delete(name)`
-- `mg.select.sheet(name)`  # legacy
 - `mg.sheet.save(df?, sort_by?, sort_desc?, start_row?, auto_width?, freeze_header?)`
 - `mg.sheet.append(df?, auto_width?, freeze_header?)`
 - `mg.sheet.upsert(df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
-- `mg.sheet.cell.set(cell, value)`
+- `mg.sheet.cell.set(cell, value)` / `mg.sheet.cell.get(cell)`
 - `mg.sheet.range.set(a1_range, values)`
 - `mg.sheet.freeze(rows?, cols?)`
 - `mg.sheet.resize(rows?, cols?, shrink=False)`
 - `mg.sheet.gridlines.hide()` / `mg.sheet.gridlines.show()`
 - `mg.sheet.tab.color("#2f80ed")`
-- `mg.gs.call_with_retry(op, func, max_retries?, backoff_factor?, retry_on_requests?)`
-- `mg.gs.workbook`
 
 ## Search Console
 
 - `mg.search.use(site_url)`
 - `mg.search.set.dates(date_from, date_to)`
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)`
-- `mg.search.run(dimensions, metrics?, limit?, clean?, dimension_filter?)`
-- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, dimension_filter?)`
+- `mg.search.run(dimensions, metrics?, limit?, clean?, filter_d?)`  # dimension_filter は互換alias
+- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, filter_d?)`  # dimension_filter は互換alias
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
 - URL-prefix の `site_url` は、400/403/404 時に末尾 `/` あり・なしを自動フォールバック
 - `TimeoutError` / `ConnectionError` / `BrokenPipeError` 時は自動リトライ（env: `MEGATON_GSC_MAX_RETRIES`, `MEGATON_GSC_BACKOFF_FACTOR`）
@@ -238,6 +241,7 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 
 - `mg.load.csv(path)`
 - `mg.load.cell(row, col, what?)`
+- `mg.load.config(sheet_url)`
 - `mg.save_df(df, filename, mode?, include_dates?, quiet?)`
 - `mg.download(df, filename?)`
 
@@ -251,3 +255,11 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `bq.table.select(table_id?)`
 - `bq.table.update(table_id?)`
 - `bq.table.create(table_id, schema, description?, partitioning_field?, clustering_fields?)`
+
+## Advanced / raw access
+
+通常の分析では不要な低レベル・escape hatch。主導線が別にあるものはそちらを優先。
+
+- **生の gspread / retry**: `mg.gs.workbook`（gspread Spreadsheet）、`mg.gs.call_with_retry(op, func, max_retries?, backoff_factor?, retry_on_requests?)`
+- **項目カテゴリの生取得**: `mg.ga["4"].property.show("custom_dimensions" | "user_properties" | "custom_metrics")`  # 主導線は `mg.show.ga.*`
+- **retry / timeout**: session 一括は `mg.set.retry(max_retries?, backoff_factor?, timeout?)`（GA4/Sheets/GSC共通、解決順 per-call → session → env → 既定）。per-call の `max_retries` / `backoff_factor` / `timeout` は escape hatch（「GA4 API retry / timeout」「Sheets API retry」参照）。

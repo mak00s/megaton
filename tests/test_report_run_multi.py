@@ -156,6 +156,24 @@ def test_report_run_multi_combines_filters():
     ]
 
 
+def test_report_filter_d_and_filter_m_reach_ga4_slots():
+    # Explicit dimension/metric filters go to the matching GA4 request slots.
+    app = _make_app()
+    app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())
+
+    app.report.run(
+        d=["date", "country"],
+        m=["sessions"],
+        filter_d="country==Japan",
+        filter_m="sessions>100",
+        show=False,
+    )
+
+    _, kwargs = app.ga["4"].report.run.call_args
+    assert kwargs["dimension_filter"] == "country==Japan"
+    assert kwargs["metric_filter"] == "sessions>100"
+
+
 def test_report_run_multi_duplicate_metric_alias_error():
     app = _make_app()
     app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())
@@ -168,6 +186,18 @@ def test_report_run_multi_duplicate_metric_alias_error():
                 ([("sessions", "metric")], {}),
             ],
         )
+
+
+def test_report_run_rejects_segments_kwarg():
+    # GA4 has no segment concept; the removed UA-era kwarg must fail loud,
+    # not be silently swallowed by **kwargs.
+    app = _make_app()
+    app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())
+
+    with pytest.raises(TypeError, match="segments is not supported"):
+        app.report.run(d=["date"], m=["sessions"], segments="some segment")
+
+    app.ga["4"].report.run.assert_not_called()
 
 
 def test_report_run_multi_mixed_format_error():

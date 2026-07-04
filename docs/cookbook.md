@@ -348,7 +348,7 @@ df[['source', 'channel']] = ga4.classify_source_channel(
 ## Config: 閾値によるフィルタリング
 
 ```python
-cfg = mg.recipes.load_config(sheet_url)
+cfg = mg.load.config(sheet_url)
 
 # サイト設定の閾値を適用
 df_filtered = mg.search.filter_by_thresholds(

@@ -81,6 +81,27 @@ def test_load_config_builds_maps_and_domains():
     assert cfg.sites[0]["max_position"] == 5
 
 
+def test_mg_load_config_delegates_statefully(monkeypatch):
+    # mg.load.config(url) must reuse the held mg connection: pass only the URL.
+    from megaton.start import Megaton
+
+    app = Megaton(None, headless=True)
+    captured = {}
+
+    def fake_load_config(mg, url):
+        captured["mg"] = mg
+        captured["url"] = url
+        return "cfg-sentinel"
+
+    monkeypatch.setattr("megaton.recipes.load_config", fake_load_config)
+
+    result = app.load.config("http://sheet")
+
+    assert result == "cfg-sentinel"
+    assert captured["mg"] is app
+    assert captured["url"] == "http://sheet"
+
+
 def test_load_config_raises_on_missing_columns():
     data_map = {
         "config": [{"clinic": "A"}],

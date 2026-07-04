@@ -108,6 +108,23 @@ def test_sheets_select_sets_state():
     assert app.state.gs_sheet_name == "CV"
 
 
+def test_sheet_cell_get_reads_selected_cell():
+    from types import SimpleNamespace
+
+    app = _make_app_with_gs()
+    app.state.gs_sheet_name = "CV"
+    calls = {}
+
+    def fake_select(a1):
+        calls["a1"] = a1
+        return "cell-value"
+
+    app.gs.sheet.cell = SimpleNamespace(select=fake_select)
+
+    assert app.sheet.cell.get("A1") == "cell-value"
+    assert calls["a1"] == "A1"
+
+
 def test_sheet_cell_and_range_use_selected_sheet(monkeypatch):
     app = _make_app_with_gs()
     app.state.gs_sheet_name = "CV"
@@ -228,8 +245,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         "start_row": 1,
         "auto_width": False,
         "freeze_header": False,
-        "max_retries": 3,
-        "backoff_factor": 2.0,
+        "max_retries": None,
+        "backoff_factor": None,
     }
     assert called["append"] == (
         "CV",
@@ -237,8 +254,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         {
             "auto_width": True,
             "freeze_header": True,
-            "max_retries": 3,
-            "backoff_factor": 2.0,
+            "max_retries": None,
+            "backoff_factor": None,
         },
     )
     assert result == "ok"
@@ -252,8 +269,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         True,
         True,
         True,
-        3,
-        2.0,
+        None,
+        None,
     )
 
 

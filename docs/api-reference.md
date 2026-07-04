@@ -23,7 +23,7 @@
 
 ## 初期化
 
-### `Megaton(credential=None, use_ga3=False, cache_key=None, headless=False)`
+### `Megaton(credential=None, cache_key=None, headless=False)`
 
 Megaton インスタンスを作成します。
 
@@ -32,7 +32,6 @@ Megaton インスタンスを作成します。
   - `None`: 環境変数 `MEGATON_CREDS_JSON` を使用
   - `str`: JSON 文字列、ファイルパス、またはディレクトリパス
   - `dict`: 認証情報の辞書
-- `use_ga3` (bool) - UA (GA3) クライアントも初期化するか（default: False）
 - `cache_key` (str | None) - OAuth 資格情報キャッシュキー（default: None）
 - `headless` (bool) - UI なしモード（default: False）
   - `True`: ウィジェット UI を表示せず、コードで明示的に指定
@@ -90,7 +89,7 @@ result = mg.report.run(d=["date"], m=["sessions"], show=False)
 
 ### `mg.enabled`
 
-現在有効なサービスを返します（`ga3`, `ga4`, `gs`, `sc`）。
+現在有効なサービスを返します（`ga4`, `gs`, `sc`）。
 
 **戻り値:** list[str]
 
@@ -170,7 +169,7 @@ Search Console クライアントを明示的に初期化します。
 
 **戻り値:** DateWindow - 期間情報を含む namedtuple
 
-### `mg.search.run(dimensions, metrics=None, limit=5000, clean=False, dimension_filter=None, **kwargs)`
+### `mg.search.run(dimensions, metrics=None, limit=5000, clean=False, filter_d=None, **kwargs)`
 
 Search Console のクエリを実行します。
 
@@ -182,7 +181,8 @@ Search Console のクエリを実行します。
 - `limit` (int) - 取得行数上限（default: 5000）
 - `clean` (bool) - URL 正規化と集計を実行（default: False）
   - `True`: `page` 列に対してデコード + パラメータ/フラグメント除去 + 小文字化を行い、必要に応じて集計
-- `dimension_filter` (str | list | tuple | None) - ディメンションフィルタ（AND 条件のみ）
+- `filter_d` (str | list | tuple | None) - ディメンションフィルタ（AND 条件のみ、GSC に metric filter は無い）。
+  `report.run` と同じ引数名。旧 `dimension_filter=` は互換 alias（同時指定は `TypeError`）
   - 形式: `"dimension=~pattern;dimension2=@text"`
   - 演算子: `=~` (RE2 正規表現)、`!~` (正規表現否定)、`=@` (部分一致)、`!@` (部分一致否定)
 
@@ -191,7 +191,7 @@ Search Console のクエリを実行します。
 **前提条件・例外:**
 - `mg.search.use(site_url)` で対象サイトを先に指定（未指定時は `ValueError`）
 - 日付は `mg.search.set.*` または `mg.report.set.*` で先に指定（未指定時は `ValueError`）
-- `dimension_filter` の文字列演算子は `=~`, `!~`, `=@`, `!@` のみ（不正時は `ValueError`）
+- `filter_d`（旧 `dimension_filter` alias）の文字列演算子は `=~`, `!~`, `=@`, `!@` のみ（不正時は `ValueError`）
 
 **実行時の補足:**
 - `site_url` が URL-prefix（`http://` / `https://`）の場合、最初の候補が 400/403/404 で失敗すると末尾 `/` あり・なしの候補に自動フォールバックします。
@@ -205,7 +205,7 @@ Search Console のクエリを実行します。
 | `MEGATON_GSC_MAX_RETRIES` | 最大リトライ回数 | 3 |
 | `MEGATON_GSC_BACKOFF_FACTOR` | 指数バックオフの係数（秒） | 1.0 |
 
-### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, dimension_filter=None, verbose=True, **kwargs)`
+### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, filter_d=None, verbose=True, **kwargs)`
 
 複数サイトのデータを一括取得して結合します。
 
@@ -221,7 +221,8 @@ Search Console のクエリを実行します。
   - `list`: `item[item_key]` がリスト内にあるものを含める
   - `callable`: `item_filter(item)` が True を返すものを含める
   - `None`: すべて含める
-- `dimension_filter` (str | list | tuple | None) - ディメンションフィルタ
+- `filter_d` (str | list | tuple | None) - ディメンションフィルタ。`mg.search.run()` と同じ引数名
+  - 旧 `dimension_filter=` は互換 alias（同時指定は `TypeError`）
 - `verbose` (bool) - 進捗メッセージを表示（default: True）
 - `**kwargs` - `mg.search.run()` に渡す追加引数（例: `limit`, `country`, `clean`）
 
@@ -300,11 +301,22 @@ GA4 レポートを実行します。
 - `sort` (str | None) - ソート順（例: `"date,-sessions"`）
 - `merge` (str | None) - メトリクスセット一括モードの結合方法（`left` / `outer`）
 - `show` (bool) - 実行結果を表示するか（default: True）
-- `max_retries` (int) - GA4 Data API の一時エラー時の最大再試行回数（default: `5`）
-- `timeout` (float) - 1試行あたりのリクエスト期限（秒、default: `180`）。重いクエリ（長期間×containsフィルタ等）はgRPCデフォルト(~60秒)では `DeadlineExceeded` になるため引き上げ済み
-- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
+- `limit` (int) - 取得行数上限（default: `10000`）
+- `max_retries` / `backoff_factor` / `timeout` - **Advanced (escape hatch)**:
+  per-call の retry / timeout 上書き。通常は `mg.set.retry(...)`（session）で
+  一括設定する。解決順は per-call → `mg.set.retry` → env → 既定
+  （`5` / `2.0` / `180`）
 
 **戻り値:** ReportResult - 結果は `mg.report.data` にも格納
+
+#### `mg.set.retry(max_retries=None, backoff_factor=None, timeout=None)`
+
+session の retry 既定を GA4 / Sheets / GSC にまとめて設定します（一度設定すれば
+全 call に適用）。渡した引数のみ更新。per-call 引数が優先。`timeout` は GA4 のみ。
+
+```python
+mg.set.retry(max_retries=5, backoff_factor=1.5, timeout=300)
+```
 
 **`show` オプション:**
 - `show=False` を指定すると表示を抑制します（戻り値の `ReportResult` と `mg.report.data` は通常どおり利用可能）。
@@ -314,12 +326,12 @@ GA4 レポートを実行します。
 - 部分一致・あいまい一致・自動補完は行いません。
 - カスタムディメンション/メトリクスは `parameter_name` 単体では解決されません。`api_name`（例: `customEvent:xxx`, `customUser:xxx`）で指定してください。
 
-**`filter_d` / `filter_m` の演算子:**
+**Advanced: `filter_d` / `filter_m` の演算子:**
 - `==`, `!=`, `=@`, `!@`, `=~`, `!~`, `>`, `>=`, `<`, `<=`
 
-**複合フィルタ（dict 形式、v1.4+）:**
+**Advanced: 複合フィルタ（dict 形式、v1.4+）:**
 
-`and` / `or` / `not` をキーとする dict ツリーで複合条件を表現できます。葉は従来の文字列形式です。
+`filter_d` / `filter_m` は文字列の単純条件（`<field><op><value>`、`;` = AND）が基本です。`and` / `or` / `not` をキーとする dict ツリーで複合条件も指定できます（葉は文字列形式）。
 
 ```python
 filter_d={"and": [
@@ -1092,9 +1104,17 @@ table を選択します。`None` または空文字の場合は選択をクリ�
 
 ## Config 管理
 
-### `mg.recipes.load_config(sheet_url)`
+### `mg.load.config(sheet_url)`
 
-設定ファイルを読み込みます。
+設定シートを読み込んで `Config` を返します。開いているスプレッドシートの
+接続は `mg` が保持するので、URL を渡すだけです。
+
+```python
+cfg = mg.load.config(sheet_url)
+```
+
+（旧 `mg.recipes.load_config(sheet_url)` は 2.0 で `mg.load.config(...)` に統合。
+低レベルに直接呼びたい場合は `megaton.recipes.load_config(mg, sheet_url)` も利用可）
 
 **パラメータ:**
 - `sheet_url` (str) - Google Sheets の URL
@@ -1491,18 +1511,6 @@ GA アカウント選択 UI を表示します（headless=False のとき）。
 **環境依存:**
 - `headless=True` では UI を表示しません（コードで明示指定する運用）
 
-### `mg.select.sheet(sheet_name)`
-
-開いているスプレッドシート内でシートを選択します。
-
-**パラメータ:**
-- `sheet_name` (str) - シート名
-
-**戻り値:** bool | None
-
-**前提条件:**
-- 先に `mg.open.sheet(url)` 済みであること
-
 ### `mg.show.ga.dimensions`
 
 GA4 のディメンション一覧を表示します。
@@ -1515,9 +1523,10 @@ GA4 の指標一覧を表示します。
 
 **戻り値:** None（UI で表示）
 
-### `mg.show.ga.properties`
+### `mg.show.ga.property`
 
-GA4 プロパティ一覧を表示します。
+現在選択中の GA4 プロパティの情報（info）を表示します（単数）。
+アクセス可能なプロパティの**一覧**は `mg.properties()`。
 
 **戻り値:** None（UI で表示）
 

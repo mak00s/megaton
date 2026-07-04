@@ -93,6 +93,50 @@ def test_auto_install_colab_default_enabled(monkeypatch):
     _remove_colab_stub()
 
 
+def _block_specs(monkeypatch, missing):
+    real_find_spec = importlib.util.find_spec
+
+    def fake_find_spec(name, package=None):
+        if name in missing:
+            return None
+        return real_find_spec(name, package)
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+
+
+def test_ipywidgets_auto_ensured_in_colab_when_not_headless(monkeypatch):
+    # Colab + non-headless + ipywidgets missing -> auto-install the picker dep,
+    # so a marketer never has to know about the [notebook] extra.
+    _install_colab_stub()
+    monkeypatch.delenv("MEGATON_AUTO_INSTALL", raising=False)
+    _block_specs(monkeypatch, {"ipywidgets"})  # GA present, ipywidgets missing
+    calls = _mock_os_system(monkeypatch)
+
+    start = _reload_megaton()
+    monkeypatch.setattr(start, "mount_google_drive", lambda: None)
+    monkeypatch.setattr(start.Megaton, "auth", lambda *args, **kwargs: None)
+    start.Megaton(headless=False)
+
+    assert any("ipywidgets" in c for c in calls)
+    _remove_colab_stub()
+
+
+def test_ipywidgets_not_ensured_when_headless(monkeypatch):
+    # headless never needs the picker, so ipywidgets is not installed.
+    _install_colab_stub()
+    monkeypatch.delenv("MEGATON_AUTO_INSTALL", raising=False)
+    _block_specs(monkeypatch, {"ipywidgets"})
+    calls = _mock_os_system(monkeypatch)
+
+    start = _reload_megaton()
+    monkeypatch.setattr(start, "mount_google_drive", lambda: None)
+    monkeypatch.setattr(start.Megaton, "auth", lambda *args, **kwargs: None)
+    start.Megaton(headless=True)
+
+    assert not any("ipywidgets" in c for c in calls)
+    _remove_colab_stub()
+
+
 def test_auto_install_colab_env_zero_disabled(monkeypatch, capsys):
     # Expected: colab + MEGATON_AUTO_INSTALL=0 -> no auto-install, ModuleNotFoundError raised on Megaton() init.
     _install_colab_stub()
