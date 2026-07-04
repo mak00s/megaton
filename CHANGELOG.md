@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## 2.0.0 - 2026-07-03
+## 2.0.0 - 2026-07-04
 
 ### Removed
 
