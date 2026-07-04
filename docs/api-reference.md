@@ -1514,18 +1514,6 @@ GA アカウント選択 UI を表示します（headless=False のとき）。
 **環境依存:**
 - `headless=True` では UI を表示しません（コードで明示指定する運用）
 
-### `mg.select.sheet(sheet_name)`
-
-開いているスプレッドシート内でシートを選択します。
-
-**パラメータ:**
-- `sheet_name` (str) - シート名
-
-**戻り値:** bool | None
-
-**前提条件:**
-- 先に `mg.open.sheet(url)` 済みであること
-
 ### `mg.show.ga.dimensions`
 
 GA4 のディメンション一覧を表示します。

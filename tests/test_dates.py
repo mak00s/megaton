@@ -13,21 +13,6 @@ def test_parse_end_date_accepts_multiple_formats():
     assert dates.parse_end_date("202402") == datetime(2024, 2, 29)
 
 
-def test_get_report_range_uses_fixed_now(monkeypatch):
-    class FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return cls(2025, 1, 15, 12, 0, 0, tzinfo=tz)
-
-    monkeypatch.setattr(dates, "datetime", FixedDateTime)
-
-    fixed_now = FixedDateTime(2025, 1, 15, 12, 0, 0, tzinfo=ZoneInfo("Asia/Tokyo"))
-    for months_ago in [0, 1, 2]:
-        expected = dates.get_month_window(months_ago, 13, tz="Asia/Tokyo", now=fixed_now)
-        start, end = dates.get_report_range(months_ago)
-        assert (start, end) == expected[:2]
-
-
 def test_get_past_date_days_and_months(monkeypatch):
     class FixedDateTime(datetime):
         @classmethod

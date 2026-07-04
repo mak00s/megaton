@@ -15,6 +15,13 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   the unused `Report.segment` attribute were dead UA-era residue and are gone.
   `mg.report.run(..., segments=...)` now raises `TypeError` (rather than
   silently ignoring it) pointing users to dimension filters / GA4 audiences.
+- **`mg.select.sheet()` removed; use `mg.sheets.select()`.** The legacy
+  verb-first alias duplicated the canonical `mg.sheets.select(name)` worksheet
+  selector. `mg.select` is now purely the interactive picker namespace
+  (`mg.select.ga()`).
+- **`dates.get_report_range()` removed; use `dates.get_month_window()`.** It
+  was a thin compatibility wrapper for a fixed 13-month window
+  (`get_month_window(window_months=13)`).
 
 ### Changed (breaking)
 

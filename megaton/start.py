@@ -1857,10 +1857,6 @@ class Megaton:
             if tab_children:
                 display(self.ga_tab)
 
-        def sheet(self, sheet_name: str):
-            """開いたGoogle Sheetsのシートを選択"""
-            return self.parent._sheets.select_sheet(sheet_name)
-
     class Open:
         def __init__(self, parent):
             self.parent = parent
@@ -3001,6 +2997,6 @@ class Megaton:
             def sheet(self, sheet_name: str):
                 """レポートをGoogle Sheetsへ反映する
                 """
-                if self.parent.parent.select.sheet(sheet_name):
+                if self.parent.parent._sheets.select_sheet(sheet_name):
                     if self.parent.parent.gs.sheet.overwrite_data(self.parent.data, include_index=False):
                         print(f"レポートのデータを上書き保存しました。")

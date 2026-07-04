@@ -89,19 +89,6 @@ def resolve_relative_date_token(
     return (now_dt.date() - timedelta(days=days_ago)).isoformat()
 
 
-def get_report_range(target_months_ago: int, tz: str = "Asia/Tokyo") -> tuple[str, str]:
-    """Compatibility wrapper for the legacy 13-month window.
-
-    Prefer get_month_window() for configurable window sizes and timezones.
-    """
-    result = get_month_window(
-        months_ago=target_months_ago,
-        window_months=13,
-        tz=tz,
-    )
-    return result.start_iso, result.end_iso
-
-
 def get_month_window(
     months_ago: int = 1,
     window_months: int = 13,
