@@ -1253,7 +1253,8 @@ class Megaton:
                         - If list: Include items where item[item_key] is in the list.
                         - If callable: Include items where item_filter(item) returns True.
                         - If None: Include all items.
-                    dimension_filter: Dimension filter string or list of filters (AND only).
+                    filter_d: Dimension filter string or list of filters (AND only).
+                        (``dimension_filter`` is a backward-compatible alias.)
                     verbose: Print progress messages (default: True).
                     **run_kwargs: Additional arguments passed to mg.search.run()
                         (e.g., limit, country, clean).

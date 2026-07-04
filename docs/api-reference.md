@@ -191,7 +191,7 @@ Search Console のクエリを実行します。
 **前提条件・例外:**
 - `mg.search.use(site_url)` で対象サイトを先に指定（未指定時は `ValueError`）
 - 日付は `mg.search.set.*` または `mg.report.set.*` で先に指定（未指定時は `ValueError`）
-- `dimension_filter` の文字列演算子は `=~`, `!~`, `=@`, `!@` のみ（不正時は `ValueError`）
+- `filter_d`（旧 `dimension_filter` alias）の文字列演算子は `=~`, `!~`, `=@`, `!@` のみ（不正時は `ValueError`）
 
 **実行時の補足:**
 - `site_url` が URL-prefix（`http://` / `https://`）の場合、最初の候補が 400/403/404 で失敗すると末尾 `/` あり・なしの候補に自動フォールバックします。
