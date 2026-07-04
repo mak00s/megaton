@@ -1948,8 +1948,10 @@ class Megaton:
                 return self.parent.table(df)
 
             @property
-            def properties(self):
-                print("properties are:")
+            def property(self):
+                # Info of the currently selected property (singular).
+                # For the list of accessible properties use mg.properties().
+                print("current property:")
                 df = self.parent.parent.ga['4'].property.show('info')
                 return self.parent.table(df)
 

@@ -1523,9 +1523,10 @@ GA4 の指標一覧を表示します。
 
 **戻り値:** None（UI で表示）
 
-### `mg.show.ga.properties`
+### `mg.show.ga.property`
 
-GA4 プロパティ一覧を表示します。
+現在選択中の GA4 プロパティの情報（info）を表示します（単数）。
+アクセス可能なプロパティの**一覧**は `mg.properties()`。
 
 **戻り値:** None（UI で表示）
 

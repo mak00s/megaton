@@ -35,7 +35,8 @@
 - `mg.report.to.csv(filename?, quiet?)`
 - `mg.report.to.sheet(name)`
 - `mg.report.data`
-- `mg.show.ga.dimensions` / `mg.show.ga.metrics` / `mg.show.ga.properties`  # 選択中propertyの項目一覧（生アクセスは Advanced 参照）
+- `mg.show.ga.dimensions` / `mg.show.ga.metrics`  # 選択中propertyの項目一覧
+- `mg.show.ga.property`  # 選択中property1つのinfo（全一覧は `mg.properties()`。生アクセスは Advanced 参照）
 
 ### `mg.report.run(..., show=...)`
 

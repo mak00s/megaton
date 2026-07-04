@@ -22,6 +22,10 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 - **`dates.get_report_range()` removed; use `dates.get_month_window()`.** It
   was a thin compatibility wrapper for a fixed 13-month window
   (`get_month_window(window_months=13)`).
+- **`mg.show.ga.properties` renamed to `mg.show.ga.property`** (singular). It
+  shows the *current* property's info, not a list, so the plural name was
+  misleading and collided with `mg.properties()` (which lists accessible
+  properties). Mirrors the `mg.sheets` (all) / `mg.sheet` (current) idiom.
 
 ### Changed (breaking)
 
