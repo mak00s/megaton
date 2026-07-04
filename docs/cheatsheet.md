@@ -12,11 +12,11 @@
 - `mg.enabled`
 - `mg.ga_ver`
 - `mg.select.ga()`  # UI selector
-- `mg.sc` (=`mg.search`)
-- `mg.launch_sc(site_url?)`
-- `mg.open.sheet(url)`
-- `mg.launch_gs(url)`
-- `mg.launch_bigquery(project)`
+- `mg.sc` (=`mg.search`)  # 便利 alias
+- `mg.open.sheet(url)`  # Sheets を開く主導線（新規 client）
+- `mg.launch_gs(url)`  # 既存 client を再利用（reset なし）
+- `mg.launch_sc(site_url?)`  # Search Console client を初期化
+- `mg.launch_bigquery(project)`  # BigQuery client を初期化
 
 ## GA4
 
