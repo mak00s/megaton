@@ -132,9 +132,12 @@ mg.report.run(d=["date"], m=["sessions"], sort="date,-sessions")  # 複数
 リトライ枯渇時は**例外を送出**します（v1.4+。旧来の「空を返す」は `on_exhausted='empty'`）。
 1試行あたりの期限は `timeout`（default 180秒）。重いクエリ（長期間×containsフィルタ等）はこの引き上げが効きます。
 
+**推奨**: retry は session で一度だけ設定（`mg.set.retry(...)`）。per-call 引数は escape hatch。
+解決順は per-call → `mg.set.retry` → env → 既定。
+
 ```python
-# default: max_retries=5, backoff_factor=2.0, timeout=180, on_exhausted='raise'
-mg.report.run(d=["date"], m=["sessions"], max_retries=5, timeout=300)
+mg.set.retry(max_retries=5, backoff_factor=2.0, timeout=300)   # session（GA4/Sheets/GSC共通）
+mg.report.run(d=["date"], m=["sessions"], timeout=600)         # per-call override（Advanced）
 ```
 
 ### Search の日付テンプレート
@@ -154,9 +157,11 @@ mg.report.run(d=["date"], m=["sessions"], max_retries=5, timeout=300)
 
 Sheets の保存系は指数バックオフで再試行できます（default: `max_retries=3`, `backoff_factor=2.0`）。
 HTTP 429 quota retry は、backoff が短い場合でも次回試行まで最低 30 秒待ちます。
+session 一括設定は `mg.set.retry(max_retries=5, backoff_factor=1.0)`（GA4/GSC と共通）。
 
 ```python
-mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
+mg.set.retry(max_retries=5, backoff_factor=1.0)   # 推奨（session）
+mg.save.to.sheet("daily", df, max_retries=5)      # per-call override（Advanced）
 ```
 
 ### `start_row` の挙動（save系）
@@ -261,4 +266,4 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - **生の gspread / retry**: `mg.gs.workbook`（gspread Spreadsheet）、`mg.gs.call_with_retry(op, func, max_retries?, backoff_factor?, retry_on_requests?)`
 - **項目カテゴリの生取得**: `mg.ga["4"].property.show("custom_dimensions" | "user_properties" | "custom_metrics")`  # 主導線は `mg.show.ga.*`
 - **legacy シート選択**: `mg.select.sheet(name)`  # 主導線は `mg.sheets.select(name)`
-- **retry / timeout 引数**: `mg.report.run(...)` / `mg.save.to.sheet(...)` 等は `max_retries` / `backoff_factor` / `timeout` を受けるが、通常は不要。既定は instance/env 設定で調整（「GA4 API retry / timeout」「Sheets API retry」参照）。
+- **retry / timeout**: session 一括は `mg.set.retry(max_retries?, backoff_factor?, timeout?)`（GA4/Sheets/GSC共通、解決順 per-call → session → env → 既定）。per-call の `max_retries` / `backoff_factor` / `timeout` は escape hatch（「GA4 API retry / timeout」「Sheets API retry」参照）。

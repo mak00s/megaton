@@ -50,8 +50,9 @@ Notebook 上で人間が分析作業を進めるための stateful app として
   `dimension_filter`）は互換 alias・Advanced に降格し、新旧同時指定は `TypeError`。
 - **運用パラメータは作業語彙ではない**: `max_retries` / `backoff_factor` /
   `timeout` などの retry・timeout は通常操作のノイズ。引数として受けてよいが、
-  主 signature・cheatsheet 主導線には出さず、instance / env 設定または
-  `retry={...}` 等にまとめる。既定で動き、必要な人だけが触る位置に置く。
+  主 signature・cheatsheet 主導線には出さない。session 設定に寄せ、解決順は
+  **per-call 引数 → `mg.set.retry(...)`（session）→ env → 既定**。`mg.set.retry`
+  は GA4 / Sheets / GSC をまとめて設定する。既定で動き、必要な人だけが触る位置に置く。
 
 ## Result ベースの API
 

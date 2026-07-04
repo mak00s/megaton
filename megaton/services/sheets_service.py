@@ -23,7 +23,13 @@ class SheetsService:
         if mount_drive and self.app.in_colab:
             mount_google_drive()
         try:
-            self.app.gs = gsheet.MegatonGS(self.app.creds, url)
+            _retry = getattr(self.app, "_retry", {}) or {}
+            self.app.gs = gsheet.MegatonGS(
+                self.app.creds,
+                url,
+                max_retries=_retry.get("max_retries"),
+                backoff_factor=_retry.get("backoff_factor"),
+            )
         except errors.BadCredentialFormat:
             print("認証情報のフォーマットが正しくないため、Google Sheets APIを利用できません。")
         except errors.BadCredentialScope:

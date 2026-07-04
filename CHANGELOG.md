@@ -55,6 +55,11 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   passing a new and an old name together raises `TypeError`.
 - **`mg.sheet.cell.get(cell)`** to read a cell by A1, pairing with
   `mg.sheet.cell.set(...)`.
+- **`mg.set.retry(max_retries=, backoff_factor=, timeout=)`** — session-level
+  retry config applied across GA4, Sheets, and Search Console, so you set it
+  once instead of per call. Resolution order is per-call arg → `mg.set.retry`
+  → env (`MEGATON_GS_*` / `MEGATON_GSC_*`) → default. Per-call `max_retries` /
+  `backoff_factor` / `timeout` still override (now advanced/escape-hatch).
 
 ### Fixed
 
@@ -66,6 +71,11 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   resolver decide, so a configured `max_retries` / `backoff_factor` is
   actually used. Default behavior is unchanged (`None` still resolves to
   3 / 2.0).
+- **`mg.report.run(...)` now forwards `limit` / `max_retries` /
+  `backoff_factor` / `timeout` / `on_exhausted` / `start_date` / `end_date`
+  to the GA4 call.** They were silently dropped before reaching
+  `MegatonGA4.report.run`, so documented per-call options (e.g. `limit=`) had
+  no effect and the defaults (`limit=10000`, etc.) always applied.
 
 ### Internal
 

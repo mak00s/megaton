@@ -304,11 +304,22 @@ GA4 レポートを実行します。
 - `sort` (str | None) - ソート順（例: `"date,-sessions"`）
 - `merge` (str | None) - メトリクスセット一括モードの結合方法（`left` / `outer`）
 - `show` (bool) - 実行結果を表示するか（default: True）
-- `max_retries` (int) - GA4 Data API の一時エラー時の最大再試行回数（default: `5`）
-- `timeout` (float) - 1試行あたりのリクエスト期限（秒、default: `180`）。重いクエリ（長期間×containsフィルタ等）はgRPCデフォルト(~60秒)では `DeadlineExceeded` になるため引き上げ済み
-- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
+- `limit` (int) - 取得行数上限（default: `10000`）
+- `max_retries` / `backoff_factor` / `timeout` - **Advanced (escape hatch)**:
+  per-call の retry / timeout 上書き。通常は `mg.set.retry(...)`（session）で
+  一括設定する。解決順は per-call → `mg.set.retry` → env → 既定
+  （`5` / `2.0` / `180`）
 
 **戻り値:** ReportResult - 結果は `mg.report.data` にも格納
+
+#### `mg.set.retry(max_retries=None, backoff_factor=None, timeout=None)`
+
+session の retry 既定を GA4 / Sheets / GSC にまとめて設定します（一度設定すれば
+全 call に適用）。渡した引数のみ更新。per-call 引数が優先。`timeout` は GA4 のみ。
+
+```python
+mg.set.retry(max_retries=5, backoff_factor=1.5, timeout=300)
+```
 
 **`show` オプション:**
 - `show=False` を指定すると表示を抑制します（戻り値の `ReportResult` と `mg.report.data` は通常どおり利用可能）。

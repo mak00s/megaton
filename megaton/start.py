@@ -123,6 +123,7 @@ class Megaton:
         self.gs = None  # Google Sheets client
         self._sc_client = None  # Google Search Console client
         self.bq = None  # BigQuery
+        self._retry = {}  # session retry defaults (mg.set.retry) for GA4 / Sheets / GSC
         self.state = MegatonState()
         self.state.headless = headless
         self.bq_service = None  # lazy init (avoid importing BigQuery modules on start import)
@@ -140,6 +141,7 @@ class Megaton:
         self.select = self.Select(self)
         self.show = self.Show(self)
         self.report = self.Report(self)
+        self.set = self.Set(self)
         self._pending_flow = None
         self._pending_cache_identifier = None
         self._pending_json_marker = None
@@ -1894,6 +1896,37 @@ class Megaton:
             from .recipes import load_config
             return load_config(self.parent, sheet_url)
 
+    class Set:
+        """Session-level settings (apply once, used everywhere)."""
+        def __init__(self, parent):
+            self.parent = parent
+
+        def retry(self, max_retries=None, backoff_factor=None, timeout=None):
+            """Set default retry behavior for this session.
+
+            Applies to GA4 reports, Sheets writes, and Search Console queries so
+            you configure it once instead of per call. Only the arguments you
+            pass are changed; per-call ``max_retries`` / ``backoff_factor`` /
+            ``timeout`` still override. Returns the current session retry config.
+
+            ``timeout`` is GA4-only (per-request deadline, seconds).
+            """
+            cfg = self.parent._retry
+            if max_retries is not None:
+                cfg["max_retries"] = max(1, int(max_retries))
+            if backoff_factor is not None:
+                cfg["backoff_factor"] = float(backoff_factor)
+            if timeout is not None:
+                cfg["timeout"] = float(timeout)
+            # Push to an already-open Sheets client (MegatonGS reads instance attrs).
+            gs = getattr(self.parent, "gs", None)
+            if gs is not None:
+                if "max_retries" in cfg:
+                    gs.max_retries = cfg["max_retries"]
+                if "backoff_factor" in cfg:
+                    gs.backoff_factor = cfg["backoff_factor"]
+            return dict(cfg)
+
     class Show:
         def __init__(self, parent):
             self.parent = parent
@@ -2136,15 +2169,24 @@ class Megaton:
                 rename_columns.update(rename_d)
                 rename_columns.update(rename_m)
 
+                # Apply session retry defaults (mg.set.retry) when not given per-call.
+                session_retry = getattr(self.parent.parent, "_retry", {})
+                for _k in ("max_retries", "backoff_factor", "timeout"):
+                    if _k in session_retry and _k not in kwargs:
+                        kwargs[_k] = session_retry[_k]
+
                 ver = self.parent.parent.ga_ver
                 try:
                     if ver:
+                        # Forward remaining kwargs (limit / max_retries / backoff_factor
+                        # / timeout / on_exhausted / start_date / end_date) to GA4 run.
                         self.parent.data = self.parent.parent.ga[ver].report.run(
                             dimensions,
                             metrics,
                             dimension_filter=filter_d,
                             metric_filter=filter_m,
                             order_bys=sort,
+                            **kwargs,
                         )
                         if isinstance(self.parent.data, pd.DataFrame):
                             self.parent.data = utils.prep_df(self.parent.data, rename_columns=rename_columns)
