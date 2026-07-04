@@ -1982,7 +1982,7 @@ class Megaton:
             if self.parent.ga_ver:
                 self.parent.ga[self.parent.ga_ver].report.end_date = date
 
-        def set_dates(self, date1, date2):
+        def _set_dates(self, date1, date2):
             """開始日と終了日を同時に指定
 
             Args:
@@ -2334,12 +2334,12 @@ class Megaton:
                         # _run_single() can return/leave stale parent.data on error paths,
                         # so clear it per-iteration to avoid accidentally reusing prior results.
                         self.parent.data = None
-                        self.parent.set_dates(sd, ed)
+                        self.parent._set_dates(sd, ed)
                         self(d=d, m=m, filter_d=filter_d, filter_m=filter_m, **kwargs)
                         if self.parent.data is not None and len(self.parent.data) > 0:
                             dfs.append(self.parent.data.copy())
                 finally:
-                    self.parent.set_dates(saved_start, saved_end)
+                    self.parent._set_dates(saved_start, saved_end)
                 if dfs:
                     result = pd.concat(dfs, ignore_index=True)
                     self.parent.data = result
@@ -2844,7 +2844,7 @@ class Megaton:
                 self.parent = parent
 
             def dates(self, date_from, date_to):
-                self.parent.set_dates(date_from, date_to)
+                self.parent._set_dates(date_from, date_to)
 
             def months(
                 self,
@@ -2872,7 +2872,7 @@ class Megaton:
                     tz=tz,
                     now=now,
                 )
-                self.parent.set_dates(p.start_iso, p.end_iso)
+                self.parent._set_dates(p.start_iso, p.end_iso)
                 self.parent.window = {
                     "date_from": p.start_iso,
                     "date_to": p.end_iso,

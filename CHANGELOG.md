@@ -28,14 +28,33 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   extra: `pip install megaton[notebook]` for the widget-based auth/selection
   UI. The core install is lighter; headless/programmatic use
   (`Megaton(..., headless=True)`, `for_property`, `for_site`) needs nothing
-  extra. The widget code paths already raised a clear error when ipywidgets
-  was absent; only the packaging default changed.
+  extra. In Colab, non-headless `Megaton(...)` auto-installs ipywidgets (same
+  mechanism as the GA4 deps) so the picker just works without the extra. The
+  widget code paths already raised a clear error when ipywidgets was absent;
+  only the packaging default changed.
 - **`mg.recipes` replaced by `mg.load.config(url)`.** The deprecated
   `mg.recipes.load_config(url)` accessor is gone; config loading now lives in
   the existing `mg.load` family (alongside `mg.load.csv` / `mg.load.cell`) as
   `mg.load.config(sheet_url)`, returning the same `Config`. Still stateful —
   `mg` holds the sheet connection, so you pass only the URL. The low-level
   `megaton.recipes.load_config(mg, url)` remains available.
+- **`mg.report.set_dates()` removed; use `mg.report.set.dates()`.** The flat
+  method duplicated the canonical `mg.report.set.dates(...)` namespace (search
+  only ever had `mg.search.set.dates()`). One canonical date-setting path now,
+  symmetric across report and search. (The low-level `mg.ga["4"].report.set_dates`
+  client method is unaffected.)
+
+### Added
+
+- **Unified `filter=` for report and search.** `mg.report.run(filter="...")`
+  routes each condition to the dimension or metric filter by a deterministic,
+  documented rule (numeric compare `> >= < <=` or a known/selected metric →
+  metric, else dimension); `mg.search.run(filter="...")` is the dimension
+  filter (GSC has no metric filter). Replaces the divergent `filter_d` /
+  `filter_m` / `dimension_filter`, which stay as advanced/compat aliases;
+  passing a new and an old name together raises `TypeError`.
+- **`mg.sheet.cell.get(cell)`** to read a cell by A1, pairing with
+  `mg.sheet.cell.set(...)`.
 
 ### Fixed
 

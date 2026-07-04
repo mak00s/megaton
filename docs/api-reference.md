@@ -205,7 +205,7 @@ Search Console のクエリを実行します。
 | `MEGATON_GSC_MAX_RETRIES` | 最大リトライ回数 | 3 |
 | `MEGATON_GSC_BACKOFF_FACTOR` | 指数バックオフの係数（秒） | 1.0 |
 
-### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, dimension_filter=None, verbose=True, **kwargs)`
+### `mg.search.run.all(items, dimensions, metrics=None, item_key='site', site_url_key='gsc_site_url', item_filter=None, filter=None, verbose=True, **kwargs)`
 
 複数サイトのデータを一括取得して結合します。
 
@@ -221,7 +221,8 @@ Search Console のクエリを実行します。
   - `list`: `item[item_key]` がリスト内にあるものを含める
   - `callable`: `item_filter(item)` が True を返すものを含める
   - `None`: すべて含める
-- `dimension_filter` (str | list | tuple | None) - ディメンションフィルタ
+- `filter` (str | list | tuple | None) - ディメンションフィルタ。`mg.search.run()` と同じ語彙
+  - 旧 `dimension_filter=` は互換 alias（同時指定は `TypeError`）
 - `verbose` (bool) - 進捗メッセージを表示（default: True）
 - `**kwargs` - `mg.search.run()` に渡す追加引数（例: `limit`, `country`, `clean`）
 
@@ -317,12 +318,12 @@ GA4 レポートを実行します。
 - 部分一致・あいまい一致・自動補完は行いません。
 - カスタムディメンション/メトリクスは `parameter_name` 単体では解決されません。`api_name`（例: `customEvent:xxx`, `customUser:xxx`）で指定してください。
 
-**`filter_d` / `filter_m` の演算子:**
+**Advanced: `filter_d` / `filter_m` の演算子:**
 - `==`, `!=`, `=@`, `!@`, `=~`, `!~`, `>`, `>=`, `<`, `<=`
 
-**複合フィルタ（dict 形式、v1.4+）:**
+**Advanced: 複合フィルタ（dict 形式、v1.4+）:**
 
-`and` / `or` / `not` をキーとする dict ツリーで複合条件を表現できます。葉は従来の文字列形式です。
+`filter=` は文字列の単純条件を主導線にします。`and` / `or` / `not` をキーとする dict ツリーが必要な場合は、Advanced として `filter_d` / `filter_m` に指定します。葉は従来の文字列形式です。
 
 ```python
 filter_d={"and": [

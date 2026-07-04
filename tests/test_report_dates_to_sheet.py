@@ -15,7 +15,7 @@ def _make_app_with_ga():
 
 def test_report_dates_to_sheet_updates_cells(monkeypatch):
     app = _make_app_with_ga()
-    app.report.set_dates("2024-01-01", "2024-01-31")
+    app.report.set.dates("2024-01-01", "2024-01-31")
 
     called = {}
 

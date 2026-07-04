@@ -24,7 +24,6 @@
 - `dates.resolve_date("prev-month-start")` / `dates.resolve_month("prev-month")`  # v1.5+ 統合日付語彙
 - `mg.report.set.months(ago, window_months, tz?, now?, min_ymd?)`
 - `mg.report.run(d, m, filter?, sort?, show?)`  # filter_d/filter_m は Advanced、retry/timeout は「GA4 API retry / timeout」参照
-- `filter_d={"and": [...], "or": [...], "not": ...}` の複合フィルタ可（v1.4+、葉は文字列書式）
 - `megaton.wrap(df)` 任意のDataFrameをチェーンAPIへ（v1.4+）
 - `result.month_key("date", into="month", fmt="%Y-%m")` 月キー生成（v1.4+）
 - `mg.save.to.sheet(name, result)` Result直渡し可（v1.4+、.df不要）
@@ -80,6 +79,7 @@ mg.report.run(d=["date"], m=["sessions"], filter="country==Japan;sessions>100")
 ```
 
 Advanced: 明示的に分けたい / 未選択フィールドで絞るときは `filter_d=` / `filter_m=`（従来どおり）。
+複合条件が必要な場合も Advanced として `filter_d={"and": [...]}` / `filter_m={"or": [...]}` の dict 形式を使えます（葉は文字列書式）。
 `filter=` と `filter_d=`/`filter_m=` の同時指定は `TypeError`。
 
 **演算子:**
@@ -197,7 +197,7 @@ mg.save.to.sheet("daily", df, max_retries=5, backoff_factor=1.0)
 - `mg.search.set.dates(date_from, date_to)`
 - `mg.search.set.months(ago, window_months, tz?, now?, min_ymd?)`
 - `mg.search.run(dimensions, metrics?, limit?, clean?, filter?)`  # dimension_filter は互換alias
-- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, dimension_filter?)`
+- `mg.search.run.all(items, dimensions, metrics?, item_key?, site_url_key?, item_filter?, filter?)`  # dimension_filter は互換alias
 - `mg.search.filter_by_thresholds(df, site, clicks_zero_only?)`
 - URL-prefix の `site_url` は、400/403/404 時に末尾 `/` あり・なしを自動フォールバック
 - `TimeoutError` / `ConnectionError` / `BrokenPipeError` 時は自動リトライ（env: `MEGATON_GSC_MAX_RETRIES`, `MEGATON_GSC_BACKOFF_FACTOR`）
