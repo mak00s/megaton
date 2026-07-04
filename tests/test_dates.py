@@ -318,18 +318,3 @@ class TestTzContract:
 
     def test_invalid_tz_falls_back(self):
         assert resolve_calendar_token("month-start", reference=_REF, tz="Not/AZone") == "2026-03-01"
-
-
-class TestDeprecations:
-    def test_recipes_warns_on_use(self, monkeypatch):
-        import warnings
-        from megaton.start import Megaton
-
-        app = Megaton(None, headless=True)
-        monkeypatch.setattr("megaton.recipes.load_config", lambda mg, url: "cfg")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            result = app.recipes.load_config("http://sheet")
-        assert result == "cfg"
-        assert any(issubclass(w.category, DeprecationWarning) and "recipes" in str(w.message)
-                   for w in caught)

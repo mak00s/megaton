@@ -1091,11 +1091,20 @@ table を選択します。`None` または空文字の場合は選択をクリ�
 
 ## Config 管理
 
-### `mg.recipes.load_config(sheet_url)`
+### `megaton.recipes.load_config(mg, sheet_url)`
 
 設定ファイルを読み込みます。
 
+```python
+from megaton.recipes import load_config
+
+cfg = load_config(mg, sheet_url)
+```
+
+（旧 `mg.recipes.load_config(sheet_url)` インスタンス経由ショートカットは 2.0 で削除されました）
+
 **パラメータ:**
+- `mg` (Megaton) - シートを開くための Megaton インスタンス
 - `sheet_url` (str) - Google Sheets の URL
 
 **戻り値:** Config - 設定オブジェクト

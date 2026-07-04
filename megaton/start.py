@@ -10,13 +10,12 @@ import os
 import pandas as pd
 import re
 import sys
-from types import SimpleNamespace
 from typing import Callable, Optional, Self
 from datetime import datetime
 from urllib.parse import urlparse
 from oauthlib.oauth2.rfc6749.errors import InvalidGrantError
 
-from . import constants, dates, errors, files, recipes, searchconsole, utils, mount_google_drive
+from . import constants, dates, errors, files, searchconsole, utils, mount_google_drive
 from .auth import google_auth as auth_google, provider as auth_provider
 from .services.gsc_service import GSCService
 from .services.sheets_service import SheetsService
@@ -115,18 +114,6 @@ class Megaton:
         self.bq = None  # BigQuery
         self.state = MegatonState()
         self.state.headless = headless
-        def _deprecated_load_config(sheet_url):
-            import warnings
-
-            warnings.warn(
-                "megaton.recipes is deprecated and will be removed in "
-                "megaton 3.0 (no known consumers).",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return recipes.load_config(self, sheet_url)
-
-        self.recipes = SimpleNamespace(load_config=_deprecated_load_config)
         self.bq_service = None  # lazy init (avoid importing BigQuery modules on start import)
         self._gsc_service = GSCService(self)
         self._sheets = SheetsService(self)
