@@ -89,8 +89,8 @@ class SheetsService:
         new_sheet_name: str,
         *,
         cell_update: Optional[dict] = None,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
     ) -> Optional[bool]:
         if not self.open_sheet(sheet_url):
             return None
@@ -170,8 +170,8 @@ class SheetsService:
         width_max: int,
         single_byte_multiplier: int,
         multi_byte_multiplier: int,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
     ) -> None:
         if df is None or len(df.columns) == 0:
             return
@@ -237,8 +237,8 @@ class SheetsService:
         width_max: int,
         single_byte_multiplier: int,
         multi_byte_multiplier: int,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
     ) -> None:
         if auto_width:
             self._apply_column_widths(
@@ -282,8 +282,8 @@ class SheetsService:
         create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,
@@ -332,8 +332,8 @@ class SheetsService:
         create_if_missing: bool = False,
         auto_width: bool = False,
         freeze_header: bool = False,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,
@@ -409,8 +409,8 @@ class SheetsService:
         create_if_missing: bool = True,
         auto_width: bool = False,
         freeze_header: bool = False,
-        max_retries: int = 3,
-        backoff_factor: float = 2.0,
+        max_retries: Optional[int] = None,
+        backoff_factor: Optional[float] = None,
         width_min: int = 50,
         width_max: int = 500,
         single_byte_multiplier: int = 7,

@@ -4,7 +4,7 @@
 
 ## Start
 
-- `mg = start.Megaton(creds, use_ga3?, cache_key?, headless?)`
+- `mg = start.Megaton(creds, cache_key?, headless?)`
 - `mg = Megaton.for_property(property_id, creds?)`  # v1.4+ script/CI向け（headless・property選択込み）
 - `mg = Megaton.for_site(site_url, creds?)`  # v1.4+
 - `mg.properties()` / `mg.sites()` / `mg.use_property(id, refresh_metadata?)`  # v1.4+

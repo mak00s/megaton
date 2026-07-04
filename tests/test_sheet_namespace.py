@@ -228,8 +228,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         "start_row": 1,
         "auto_width": False,
         "freeze_header": False,
-        "max_retries": 3,
-        "backoff_factor": 2.0,
+        "max_retries": None,
+        "backoff_factor": None,
     }
     assert called["append"] == (
         "CV",
@@ -237,8 +237,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         {
             "auto_width": True,
             "freeze_header": True,
-            "max_retries": 3,
-            "backoff_factor": 2.0,
+            "max_retries": None,
+            "backoff_factor": None,
         },
     )
     assert result == "ok"
@@ -252,8 +252,8 @@ def test_sheet_save_append_upsert_use_current_sheet(monkeypatch):
         True,
         True,
         True,
-        3,
-        2.0,
+        None,
+        None,
     )
 
 

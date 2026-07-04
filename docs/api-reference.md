@@ -23,7 +23,7 @@
 
 ## 初期化
 
-### `Megaton(credential=None, use_ga3=False, cache_key=None, headless=False)`
+### `Megaton(credential=None, cache_key=None, headless=False)`
 
 Megaton インスタンスを作成します。
 
@@ -32,7 +32,6 @@ Megaton インスタンスを作成します。
   - `None`: 環境変数 `MEGATON_CREDS_JSON` を使用
   - `str`: JSON 文字列、ファイルパス、またはディレクトリパス
   - `dict`: 認証情報の辞書
-- `use_ga3` (bool) - UA (GA3) クライアントも初期化するか（default: False）
 - `cache_key` (str | None) - OAuth 資格情報キャッシュキー（default: None）
 - `headless` (bool) - UI なしモード（default: False）
   - `True`: ウィジェット UI を表示せず、コードで明示的に指定
@@ -90,7 +89,7 @@ result = mg.report.run(d=["date"], m=["sessions"], show=False)
 
 ### `mg.enabled`
 
-現在有効なサービスを返します（`ga3`, `ga4`, `gs`, `sc`）。
+現在有効なサービスを返します（`ga4`, `gs`, `sc`）。
 
 **戻り値:** list[str]
 

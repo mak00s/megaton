@@ -321,16 +321,6 @@ class TestTzContract:
 
 
 class TestDeprecations:
-    def test_use_ga3_warns(self, monkeypatch):
-        import warnings
-        from megaton.start import Megaton
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            Megaton(None, use_ga3=True, headless=True)
-        assert any(issubclass(w.category, DeprecationWarning) and "use_ga3" in str(w.message)
-                   for w in caught)
-
     def test_recipes_warns_on_use(self, monkeypatch):
         import warnings
         from megaton.start import Megaton

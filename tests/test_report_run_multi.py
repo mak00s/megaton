@@ -170,6 +170,18 @@ def test_report_run_multi_duplicate_metric_alias_error():
         )
 
 
+def test_report_run_rejects_segments_kwarg():
+    # GA4 has no segment concept; the removed UA-era kwarg must fail loud,
+    # not be silently swallowed by **kwargs.
+    app = _make_app()
+    app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())
+
+    with pytest.raises(TypeError, match="segments is not supported"):
+        app.report.run(d=["date"], m=["sessions"], segments="some segment")
+
+    app.ga["4"].report.run.assert_not_called()
+
+
 def test_report_run_multi_mixed_format_error():
     app = _make_app()
     app.ga["4"].report.run = MagicMock(return_value=pd.DataFrame())

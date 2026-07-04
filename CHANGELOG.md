@@ -2,6 +2,59 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.0.0 - 2026-07-03
+
+### Removed
+
+- **GA3 / Universal Analytics support removed.** The `megaton/ga3.py` module
+  and the `MegatonUA` client are deleted. UA was sunset by Google and the
+  support was already deprecated (the `use_ga3=True` deprecation warning
+  promised removal in 2.0).
+- **`segments` report plumbing removed.** GA4's Data API (`RunReportRequest`)
+  has no segment concept, so the `segments=` pass-through in `report.run` and
+  the unused `Report.segment` attribute were dead UA-era residue and are gone.
+  `mg.report.run(..., segments=...)` now raises `TypeError` (rather than
+  silently ignoring it) pointing users to dimension filters / GA4 audiences.
+
+### Changed (breaking)
+
+- `Megaton(...)` no longer accepts the `use_ga3` argument. Passing it now
+  raises `TypeError`. Remove `use_ga3=...` from all call sites; GA4 is
+  initialized unconditionally.
+- `mg.enabled` no longer reports `ga3`; it returns a subset of `ga4`, `gs`, `sc`.
+- `mg.ga_ver` now resolves to the single active GA (`'4'`) or `None`; the
+  GA3/GA4 tab-switching path is gone.
+- **`ipywidgets` is no longer a core dependency.** It moved to a `notebook`
+  extra: `pip install megaton[notebook]` for the widget-based auth/selection
+  UI. The core install is lighter; headless/programmatic use
+  (`Megaton(..., headless=True)`, `for_property`, `for_site`) needs nothing
+  extra. The widget code paths already raised a clear error when ipywidgets
+  was absent; only the packaging default changed.
+
+### Fixed
+
+- **Sheet write retry settings now honor instance configuration.** The
+  `mg.save` / `mg.append` / `mg.upsert` / `mg.sheet.*` facades and
+  `SheetsService` hardcoded `max_retries=3` / `backoff_factor=2.0`, which
+  overrode any instance-level retry config on the way down to
+  `_call_with_retry`. These layers now pass `None` and let the single
+  resolver decide, so a configured `max_retries` / `backoff_factor` is
+  actually used. Default behavior is unchanged (`None` still resolves to
+  3 / 2.0).
+
+### Internal
+
+- **Result objects extracted to `megaton/_result.py`.** `SearchResult`,
+  `ReportResult`, `_ResultBase`, `wrap`, and the `KNOWN_GA4_*` sets moved out
+  of the ~3900-line `start.py` (now ~2870). Public import paths are unchanged:
+  `from megaton.start import SearchResult / ReportResult / wrap` still work
+  via re-export.
+- **Public API surface declared via `__all__`.** `megaton.start` and
+  `megaton._result` now list their stable names
+  (`Megaton`, `SearchResult`, `ReportResult`, `MappingRule`, `wrap`).
+  Everything else (`_ResultBase`, `_extract_df`, `KNOWN_GA4_*`, service
+  classes) is internal and may change without notice.
+
 ## 1.5.0 - 2026-07-03
 
 Unified date vocabulary (merged down from megaton-app's megaton_lib date

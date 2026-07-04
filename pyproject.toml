@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "megaton"
-version = "1.5.0"
+version = "2.0.0"
 description = "Python toolkit for running GA4 and Search Console reports in Colab/Notebooks and publishing results to Google Sheets, CSV, or BigQuery, with built-in retries and easy append/upsert."
 readme = "README.md"
 license = "MIT"
@@ -36,15 +36,18 @@ dependencies = [
     "google-cloud-bigquery>=3.11",
     "gspread>=5.7",
     "oauthlib>=3.2",
-    "ipywidgets>=8.0",
     "gspread-dataframe>=3.0",
     "pytz>=2023.3",
 ]
 
 [project.optional-dependencies]
+notebook = [
+    "ipywidgets>=8.0",
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
+    "ipywidgets>=8.0",
 ]
 
 [project.urls]
@@ -62,6 +65,3 @@ megaton = ["py.typed"]
 
 [tool.coverage.run]
 source = ["megaton"]
-omit = [
-    "megaton/ga3.py",
-]
