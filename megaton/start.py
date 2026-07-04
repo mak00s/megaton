@@ -66,32 +66,43 @@ def _print_install_help():
     )
 
 
-def _ensure_deps(*, in_colab: bool) -> None:
+def _ensure_deps(*, in_colab: bool, headless: bool = False) -> None:
     """Ensure optional runtime dependencies are available (Colab auto-install).
 
     This is intentionally called at use-time (Megaton() init), not on module import,
     so that `from megaton import start` stays lightweight.
+
+    GA4 packages are required. ``ipywidgets`` is only needed for the selection UI,
+    so it is ensured (Colab auto-install) when ``headless`` is False, and its
+    absence never raises here — the widget code path surfaces a clear
+    "install ipywidgets or use headless=True" error only if a picker is opened.
     """
+    auto_install = _auto_install_enabled(in_colab=in_colab)
+
     required = (
         "google.analytics.data",
         "google.analytics.admin",
     )
     missing = [m for m in required if importlib.util.find_spec(m) is None]
-    if not missing:
-        return
+    if missing:
+        if auto_install:
+            clear_output()
+            print("Installing packages for GA4...")
+            from .install import install_ga4
 
-    if _auto_install_enabled(in_colab=in_colab):
-        clear_output()
-        print("Installing packages for GA4...")
-        from .install import install_ga4
+            install_ga4.install()
+            importlib.invalidate_caches()
+            clear_output()
+        else:
+            _print_install_help()
+            raise ModuleNotFoundError(f"No module named '{missing[0]}'")
 
-        install_ga4.install()
+    # Selection UI: keep ipywidgets out of the core install, but make the picker
+    # "just work" in Colab so a marketer never has to know about [notebook].
+    if not headless and auto_install and importlib.util.find_spec("ipywidgets") is None:
+        print("Installing ipywidgets for the selection UI...")
+        os.system("pip install -U -q ipywidgets")
         importlib.invalidate_caches()
-        clear_output()
-        return
-
-    _print_install_help()
-    raise ModuleNotFoundError(f"No module named '{missing[0]}'")
 
 
 class Megaton:
@@ -102,7 +113,7 @@ class Megaton:
                  credential: Optional[str] = None,
                  cache_key: Optional[str] = None,
                  headless: bool = False):
-        _ensure_deps(in_colab=self.in_colab)
+        _ensure_deps(in_colab=self.in_colab, headless=headless)
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
         self.creds = None
@@ -1711,6 +1722,13 @@ class Megaton:
                     sheet_name,
                     {cell: value},
                 )
+
+            def get(self, cell: str):
+                """選択中シートのセル値を A1 表記で読む（例: ``mg.sheet.cell.get("A1")``）。"""
+                app = self.parent.parent
+                app.sheet._ensure_spreadsheet()
+                app.sheet._ensure_sheet_selected()
+                return app.gs.sheet.cell.select(cell)
 
         class Range:
             def __init__(self, parent):
