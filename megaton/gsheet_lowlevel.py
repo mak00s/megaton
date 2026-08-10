@@ -727,17 +727,56 @@ def fetch_worksheet_values(
     return call_with_retry(f"get_all_values {sheet_name}", ws.get_all_values)
 
 
+# batchUpdate request kinds that are NOT safe to resend after a lost
+# response: resending creates/deletes/appends a second time (appendDimension
+# silently doubles growth; addSheet/deleteSheet turn an already-applied
+# mutation into a spurious 400).
+_NON_IDEMPOTENT_REQUEST_KEYS = frozenset({
+    "addSheet",
+    "deleteSheet",
+    "duplicateSheet",
+    "appendDimension",
+    "insertDimension",
+    "deleteDimension",
+    "appendCells",
+    "insertRange",
+    "deleteRange",
+    "moveDimension",
+    "cutPaste",
+})
+
+
+def _batch_is_idempotent(requests: list[dict]) -> bool:
+    return all(
+        not (_NON_IDEMPOTENT_REQUEST_KEYS & set(req)) for req in requests
+    )
+
+
 def batch_update_spreadsheet(
     spreadsheet,
     requests: list[dict],
     *,
     dry_run: bool = False,
+    retry: bool | None = None,
 ) -> dict:
-    """Run a Sheets API batchUpdate request through a gspread spreadsheet."""
+    """Run a Sheets API batchUpdate request through a gspread spreadsheet.
+
+    Args:
+        retry: ``None`` (default) retries only when EVERY request in the
+            batch is idempotent (absolute updates like ``updateCells`` /
+            ``repeatCell`` / ``updateSheetProperties``). Batches containing
+            structural mutations (addSheet / deleteSheet / appendDimension
+            ...) are submitted once, honoring the module's
+            "non-idempotent calls are submitted once" contract. Pass
+            ``True`` / ``False`` to force either behavior.
+    """
     if dry_run:
         return {"dry_run": True, "requests": requests}
     if not requests:
         return {"replies": []}
+    should_retry = _batch_is_idempotent(requests) if retry is None else retry
+    if not should_retry:
+        return spreadsheet.batch_update({"requests": requests})
     return call_with_retry(
         "batch_update",
         lambda: spreadsheet.batch_update({"requests": requests}),

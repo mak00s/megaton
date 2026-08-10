@@ -223,3 +223,92 @@ def test_append_rows_helper_submits_append_once_without_retry(monkeypatch):
 def test_wrap_spreadsheet_with_retry_is_idempotent():
     wrapped = gspread_lowlevel.RetryingSpreadsheet(object())
     assert gspread_lowlevel.wrap_spreadsheet_with_retry(wrapped) is wrapped
+
+
+# --- batchUpdate retry classification (v2.1.1) ---
+
+def _make_api_error(status):
+    """Real gspread APIError so call_with_retry's exception tuple catches it."""
+    import gspread
+
+    class _Resp:
+        status_code = status
+        text = "err"
+
+        @staticmethod
+        def json():
+            return {"error": {"code": status, "message": "err", "status": "ERR"}}
+
+    return gspread.exceptions.APIError(_Resp())
+
+def test_batch_update_retries_idempotent_batch(monkeypatch):
+    calls = {"n": 0}
+
+    class _SS:
+        def batch_update(self, body):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise _make_api_error(503)
+            return {"replies": []}
+
+    monkeypatch.setattr("megaton.gsheet_lowlevel.time.sleep", lambda *_: None)
+    out = gspread_lowlevel.batch_update_spreadsheet(
+        _SS(), [{"updateCells": {}}, {"repeatCell": {}}]
+    )
+    assert out == {"replies": []}
+    assert calls["n"] == 2  # retried
+
+
+def test_batch_update_structural_batch_is_single_shot():
+    calls = {"n": 0}
+
+    class _SS:
+        def batch_update(self, body):
+            calls["n"] += 1
+            raise _make_api_error(503)
+
+    import pytest as _pytest
+
+    with _pytest.raises(Exception):
+        gspread_lowlevel.batch_update_spreadsheet(
+            _SS(), [{"updateCells": {}}, {"appendDimension": {}}]
+        )
+    assert calls["n"] == 1  # not retried: batch contains a structural mutation
+
+
+def test_batch_update_retry_flag_overrides():
+    calls = {"n": 0}
+
+    class _SS:
+        def batch_update(self, body):
+            calls["n"] += 1
+            raise _make_api_error(503)
+
+    import pytest as _pytest
+
+    # Force off even for an idempotent batch
+    with _pytest.raises(Exception):
+        gspread_lowlevel.batch_update_spreadsheet(
+            _SS(), [{"updateCells": {}}], retry=False
+        )
+    assert calls["n"] == 1
+
+
+def test_structural_helpers_do_not_retry(monkeypatch):
+    """ensure_sheet_exists submits addSheet once even on retryable errors."""
+    calls = {"n": 0}
+
+    class _SS:
+        def fetch_sheet_metadata(self, params=None):
+            return {"sheets": []}
+
+        def batch_update(self, body):
+            calls["n"] += 1
+            assert "addSheet" in body["requests"][0]
+            raise _make_api_error(503)
+
+    import pytest as _pytest
+
+    with _pytest.raises(Exception):
+        gspread_lowlevel.ensure_sheet_exists(_SS(), "New")
+    assert calls["n"] == 1

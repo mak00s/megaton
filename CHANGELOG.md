@@ -2,6 +2,23 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.1.1 - 2026-08-10
+
+### Fixed
+
+- **`batch_update_spreadsheet` no longer retries structural mutations**
+  (review finding). Batches containing non-idempotent requests
+  (`addSheet` / `deleteSheet` / `duplicateSheet` / `appendDimension` /
+  `insert/deleteDimension` / `append/insertCells` / `insert/deleteRange` /
+  `moveDimension` / `cutPaste`) are submitted once: a lost response no
+  longer doubles `appendDimension` growth (`ensure_min_dimensions`) or
+  turns an already-applied `addSheet`/`deleteSheet` into a spurious 400 on
+  retry. Batches of absolute updates (`updateCells` / `repeatCell` /
+  `updateSheetProperties` — e.g. `overwrite_worksheet`'s atomic replace)
+  keep retrying as before. `retry=True/False` forces either behavior.
+  This honors the module's "non-idempotent calls are submitted once"
+  contract, which the batchUpdate path previously violated.
+
 ## 2.1.0 - 2026-08-10
 
 Sheets consolidation (S1+S2+S3a of docs/sheets-consolidation.md in
