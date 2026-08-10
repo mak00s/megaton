@@ -94,7 +94,9 @@ def test_call_with_retry_passes_retry_arguments(monkeypatch):
         captured.update(kwargs)
         return func()
 
-    monkeypatch.setattr(gsheet_module.retry_utils, "expo_retry", _fake_expo_retry)
+    # String target resolves the CURRENT megaton.retry_utils module, robust
+    # to module purges/re-imports performed by other tests (auto-install).
+    monkeypatch.setattr("megaton.retry_utils.expo_retry", _fake_expo_retry)
 
     result = gs.call_with_retry("op", lambda: "ok", retry_on_requests=True)
 
@@ -123,7 +125,9 @@ def test_call_with_retry_marks_api_error_503_as_retryable(monkeypatch):
     def _fake_expo_retry(_func, **kwargs):
         return kwargs["is_retryable"](api_error)
 
-    monkeypatch.setattr(gsheet_module.retry_utils, "expo_retry", _fake_expo_retry)
+    # String target resolves the CURRENT megaton.retry_utils module, robust
+    # to module purges/re-imports performed by other tests (auto-install).
+    monkeypatch.setattr("megaton.retry_utils.expo_retry", _fake_expo_retry)
 
     assert gs.call_with_retry("op", lambda: "ok") is True
 

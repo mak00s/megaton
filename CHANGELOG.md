@@ -2,6 +2,34 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.1.0 - 2026-08-10
+
+Sheets consolidation (S1+S2+S3a of docs/sheets-consolidation.md in
+megaton-app): the stateless Sheets stack moves into megaton so ONE
+implementation serves both entry styles.
+
+### Added
+
+- **`megaton.gsheet_lowlevel`** — the stateless Sheets entry style
+  (spreadsheet id + service-account path, one-shot calls), promoted verbatim
+  from megaton-app `megaton_lib/gspread_lowlevel.py`:
+  `open_spreadsheet` / `overwrite_worksheet` / `append_rows` /
+  `fetch_worksheet_values` / batchUpdate request builders /
+  `cell_value` / `cell_data` / `atomic_replace_dataframe_requests` /
+  `RetryingSpreadsheet` / `RetryingWorksheet` / A1 & serial helpers, and the
+  module-level `call_with_retry` with quota-403 detection, 30s quota floor,
+  and nested-retry suppression (ContextVar).
+  megaton-app's module is now a re-export shim over this one.
+
+### Changed
+
+- **`MegatonGS.call_with_retry` delegates to the unified core**
+  (`gsheet_lowlevel.call_with_retry`). Behavior additions vs 2.0.1: nested
+  calls now collapse into the outer retry loop (no attempt multiplication),
+  matching the stateless path. Retry classification
+  (`_RETRYABLE_STATUS_CODES`, quota-403 tokens) now has a single source of
+  truth.
+
 ## 2.0.1 - 2026-08-10
 
 ### Fixed

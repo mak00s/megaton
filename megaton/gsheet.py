@@ -20,23 +20,13 @@ from . import errors, retry_utils
 
 LOGGER = logging.getLogger(__name__)
 
-_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
-_RATE_LIMIT_403_TOKENS = (
-    "user_rate_limit",
-    "userratelimitexceeded",
-    "rate limit",
-    "ratelimitexceeded",
-    "quota exceeded",
-    "quotaexceeded",
+# Single source of truth for retry classification lives in gsheet_lowlevel
+# (the stateless core); these aliases keep existing import sites working.
+from .gsheet_lowlevel import (  # noqa: E402
+    _RATE_LIMIT_403_TOKENS,
+    _RETRYABLE_STATUS_CODES,
+    _is_rate_limit_403,
 )
-
-
-def _is_rate_limit_403(exc) -> bool:
-    """Match quota-style 403s without retrying real permission failures."""
-    if _get_status_code(exc) != 403:
-        return False
-    message = str(exc).lower()
-    return any(token in message for token in _RATE_LIMIT_403_TOKENS)
 
 
 def _get_status_code(exc) -> Optional[int]:
@@ -238,48 +228,17 @@ class MegatonGS(object):
         max_retries = default_max if max_retries is None else max(1, int(max_retries))
         backoff_factor = default_backoff if backoff_factor is None else float(backoff_factor)
 
-        exception_types = (gspread.exceptions.APIError,)
-        if retry_on_requests:
-            exception_types = exception_types + (requests.exceptions.RequestException,)
+        # Single retry core (megaton.gsheet_lowlevel, since 2.1.0): quota-403
+        # detection, 30s quota floor, and nested-retry suppression live there.
+        from . import gsheet_lowlevel
 
-        def _is_retryable(exc: BaseException) -> bool:
-            if retry_on_requests and isinstance(exc, requests.exceptions.RequestException):
-                return True
-            status = _get_status_code(exc)
-            if status in _RETRYABLE_STATUS_CODES:
-                return True
-            # Sheets quota errors sometimes surface as 403 with rate-limit
-            # wording; retry those but never plain permission 403s.
-            return _is_rate_limit_403(exc)
-
-        _QUOTA_FLOOR_WAIT = 30.0  # 429 needs at least this many seconds
-
-        def _on_retry(attempt_no: int, max_attempts: int, wait: float, exc: BaseException) -> None:
-            LOGGER.warning(
-                "%s failed; retrying in %.1fs (%s/%s): %s",
-                op,
-                wait,
-                attempt_no,
-                max_attempts,
-                exc,
-            )
-            # For quota errors, ensure we wait long enough for the quota
-            # window to reset (~60s) even when the calculated backoff is
-            # shorter.
-            is_quota = _get_status_code(exc) == 429 or _is_rate_limit_403(exc)
-            if is_quota and wait < _QUOTA_FLOOR_WAIT:
-                extra = _QUOTA_FLOOR_WAIT - wait
-                LOGGER.info("Quota error: adding %.1fs extra wait", extra)
-                sleep(extra)
-
-        return retry_utils.expo_retry(
+        return gsheet_lowlevel.call_with_retry(
+            op,
             func,
             max_retries=max_retries,
             backoff_factor=backoff_factor,
-            exceptions=exception_types,
-            is_retryable=_is_retryable,
-            on_retry=_on_retry,
             sleep=sleep,
+            retry_on_requests=retry_on_requests,
             jitter=default_jitter,
             max_wait=default_max_wait,
             max_elapsed=default_max_elapsed,
