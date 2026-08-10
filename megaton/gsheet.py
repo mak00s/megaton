@@ -21,6 +21,22 @@ from . import errors, retry_utils
 LOGGER = logging.getLogger(__name__)
 
 _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+_RATE_LIMIT_403_TOKENS = (
+    "user_rate_limit",
+    "userratelimitexceeded",
+    "rate limit",
+    "ratelimitexceeded",
+    "quota exceeded",
+    "quotaexceeded",
+)
+
+
+def _is_rate_limit_403(exc) -> bool:
+    """Match quota-style 403s without retrying real permission failures."""
+    if _get_status_code(exc) != 403:
+        return False
+    message = str(exc).lower()
+    return any(token in message for token in _RATE_LIMIT_403_TOKENS)
 
 
 def _get_status_code(exc) -> Optional[int]:
@@ -209,8 +225,10 @@ class MegatonGS(object):
         """Run ``func`` with exponential-backoff retry for transient Google API errors.
 
         ``op`` is used as the log label. Set ``retry_on_requests=True`` to also
-        retry ``requests`` exceptions. HTTP 429 quota retries add enough extra
-        sleep to wait at least 30 seconds before the next attempt.
+        retry ``requests`` exceptions. Quota errors (HTTP 429, and 403s whose
+        message indicates a rate limit / quota) add enough extra sleep to wait
+        at least 30 seconds before the next attempt. Ordinary permission 403s
+        fail immediately.
         """
         default_max = getattr(self, "max_retries", 3)
         default_backoff = getattr(self, "backoff_factor", 2.0)
@@ -228,7 +246,11 @@ class MegatonGS(object):
             if retry_on_requests and isinstance(exc, requests.exceptions.RequestException):
                 return True
             status = _get_status_code(exc)
-            return status in _RETRYABLE_STATUS_CODES
+            if status in _RETRYABLE_STATUS_CODES:
+                return True
+            # Sheets quota errors sometimes surface as 403 with rate-limit
+            # wording; retry those but never plain permission 403s.
+            return _is_rate_limit_403(exc)
 
         _QUOTA_FLOOR_WAIT = 30.0  # 429 needs at least this many seconds
 
@@ -244,7 +266,8 @@ class MegatonGS(object):
             # For quota errors, ensure we wait long enough for the quota
             # window to reset (~60s) even when the calculated backoff is
             # shorter.
-            if _get_status_code(exc) == 429 and wait < _QUOTA_FLOOR_WAIT:
+            is_quota = _get_status_code(exc) == 429 or _is_rate_limit_403(exc)
+            if is_quota and wait < _QUOTA_FLOOR_WAIT:
                 extra = _QUOTA_FLOOR_WAIT - wait
                 LOGGER.info("Quota error: adding %.1fs extra wait", extra)
                 sleep(extra)

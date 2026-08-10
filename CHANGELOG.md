@@ -2,6 +2,18 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.0.1 - 2026-08-10
+
+### Fixed
+
+- **`MegatonGS.call_with_retry` now retries quota-style 403s** (messages
+  containing rate-limit / quota wording such as `userRateLimitExceeded`,
+  `Quota exceeded`), with the same 30-second quota floor as HTTP 429.
+  Ordinary permission 403s still fail immediately. This restores parity
+  with megaton-app's `gspread_lowlevel.call_with_retry` (added there in
+  app v0.25), so writes going through the MegatonGS path (e.g. report
+  tracker sheet saves) survive Sheets quota bursts the same way.
+
 ## 2.0.0 - 2026-07-04
 
 ### Removed

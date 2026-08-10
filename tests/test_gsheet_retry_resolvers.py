@@ -162,3 +162,63 @@ def test_authorize_sets_timeout_when_client_created(monkeypatch):
 
     assert gs._client is fake_client
     assert gs._client.http_client.timeout == 12.5
+
+
+# --- quota-style 403 retry (v2.0.1, parity with megaton-app gspread_lowlevel) ---
+
+import pytest as _pytest
+from unittest.mock import MagicMock as _MagicMock
+
+from megaton import gsheet as _gsheet
+
+
+class _Fake403(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+        self.response = _MagicMock(status_code=403)
+
+
+def _gs_with_fake_apierror(monkeypatch):
+    import gspread
+
+    monkeypatch.setattr(gspread.exceptions, "APIError", _Fake403)
+    gs = _gsheet.MegatonGS.__new__(_gsheet.MegatonGS)
+    gs.max_retries = 3
+    gs.backoff_factor = 2.0
+    gs.max_wait = None
+    gs.max_elapsed = None
+    gs.jitter = 0.0
+    return gs
+
+
+@_pytest.mark.parametrize(
+    "message",
+    ["userRateLimitExceeded", "Rate Limit Exceeded", "Quota exceeded for quota metric"],
+)
+def test_rate_limit_403_is_retried_with_quota_floor(monkeypatch, message):
+    gs = _gs_with_fake_apierror(monkeypatch)
+    sleeps = []
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _Fake403(message)
+        return "ok"
+
+    assert gs.call_with_retry("op", flaky, sleep=sleeps.append) == "ok"
+    assert calls["n"] == 2
+    assert sum(sleeps) >= 30.0  # quota floor applied
+
+
+def test_permission_403_fails_immediately(monkeypatch):
+    gs = _gs_with_fake_apierror(monkeypatch)
+    calls = {"n": 0}
+
+    def denied():
+        calls["n"] += 1
+        raise _Fake403("The caller does not have permission")
+
+    with _pytest.raises(_Fake403):
+        gs.call_with_retry("op", denied, sleep=lambda *_: None)
+    assert calls["n"] == 1
