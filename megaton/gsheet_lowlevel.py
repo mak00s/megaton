@@ -20,6 +20,7 @@ import logging
 import math
 import re
 import time
+from collections.abc import Iterable
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
@@ -134,6 +135,7 @@ __all__ = [
     "overwrite_worksheet",
     "append_rows",
     "fetch_worksheet_values",
+    "fetch_worksheets_values",
     "batch_update_spreadsheet",
     "fetch_sheet_properties",
     "get_sheet_id",
@@ -725,6 +727,63 @@ def fetch_worksheet_values(
             return []
         raise
     return call_with_retry(f"get_all_values {sheet_name}", ws.get_all_values)
+
+
+def fetch_worksheets_values(
+    spreadsheet,
+    sheet_names: Iterable[str],
+    *,
+    missing_ok: bool = False,
+    available_sheet_names: Iterable[str] | None = None,
+) -> dict[str, list[list[str]]]:
+    """Return multiple worksheets through one Sheets ``values.batchGet``.
+
+    Names are de-duplicated while preserving input order. By default one
+    metadata request resolves missing tabs before the one values request. A
+    caller that already has worksheet metadata can pass
+    ``available_sheet_names`` to avoid that extra request.
+
+    Args:
+        missing_ok: Map missing worksheet names to ``[]`` instead of raising
+            ``WorksheetNotFound``.
+        available_sheet_names: Known worksheet titles. When omitted, this
+            helper fetches spreadsheet metadata once.
+    """
+    import gspread
+
+    names = list(dict.fromkeys(str(name) for name in sheet_names if str(name)))
+    result: dict[str, list[list[str]]] = {name: [] for name in names}
+    if not names:
+        return result
+
+    if available_sheet_names is None:
+        available = set(fetch_sheet_properties(spreadsheet))
+    else:
+        available = {str(name) for name in available_sheet_names}
+
+    missing = [name for name in names if name not in available]
+    if missing and not missing_ok:
+        raise gspread.exceptions.WorksheetNotFound(missing[0])
+
+    existing = [name for name in names if name in available]
+    if not existing:
+        return result
+
+    ranges = [f"'{name.replace(chr(39), chr(39) * 2)}'" for name in existing]
+    response = call_with_retry(
+        "values_batch_get " + ", ".join(existing),
+        lambda: spreadsheet.values_batch_get(
+            ranges,
+            params={
+                "majorDimension": "ROWS",
+                "valueRenderOption": "FORMATTED_VALUE",
+                "dateTimeRenderOption": "FORMATTED_STRING",
+            },
+        ),
+    )
+    for name, value_range in zip(existing, response.get("valueRanges") or [], strict=False):
+        result[name] = value_range.get("values") or []
+    return result
 
 
 # batchUpdate request kinds that are NOT safe to resend after a lost

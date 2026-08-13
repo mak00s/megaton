@@ -2,6 +2,15 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.1.2 - 2026-08-13
+
+### Added
+
+- **`fetch_worksheets_values` batches multi-tab reads** into one Sheets
+  `values.batchGet` request after a single metadata lookup. It de-duplicates
+  names in input order, supports optional missing tabs, and accepts an already
+  known title list so workbook facades can reuse their metadata cache.
+
 ## 2.1.1 - 2026-08-10
 
 ### Fixed
