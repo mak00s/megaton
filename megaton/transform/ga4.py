@@ -78,7 +78,7 @@ def classify_source_channel(
     source_col: str = "source",
     custom_channels=None,
 ) -> pd.DataFrame:
-    """sourceとchannelを分類する（コア関数）
+    r"""sourceとchannelを分類する（コア関数）
     
     megatonの既存ロジックをベースに、sourceとchannelの両方を返す版。
     AI判定は正規表現を使った網羅的なパターンマッチングを使用。
@@ -295,7 +295,7 @@ def classify_channel(
     source_col: str = "source",
     custom_channels=None,
 ) -> pd.Series:
-    """channelのみを分類（ラッパー関数）
+    r"""channelのみを分類（ラッパー関数）
     
     後方互換性のため、channel列のみを返すシンプル版。
     内部でclassify_source_channel()を呼び出す。

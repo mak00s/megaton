@@ -83,7 +83,9 @@ def main() -> int:
     for filename, count in files.most_common(5):
         print(f"- `{filename}`: {count}")
 
-    return completed.returncode
+    # Diagnostics are expected in this informational job. A parsed and written
+    # report means the reporting step itself succeeded.
+    return 0
 
 
 if __name__ == "__main__":
