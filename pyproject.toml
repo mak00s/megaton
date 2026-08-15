@@ -21,6 +21,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
     "Topic :: Internet",
     "Topic :: Scientific/Engineering",
@@ -48,6 +50,7 @@ dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "ipywidgets>=8.0",
+    "pyright==1.1.411",
 ]
 
 [project.urls]
@@ -65,3 +68,13 @@ megaton = ["py.typed"]
 
 [tool.coverage.run]
 source = ["megaton"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = [
+    "megaton/retry_utils.py",
+    "megaton/state.py",
+    "megaton/transform/traffic.py",
+    "tests/typing/public_api.py",
+]

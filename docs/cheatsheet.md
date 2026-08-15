@@ -14,7 +14,6 @@
 - `mg.select.ga()`  # UI selector
 - `mg.sc` (=`mg.search`)  # 便利 alias
 - `mg.open.sheet(url)`  # Sheets を開く主導線（新規 client）
-- `mg.launch_gs(url)`  # 既存 client を再利用（reset なし）
 - `mg.launch_sc(site_url?)`  # Search Console client を初期化
 - `mg.launch_bigquery(project)`  # BigQuery client を初期化
 
@@ -26,14 +25,12 @@
 - `mg.report.run(d, m, filter_d?, filter_m?, sort?, show?)`  # retry/timeout は「GA4 API retry / timeout」参照
 - `megaton.wrap(df)` 任意のDataFrameをチェーンAPIへ（v1.4+）
 - `result.month_key("date", into="month", fmt="%Y-%m")` 月キー生成（v1.4+）
-- `mg.save.to.sheet(name, result)` Result直渡し可（v1.4+、.df不要）
 - `mg.report.run.ranges(date_ranges, d, m, filter_d?, filter_m?, ...)`
 - `mg.report.run.all(items, d, m, item_key?, property_key?, item_filter?)`
 - `mg.report.prep(conf, df?, show?)`
 - `mg.report.show()`
 - `mg.report.download(filename)`
 - `mg.report.to.csv(filename?, quiet?)`
-- `mg.report.to.sheet(name)`
 - `mg.report.data`
 - `mg.show.ga.dimensions` / `mg.show.ga.metrics`  # 選択中propertyの項目一覧
 - `mg.show.ga.property`  # 選択中property1つのinfo（全一覧は `mg.properties()`。生アクセスは Advanced 参照）
@@ -141,42 +138,19 @@ mg.report.run(d=["date"], m=["sessions"], timeout=600)         # per-call overri
 
 `mg.search.set.dates()` は `YYYY-MM-DD` のほか `NdaysAgo` / `yesterday` / `today` を指定可能（`run` 前に ISO 日付へ展開）。
 
-## Sheets — 便利（one-shot: 名前指定で1発保存）
+## Sheets — 主導線（開く → 選ぶ → 操作）
 
-> 主導線は下の「Sheets — 主導線」（`mg.open.sheet` → `mg.sheets.select` → `mg.sheet.*`）。
-> `*.to.sheet(name, ...)` は開く/選ぶを省く one-shot 便利 API。retry 引数は Advanced 参照。
+通常は `mg.open.sheet(url)` → `mg.sheets.select(name)` → `mg.sheet.*` だけを使います。
 
-- `mg.save.to.sheet(name, df?, sort_by?, sort_desc?, start_row?, create_if_missing?, auto_width?, freeze_header?)`
-- `mg.append.to.sheet(name, df?, create_if_missing?, auto_width?, freeze_header?)`
-- `mg.upsert.to.sheet(name, df?, keys, columns?, sort_by?, auto_width?, freeze_header?)`
-
-### Sheets API retry
-
-Sheets の保存系は指数バックオフで再試行できます（default: `max_retries=3`, `backoff_factor=2.0`）。
-HTTP 429 quota retry は、backoff が短い場合でも次回試行まで最低 30 秒待ちます。
-session 一括設定は `mg.set.retry(max_retries=5, backoff_factor=1.0)`（GA4/GSC と共通）。
+- `mg.open.sheet(url)`: Spreadsheet を開く
+- `mg.sheets.*`: Worksheet の選択・作成・複製・削除
+- `mg.sheet.*`: 選択中 Worksheet の読み書き・書式操作
 
 ```python
-mg.set.retry(max_retries=5, backoff_factor=1.0)   # 推奨（session）
-mg.save.to.sheet("daily", df, max_retries=5)      # per-call override（Advanced）
+mg.open.sheet(url)
+mg.sheets.select("daily")
+mg.sheet.save(df)
 ```
-
-### `start_row` の挙動（save系）
-
-- `start_row=1`（default）: シート全体を上書き
-- `start_row>1`: `start_row` より上の既存行は保持し、`start_row` 行目からヘッダ付きで上書き
-- `create_if_missing=False`（default）: シート未存在時は作成しない
-- `create_if_missing=True`: シート未存在時に自動作成して保存/追記
-
-## CSV
-
-- `mg.save.to.csv(df?, filename?, mode?, include_dates?, quiet?)`
-- `mg.append.to.csv(df?, filename?, include_dates?, quiet?)`
-- `mg.upsert.to.csv(df?, filename?, keys, columns?, sort_by?, include_dates?, quiet?)`
-
-## Sheets — 主導線（stateful: 開く → 選ぶ → 操作）
-
-`mg.open.sheet(url)` → `mg.sheets.select(name)` → `mg.sheet.*` が canonical。
 
 - `mg.sheets.select(name)`
 - `mg.sheets.read(name)`
@@ -192,6 +166,30 @@ mg.save.to.sheet("daily", df, max_retries=5)      # per-call override（Advanced
 - `mg.sheet.resize(rows?, cols?, shrink=False)`
 - `mg.sheet.gridlines.hide()` / `mg.sheet.gridlines.show()`
 - `mg.sheet.tab.color("#2f80ed")`
+
+### Sheets API retry
+
+Sheets の保存系は指数バックオフで再試行できます（default: `max_retries=3`, `backoff_factor=2.0`）。
+HTTP 429 quota retry は、backoff が短い場合でも次回試行まで最低 30 秒待ちます。
+session 一括設定は `mg.set.retry(max_retries=5, backoff_factor=1.0)`（GA4/GSC と共通）。
+
+```python
+mg.set.retry(max_retries=5, backoff_factor=1.0)   # 推奨（session）
+mg.sheet.save(df, max_retries=5)                   # per-call override（Advanced）
+```
+
+### `start_row` の挙動（save系）
+
+- `start_row=1`（default）: シート全体を上書き
+- `start_row>1`: `start_row` より上の既存行は保持し、`start_row` 行目からヘッダ付きで上書き
+- `create_if_missing=False`（default）: シート未存在時は作成しない
+- `create_if_missing=True`: シート未存在時に自動作成して保存/追記
+
+## CSV
+
+- `mg.save.to.csv(df?, filename?, mode?, include_dates?, quiet?)`
+- `mg.append.to.csv(df?, filename?, include_dates?, quiet?)`
+- `mg.upsert.to.csv(df?, filename?, keys, columns?, sort_by?, include_dates?, quiet?)`
 
 ## Search Console
 
@@ -260,6 +258,8 @@ mg.save.to.sheet("daily", df, max_retries=5)      # per-call override（Advanced
 
 通常の分析では不要な低レベル・escape hatch。主導線が別にあるものはそちらを優先。
 
+- **Sheets の短縮 API**: `mg.save.to.sheet(...)` / `mg.append.to.sheet(...)` / `mg.upsert.to.sheet(...)` / `mg.report.to.sheet(name)`
+- **Sheets の互換 API**: `mg.launch_gs(url)`（主導線は `mg.open.sheet(url)`）
 - **生の gspread / retry**: `mg.gs.workbook`（gspread Spreadsheet）、`mg.gs.call_with_retry(op, func, max_retries?, backoff_factor?, retry_on_requests?)`
 - **項目カテゴリの生取得**: `mg.ga["4"].property.show("custom_dimensions" | "user_properties" | "custom_metrics")`  # 主導線は `mg.show.ga.*`
 - **retry / timeout**: session 一括は `mg.set.retry(max_retries?, backoff_factor?, timeout?)`（GA4/Sheets/GSC共通、解決順 per-call → session → env → 既定）。per-call の `max_retries` / `backoff_factor` / `timeout` は escape hatch（「GA4 API retry / timeout」「Sheets API retry」参照）。

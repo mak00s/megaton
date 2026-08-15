@@ -44,6 +44,10 @@ page_map = {
 
 ## GA4: 基本レポート → Sheets 保存
 
+Sheets 操作は `mg.open.sheet(...)` で Spreadsheet を開き、`mg.sheets.*` で
+Worksheet を選択・管理し、`mg.sheet.*` で選択中の Worksheet を操作します。
+通常はこの導線だけを使います。
+
 ```python
 mg.report.set.dates("2024-01-01", "2024-01-31")
 mg.report.run(
@@ -52,7 +56,8 @@ mg.report.run(
 )
 
 mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
-mg.save.to.sheet("_ga_data", mg.report.data)
+mg.sheets.select("_ga_data")
+mg.sheet.save(mg.report.data)
 ```
 
 ## GA4: 複数プロパティをまとめて取得
@@ -268,9 +273,10 @@ mg.sheets.duplicate(
 
 ```python
 mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+mg.sheets.select("daily")
 
 # 1行目（メモや更新日時など）を残し、2行目からヘッダ+データを書き込む
-mg.save.to.sheet("daily", df, start_row=2)
+mg.sheet.save(df, start_row=2)
 ```
 
 ## CSV: 追記ではなくアップサート
@@ -380,5 +386,7 @@ if result.df.empty:
     print('⚠️ データが取得できませんでした')
 else:
     processed = result.categorize('query', by=query_map)
-    mg.save.to.sheet('_query', processed.df)
+    mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+    mg.sheets.select("_query")
+    mg.sheet.save(processed)
 ```

@@ -11,6 +11,7 @@
 - [GA4 Analytics API](#ga4-analytics-api)
 - [CSV API](#csv-api)
 - [Google Sheets API](#google-sheets-api)
+- [Google Sheets Advanced](#google-sheets-advanced)
 - [BigQuery API](#bigquery-api)
 - [Config 管理](#config-管理)
 - [DateWindow](#datewindow)
@@ -623,17 +624,18 @@ DataFrame を CSV の末尾に追記します。
 
 ## Google Sheets API
 
-### `mg.launch_gs(url)`
+通常利用の canonical path は次の3段階です。
 
-Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の互換 API）。
+```python
+mg.open.sheet(url)          # Spreadsheet を開く
+mg.sheets.select("daily")   # Worksheet を選ぶ
+mg.sheet.save(df)           # 選択中 Worksheet を操作する
+```
 
-**パラメータ:**
-- `url` (str) - スプレッドシート URL
-
-**戻り値:** bool | None
-
-**失敗時:**
-- 認証未完了、権限不足、URL不正、API無効、タイムアウト等で `None`
+- `mg.sheets.*`: Worksheet の選択・作成・複製・削除
+- `mg.sheet.*`: 選択中 Worksheet の読み書き・書式操作
+- `mg.launch_gs`、`mg.gs.*`、名前指定の one-shot API は
+  [Advanced](#google-sheets-advanced) を参照
 
 ### `mg.open.sheet(url)`
 
@@ -663,40 +665,6 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
 
 **失敗時:**
 - 認証未完了、権限不足、URL不正、API無効、タイムアウト等で `None`
-
-### `mg.gs.call_with_retry(op, func, max_retries=None, backoff_factor=None, retry_on_requests=False)`
-
-任意の callable を Google API の一時エラーに対する指数バックオフ付きで実行します。
-
-**パラメータ:**
-- `op` (str) - retry ログに出す操作名
-- `func` (callable) - 実行する関数
-- `max_retries` (int | None) - 最大試行回数。`None` の場合は環境変数または既定値
-- `backoff_factor` (float | None) - retry 間隔の係数。`None` の場合は環境変数または既定値
-- `retry_on_requests` (bool) - `requests` 由来のネットワーク例外も retry 対象に含めるか
-
-**戻り値:** `func()` の戻り値
-
-**挙動:**
-- gspread の一時的な `APIError`（HTTP 429/5xx）を retry します
-- `retry_on_requests=True` の場合は `requests.exceptions.RequestException` も retry します
-- HTTP 429 quota retry は、算出された backoff が短い場合でも次回試行まで最低 30 秒待つよう追加待機します
-
-**前提条件:**
-- 先に `mg.open.sheet(url)` または `mg.launch_gs(url)` で `mg.gs` を初期化していること
-
-### `mg.gs.workbook`
-
-開いている gspread `Spreadsheet` を返す read-only property です。
-
-**戻り値:** gspread `Spreadsheet` | None
-
-**用途:**
-- megaton の高水準 API にない gspread の Spreadsheet API を直接使う場合
-- 未接続時は `None`
-
-**前提条件:**
-- 先に `mg.open.sheet(url)` または `mg.launch_gs(url)` で `mg.gs` を初期化していること
 
 ### `mg.sheets.select(sheet_name)`
 
@@ -775,73 +743,6 @@ Google Sheets クライアントを初期化します（`mg.open.sheet(url)` の
 **前提条件・例外:**
 - 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
 - シートが存在しない場合は `ValueError`
-
-### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, start_row=1, create_if_missing=False, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
-
-DataFrame をシートに上書き保存します。
-
-**パラメータ:**
-- `sheet_name` (str) - シート名
-- `df` (pd.DataFrame | None) - 保存する DataFrame（default: `mg.report.data`）
-- `sort_by` (list[str] | str | None) - ソート列（指定時のみソート）
-- `sort_desc` (bool) - 降順ソート（default: True）
-- `start_row` (int) - ヘッダを書き込む開始行（1始まり、default: 1）
-- `create_if_missing` (bool) - 対象シートがない場合に自動作成するか（default: False）
-- `auto_width` (bool) - 列幅を自動調整（default: False）
-- `freeze_header` (bool) - 1行目を固定（default: False）
-- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
-- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
-
-**戻り値:** None
-
-**前提条件:**
-- 先に `mg.open.sheet(url)` 済みであること
-- `df` を省略する場合は `mg.report.data` が DataFrame であること
-- `start_row >= 1` であること（`start_row=2` の場合、1行目は保持されます）
-- `create_if_missing=False` の場合、対象シートが未作成だと保存されません
-
-### `mg.append.to.sheet(sheet_name, df=None, create_if_missing=False, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
-
-DataFrame を既存データの末尾に追記します。
-
-**パラメータ:**
-- `sheet_name` (str) - シート名
-- `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
-- `create_if_missing` (bool) - 対象シートがない場合に自動作成するか（default: False）
-- `auto_width` (bool) - 列幅を自動調整（default: False）
-- `freeze_header` (bool) - 1行目を固定（default: False）
-- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
-- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
-
-**戻り値:** None
-
-**前提条件:**
-- 先に `mg.open.sheet(url)` 済みであること
-- `df` を省略する場合は `mg.report.data` が DataFrame であること
-- `create_if_missing=False` の場合、対象シートが未作成だと追記されません
-
-### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
-
-キー列を基準にアップサート（更新または挿入）します。
-
-**パラメータ:**
-- `sheet_name` (str) - シート名
-- `df` (pd.DataFrame | None) - アップサートする DataFrame（default: `mg.report.data`）
-- `keys` (list[str]) - キー列のリスト
-- `columns` (list[str] | None) - 出力する列のリスト（default: すべて）
-- `sort_by` (list[str] | None) - ソート列のリスト
-- `auto_width` (bool) - 列幅を自動調整（default: False）
-- `freeze_header` (bool) - 1行目を固定（default: False）
-- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
-- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
-
-**戻り値:** pd.DataFrame | None
-
-**前提条件・例外:**
-- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
-- `df` を省略する場合は `mg.report.data` が DataFrame であること
-- DataFrame 以外を渡した場合は `TypeError`
-- アップサート不能時は `None`
 
 ### 現在のシートへの操作
 
@@ -983,6 +884,128 @@ mg.sheet.gridlines.show()
 mg.sheet.tab.color("#2f80ed")
 mg.sheet.tab.color({"red": 0.18, "green": 0.50, "blue": 0.93})
 ```
+
+## Google Sheets Advanced
+
+以下は互換性、名前指定の短縮操作、または高水準 API にない処理のための
+escape hatch です。通常は `mg.open.sheet` → `mg.sheets.select` → `mg.sheet.*`
+を使用してください。
+
+### 名前指定の one-shot API
+
+#### `mg.save.to.sheet(sheet_name, df=None, sort_by=None, sort_desc=True, start_row=1, create_if_missing=False, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
+
+DataFrame を名前指定したシートに上書き保存します。
+
+**パラメータ:**
+- `sheet_name` (str) - シート名
+- `df` (pd.DataFrame | None) - 保存する DataFrame（default: `mg.report.data`）
+- `sort_by` (list[str] | str | None) - ソート列（指定時のみソート）
+- `sort_desc` (bool) - 降順ソート（default: True）
+- `start_row` (int) - ヘッダを書き込む開始行（1始まり、default: 1）
+- `create_if_missing` (bool) - 対象シートがない場合に自動作成するか（default: False）
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
+
+**戻り値:** None
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` 済みであること
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- `start_row >= 1` であること（`start_row=2` の場合、1行目は保持されます）
+- `create_if_missing=False` の場合、対象シートが未作成だと保存されません
+
+#### `mg.append.to.sheet(sheet_name, df=None, create_if_missing=False, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
+
+DataFrame を名前指定したシートの既存データ末尾に追記します。
+
+**パラメータ:**
+- `sheet_name` (str) - シート名
+- `df` (pd.DataFrame | None) - 追記する DataFrame（default: `mg.report.data`）
+- `create_if_missing` (bool) - 対象シートがない場合に自動作成するか（default: False）
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
+
+**戻り値:** None
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` 済みであること
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- `create_if_missing=False` の場合、対象シートが未作成だと追記されません
+
+#### `mg.upsert.to.sheet(sheet_name, df=None, keys, columns=None, sort_by=None, auto_width=False, freeze_header=False, max_retries=3, backoff_factor=2.0)`
+
+名前指定したシートへキー列を基準にアップサート（更新または挿入）します。
+
+**パラメータ:**
+- `sheet_name` (str) - シート名
+- `df` (pd.DataFrame | None) - アップサートする DataFrame（default: `mg.report.data`）
+- `keys` (list[str]) - キー列のリスト
+- `columns` (list[str] | None) - 出力する列のリスト（default: すべて）
+- `sort_by` (list[str] | None) - ソート列のリスト
+- `auto_width` (bool) - 列幅を自動調整（default: False）
+- `freeze_header` (bool) - 1行目を固定（default: False）
+- `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
+- `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
+
+**戻り値:** pd.DataFrame | None
+
+**前提条件・例外:**
+- 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
+- `df` を省略する場合は `mg.report.data` が DataFrame であること
+- DataFrame 以外を渡した場合は `TypeError`
+- アップサート不能時は `None`
+
+### `mg.launch_gs(url)`
+
+Google Sheets クライアントを初期化する互換 API です。通常は
+`mg.open.sheet(url)` を使用してください。
+
+**パラメータ:**
+- `url` (str) - スプレッドシート URL
+
+**戻り値:** bool | None
+
+**失敗時:**
+- 認証未完了、権限不足、URL不正、API無効、タイムアウト等で `None`
+
+### `mg.gs.call_with_retry(op, func, max_retries=None, backoff_factor=None, retry_on_requests=False)`
+
+任意の callable を Google API の一時エラーに対する指数バックオフ付きで実行します。
+
+**パラメータ:**
+- `op` (str) - retry ログに出す操作名
+- `func` (callable) - 実行する関数
+- `max_retries` (int | None) - 最大試行回数。`None` の場合は環境変数または既定値
+- `backoff_factor` (float | None) - retry 間隔の係数。`None` の場合は環境変数または既定値
+- `retry_on_requests` (bool) - `requests` 由来のネットワーク例外も retry 対象に含めるか
+
+**戻り値:** `func()` の戻り値
+
+**挙動:**
+- gspread の一時的な `APIError`（HTTP 429/5xx）を retry します
+- `retry_on_requests=True` の場合は `requests.exceptions.RequestException` も retry します
+- HTTP 429 quota retry は、算出された backoff が短い場合でも次回試行まで最低 30 秒待つよう追加待機します
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` または `mg.launch_gs(url)` で `mg.gs` を初期化していること
+
+### `mg.gs.workbook`
+
+開いている gspread `Spreadsheet` を返す read-only property です。
+
+**戻り値:** gspread `Spreadsheet` | None
+
+**用途:**
+- megaton の高水準 API にない gspread の Spreadsheet API を直接使う場合
+- 未接続時は `None`
+
+**前提条件:**
+- 先に `mg.open.sheet(url)` または `mg.launch_gs(url)` で `mg.gs` を初期化していること
 
 ---
 
@@ -1328,11 +1351,12 @@ result.filter_position(max=10, keep_clicked=True)
 ```python
 from megaton import wrap
 result = wrap(df).month_key("date", into="month").group("month").to_int().sort("month")
-mg.save.to.sheet("monthly", result)   # Result をそのまま保存できる
+mg.sheets.select("monthly")
+mg.sheet.save(result)   # Result をそのまま保存できる
 ```
 
 - `wrap(df, dimensions=None)`: dimensions 省略時は非数値列をディメンションとして推定
-- `mg.save.to.sheet/csv`、`mg.append.to.csv`、`mg.upsert.to.sheet/csv`、`mg.sheet.save/append/upsert` は ReportResult / SearchResult を直接受け取ります（`.df` の取り出し不要）
+- `mg.sheet.save/append/upsert` は ReportResult / SearchResult を直接受け取ります（`.df` の取り出し不要）。Advanced の名前指定 API と CSV 保存系も同様です
 
 ### 主要メソッド
 

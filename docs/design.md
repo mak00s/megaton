@@ -74,6 +74,15 @@ Notebook 上で人間が分析作業を進めるための stateful app として
 - headless は自動実行と差分検証に寄せた設計
 - どちらも同じ API を使い、切り替えコストを小さくする
 
+## 型付けと CI
+
+- `py.typed` は維持し、公開 API の主要な引数・戻り値を優先して型付けする
+- blocking 型チェックは、型エラーがない公開 API 契約と静的モジュールだけを対象にする
+- package 全体の型チェックは informational とし、短期的なゼロではなくエラー件数の推移を追う
+- informational 側で clean になったファイルは blocking 対象へ移し、一度追加した範囲を戻さない
+- pandas、Google API、Notebook UI などの動的境界では、API を冗長にしないため意図的な `Any` を許容する
+- 型チェックの都合だけで、Notebook の短い操作語彙を設定クラスや必須引数へ置き換えない
+
 ## 互換性ポリシー
 
 - **安定 API**: `mg.*` のパブリックメソッド（引数名・戻り値型）、`SearchResult` / `ReportResult` のチェーンメソッド

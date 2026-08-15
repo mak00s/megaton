@@ -34,6 +34,10 @@ runs, the core install is enough — use `Megaton(..., headless=True)`,
 
 ### Run a GA4 report and save to Google Sheets
 
+For normal Sheets work, use one flow: `mg.open.sheet(...)` opens a Spreadsheet,
+`mg.sheets.*` selects or manages Worksheets, and `mg.sheet.*` operates on the
+selected Worksheet.
+
 ```python
 from megaton.start import Megaton
 
@@ -48,8 +52,8 @@ result = mg.report.run(d=["date", "eventName"], m=["eventCount"])
 
 # Save to Google Sheets
 mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
-mg.save.to.sheet("_ga_data", result.df)
 mg.sheets.select("_ga_data")
+mg.sheet.save(result)
 mg.sheet.freeze(rows=1)
 mg.sheet.resize(rows=1000, cols=20)
 mg.sheet.gridlines.hide()
@@ -95,7 +99,9 @@ result = (mg.search
     .filter_impressions(min=100)
 )
 
-mg.save.to.sheet('_query', result.df, sort_by='impressions')
+mg.open.sheet("https://docs.google.com/spreadsheets/d/...")
+mg.sheets.select("_query")
+mg.sheet.save(result, sort_by="impressions")
 ```
 
 ## Installation
