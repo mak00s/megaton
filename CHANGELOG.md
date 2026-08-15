@@ -2,6 +2,19 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.1.3 - 2026-08-15
+
+### Fixed
+
+- **`megaton.transform.ga4` no longer emits `SyntaxWarning` on first
+  import.** Regex examples in its docstrings are now raw strings; the old
+  `"\."` escapes are slated to become errors in a future Python version.
+
+### Changed
+
+- **Python 3.12 and 3.13 are declared supported** (Trove classifiers) and
+  exercised in the CI test matrix.
+
 ## 2.1.2 - 2026-08-13
 
 ### Added
