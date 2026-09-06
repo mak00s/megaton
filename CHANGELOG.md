@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## Unreleased
+## 2.2.0 - 2026-09-06
 
 - Sheets upsert aborts on read failure without overwriting existing history.
 - GA4 permanent errors and GSC query failures propagate; GA4 never returns a

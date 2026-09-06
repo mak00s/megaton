@@ -1,6 +1,7 @@
 # Failure Handling and Migration
 
-These changes are in the working tree after 2.1.3 and are not yet published.
+These changes are introduced in 2.2.0. Review this guide when upgrading from 2.1.3
+or earlier, especially for unattended scheduled jobs.
 
 ## Results and Errors
 

@@ -8,7 +8,7 @@ Megaton is a Python toolkit for working with Google Analytics 4, Google Search C
 
 ## Core Concepts
 
-The working tree includes unreleased reliability changes. GA4/GSC query errors
+Version 2.2.0 includes reliability changes. GA4/GSC query errors
 and Sheets read/upsert errors now raise instead of looking like empty results.
 Sheets overwrite uses one atomic request; structural mutations are submitted
 once. See [failure handling and migration](docs/reliability.md) before upgrading
