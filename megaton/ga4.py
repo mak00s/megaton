@@ -877,12 +877,12 @@ class MegatonGA4(object):
                     if reason == 'SERVICE_DISABLED':
                         LOGGER.error("GCPのプロジェクトでData APIを有効化してください。")
                 LOGGER.warning(message)
-                response = None
+                raise
             except Exception as e:
                 type_, value, traceback_ = sys.exc_info()
                 LOGGER.debug(type_)
                 LOGGER.debug(value)
-                response = None
+                raise
 
             data, headers, types = self._parse_response(response)
 
@@ -952,6 +952,10 @@ class MegatonGA4(object):
                         page += 1
                         offset += limit
                 else:
+                    if all_rows:
+                        raise errors.PartialDataReturned(
+                            f"GA4 report stopped at offset {offset}; no complete result returned."
+                        )
                     break
 
             if len(all_rows) > 0:

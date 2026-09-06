@@ -2,6 +2,30 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## Unreleased
+
+- Sheets upsert aborts on read failure without overwriting existing history.
+- GA4 permanent errors and GSC query failures propagate; GA4 never returns a
+  partial report after a failed page, including explicit empty-on-exhaustion mode.
+- Stateful Sheets overwrite now clears and writes in one atomic batch, retains
+  grid capacity and formatting, and preserves rows above `start_row`. Values are
+  written typed: timezone-naive datetime columns and ISO date strings become Sheets date cells,
+  other strings stay text (numeric-looking strings such as `"00123"` are no
+  longer coerced to numbers).
+- Datetime conversion retains fractional seconds in the numeric serial;
+  timezone-aware datetime columns retain their offset as ISO text. Date formats
+  apply only to date cells, including columns mixed with text or blanks.
+- Stateful worksheet create/delete/duplicate and append capacity growth are
+  submitted once, avoiding structural replay after lost responses.
+- Sheets save/append return booleans; read/upsert failures raise. Empty upserts
+  return existing data without writing. See `docs/reliability.md` for migration.
+- OAuth caches are keyed by canonical credential path and written with mode
+  0600. Legacy basename-only caches are not reused; OAuth requires reauthorization.
+- Sheets namespaces move to `services/sheet_namespace.py`, preserving public
+  `Megaton.Sheets` / `Megaton.Sheet` entry points.
+- `errors.describe_error` provides JSON-ready operation, target, cause, status,
+  and transient-status diagnostics for callers and CLIs.
+
 ## 2.1.3 - 2026-08-15
 
 ### Fixed

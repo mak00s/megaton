@@ -210,11 +210,12 @@ def test_save_sheet_missing_sheet_without_create_does_nothing():
     app = _make_app(gs)
     service = SheetsService(app)
 
-    service.save_sheet(
-        "missing",
-        pd.DataFrame([{"month": "2024-02", "users": 2}]),
-        create_if_missing=False,
-    )
+    with pytest.raises(errors.SheetNotFound):
+        service.save_sheet(
+            "missing",
+            pd.DataFrame([{"month": "2024-02", "users": 2}]),
+            create_if_missing=False,
+        )
 
     assert "missing" not in gs.sheets
     assert gs.last_write is None
@@ -307,14 +308,15 @@ def test_upsert_df_applies_write_options():
     assert calls["df"].to_dict(orient="records") == result.to_dict(orient="records")
 
 
-def test_select_or_create_sheet_returns_false_without_open_sheet():
+def test_select_or_create_sheet_raises_without_open_sheet():
     app = _make_app(None)
     service = SheetsService(app)
 
-    assert service._select_or_create_sheet("report", create_if_missing=True) is False
+    with pytest.raises(ValueError):
+        service._select_or_create_sheet("report", create_if_missing=True)
 
 
-def test_select_or_create_sheet_returns_false_when_create_fails(monkeypatch):
+def test_select_or_create_sheet_propagates_create_failure(monkeypatch):
     gs = _FakeGS("https://example.com/sheet", {"report": []})
     app = _make_app(gs)
     service = SheetsService(app)
@@ -323,7 +325,8 @@ def test_select_or_create_sheet_returns_false_when_create_fails(monkeypatch):
         raise RuntimeError("create failed")
 
     monkeypatch.setattr(gs.sheet, "create", _raise)
-    assert service._select_or_create_sheet("new_sheet", create_if_missing=True) is False
+    with pytest.raises(RuntimeError):
+        service._select_or_create_sheet("new_sheet", create_if_missing=True)
 
 
 def test_append_sheet_missing_sheet_without_create_does_nothing():
@@ -331,11 +334,12 @@ def test_append_sheet_missing_sheet_without_create_does_nothing():
     app = _make_app(gs)
     service = SheetsService(app)
 
-    service.append_sheet(
-        "missing",
-        pd.DataFrame([{"a": 2}]),
-        create_if_missing=False,
-    )
+    with pytest.raises(errors.SheetNotFound):
+        service.append_sheet(
+            "missing",
+            pd.DataFrame([{"a": 2}]),
+            create_if_missing=False,
+        )
 
     assert "missing" not in gs.sheets
 
@@ -456,33 +460,31 @@ def test_open_or_create_sheet_returns_none_when_create_fails(monkeypatch):
     assert service.open_or_create_sheet("https://example.com/sheet", "new_sheet") is None
 
 
-def test_read_df_returns_empty_when_open_fails(monkeypatch):
+def test_read_df_raises_when_open_fails(monkeypatch):
     gs = _FakeGS("https://example.com/sheet", {"report": [{"a": 1}]})
     app = _make_app(gs)
     service = SheetsService(app)
     monkeypatch.setattr(service, "open_sheet", lambda _url: False)
 
-    result = service.read_df("https://example.com/sheet", "report")
-
-    assert isinstance(result, pd.DataFrame)
-    assert result.empty
+    with pytest.raises(errors.RequestError):
+        service.read_df("https://example.com/sheet", "report")
 
 
-def test_read_df_returns_empty_when_sheet_not_found():
+
+def test_read_df_raises_when_sheet_not_found():
     gs = _FakeGS("https://example.com/sheet", {"report": [{"a": 1}]})
     app = _make_app(gs)
     service = SheetsService(app)
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(service, "open_sheet", lambda _url: True)
 
-    result = service.read_df("https://example.com/sheet", "missing")
+    with pytest.raises(errors.SheetNotFound):
+        service.read_df("https://example.com/sheet", "missing")
     monkeypatch.undo()
 
-    assert isinstance(result, pd.DataFrame)
-    assert result.empty
 
 
-def test_read_df_returns_empty_on_unexpected_select_error(monkeypatch):
+def test_read_df_raises_on_unexpected_select_error(monkeypatch):
     gs = _FakeGS("https://example.com/sheet", {"report": [{"a": 1}]})
     app = _make_app(gs)
     service = SheetsService(app)
@@ -492,10 +494,9 @@ def test_read_df_returns_empty_on_unexpected_select_error(monkeypatch):
         raise RuntimeError("broken select")
 
     monkeypatch.setattr(gs.sheet, "select", _raise)
-    result = service.read_df("https://example.com/sheet", "report")
+    with pytest.raises(errors.RequestError):
+        service.read_df("https://example.com/sheet", "report")
 
-    assert isinstance(result, pd.DataFrame)
-    assert result.empty
 
 
 def test_read_df_success_returns_dataframe():
@@ -520,113 +521,113 @@ def test_upsert_df_rejects_non_dataframe():
         service.upsert_df("https://example.com/sheet", "report", [{"a": 1}], keys=["a"])
 
 
-def test_upsert_df_returns_none_when_open_or_create_fails(monkeypatch):
+def test_upsert_df_raises_when_open_or_create_fails(monkeypatch):
     gs = _FakeGS("https://example.com/sheet", {"report": []})
     app = _make_app(gs)
     service = SheetsService(app)
     monkeypatch.setattr(service, "open_or_create_sheet", lambda *_args, **_kwargs: None)
 
-    result = service.upsert_df(
-        "https://example.com/sheet",
-        "report",
-        pd.DataFrame([{"a": 1}]),
-        keys=["a"],
-        create_if_missing=True,
-    )
+    with pytest.raises(errors.RequestError):
+        service.upsert_df(
+            "https://example.com/sheet",
+            "report",
+            pd.DataFrame([{"a": 1}]),
+            keys=["a"],
+            create_if_missing=True,
+        )
 
-    assert result is None
 
 
-def test_upsert_df_create_false_returns_none_when_open_sheet_fails(monkeypatch):
+def test_upsert_df_create_false_raises_when_open_sheet_fails(monkeypatch):
     gs = _FakeGS("https://example.com/sheet", {"report": []})
     app = _make_app(gs)
     service = SheetsService(app)
     monkeypatch.setattr(service, "open_sheet", lambda _url: False)
 
-    result = service.upsert_df(
-        "https://example.com/sheet",
-        "report",
-        pd.DataFrame([{"a": 1}]),
-        keys=["a"],
-        create_if_missing=False,
-    )
+    with pytest.raises(errors.RequestError):
+        service.upsert_df(
+            "https://example.com/sheet",
+            "report",
+            pd.DataFrame([{"a": 1}]),
+            keys=["a"],
+            create_if_missing=False,
+        )
 
-    assert result is None
 
 
-def test_upsert_df_create_false_returns_none_when_sheet_missing():
+def test_upsert_df_create_false_raises_when_sheet_missing():
     gs = _FakeGS("https://example.com/sheet", {"report": []})
     app = _make_app(gs)
     service = SheetsService(app)
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(service, "open_sheet", lambda _url: True)
 
-    result = service.upsert_df(
-        "https://example.com/sheet",
-        "missing",
-        pd.DataFrame([{"a": 1}]),
-        keys=["a"],
-        create_if_missing=False,
-    )
+    with pytest.raises(errors.SheetNotFound):
+        service.upsert_df(
+            "https://example.com/sheet",
+            "missing",
+            pd.DataFrame([{"a": 1}]),
+            keys=["a"],
+            create_if_missing=False,
+        )
     monkeypatch.undo()
 
-    assert result is None
 
 
-def test_upsert_df_empty_existing_returns_none_when_write_fails(monkeypatch):
+def test_upsert_df_empty_existing_raises_when_write_fails(monkeypatch):
     gs = _FakeGS("https://example.com/sheet", {"report": []})
     app = _make_app(gs)
     service = SheetsService(app)
     gs.sheet.select("report")
 
-    def _raise(_df, include_index=False):
+    def _raise(_df, include_index=False, **kwargs):
         raise RuntimeError("write failed")
 
     monkeypatch.setattr(gs.sheet, "overwrite_data", _raise)
-    result = service.upsert_df(
-        "https://example.com/sheet",
-        "report",
-        pd.DataFrame([{"a": 1}]),
-        keys=["a"],
-    )
+    with pytest.raises(RuntimeError):
+        service.upsert_df(
+            "https://example.com/sheet",
+            "report",
+            pd.DataFrame([{"a": 1}]),
+            keys=["a"],
+        )
 
-    assert result is None
 
 
-def test_upsert_df_returns_none_when_keys_missing():
+def test_upsert_df_raises_when_keys_missing():
     gs = _FakeGS("https://example.com/sheet", {"report": [{"a": 1}]})
     app = _make_app(gs)
     service = SheetsService(app)
     gs.sheet.select("report")
 
-    result = service.upsert_df(
-        "https://example.com/sheet",
-        "report",
-        pd.DataFrame([{"a": 2}]),
-        keys=["missing_key"],
-    )
+    with pytest.raises(ValueError):
+        service.upsert_df(
+            "https://example.com/sheet",
+            "report",
+            pd.DataFrame([{"a": 2}]),
+            keys=["missing_key"],
+        )
 
-    assert result is None
 
 
-def test_upsert_df_returns_none_when_final_write_fails(monkeypatch):
+def test_upsert_df_raises_when_final_write_fails(monkeypatch):
     gs = _FakeGS("https://example.com/sheet", {"report": [{"a": 1}]})
     app = _make_app(gs)
     service = SheetsService(app)
     gs.sheet.select("report")
 
-    def _raise(_df, include_index=False):
+    def _raise(_df, include_index=False, **kwargs):
         raise RuntimeError("final write failed")
 
     monkeypatch.setattr(gs.sheet, "overwrite_data", _raise)
-    result = service.upsert_df(
-        "https://example.com/sheet",
-        "report",
-        pd.DataFrame([{"a": 2}]),
-        keys=["a"],
-    )
+    with pytest.raises(RuntimeError):
+        service.upsert_df(
+            "https://example.com/sheet",
+            "report",
+            pd.DataFrame([{"a": 2}]),
+            keys=["a"],
+        )
 
-    assert result is None
 
 
 def test_update_cells_returns_none_when_updates_empty():

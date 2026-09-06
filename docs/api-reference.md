@@ -624,6 +624,11 @@ DataFrame を CSV の末尾に追記します。
 
 ## Google Sheets API
 
+未リリース版では read/upsert の失敗を例外で返し、`mg.sheet.save/append` は
+書込時 `True`、空入力のスキップ時 `False` を返します。上書きは単一の
+batchUpdate で行い、既存のグリッド容量・書式を保持します。
+[失敗時の契約と移行手順](reliability.md) を参照してください。
+
 通常利用の canonical path は次の3段階です。
 
 ```python
@@ -805,7 +810,7 @@ mg.sheet.save(df)           # 選択中 Worksheet を操作する
 - `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
 - `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
 
-**戻り値:** None
+**戻り値:** bool（書込時 True、空入力のスキップ時 False）。失敗は例外。
 
 **前提条件・例外:**
 - スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
@@ -825,7 +830,7 @@ mg.sheet.save(df)           # 選択中 Worksheet を操作する
 - `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
   - `append` は非冪等になり得るため、retry は主に HTTP 429/5xx を対象にします
 
-**戻り値:** None
+**戻り値:** bool（書込時 True、空入力のスキップ時 False）。失敗は例外。
 
 **前提条件・例外:**
 - スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
@@ -838,7 +843,7 @@ mg.sheet.save(df)           # 選択中 Worksheet を操作する
 
 **パラメータ:** `mg.upsert.to.sheet()` と同じ（`max_retries` / `backoff_factor` 含む）
 
-**戻り値:** pd.DataFrame | None
+**戻り値:** pd.DataFrame。読込・書込失敗やキー不整合は例外。
 
 **前提条件・例外:**
 - スプレッドシート接続済み、かつ現在シート選択済みであること（未満足時は `ValueError`）
@@ -952,13 +957,13 @@ DataFrame を名前指定したシートの既存データ末尾に追記しま�
 - `max_retries` (int) - 一時エラー（HTTP 429/5xx）時の最大再試行回数（default: `3`）
 - `backoff_factor` (float) - 再試行待機時間の係数。待機は `backoff_factor * (2**attempt)`（default: `2.0`）
 
-**戻り値:** pd.DataFrame | None
+**戻り値:** pd.DataFrame。空入力では既存データを返し、書込を行いません。
 
 **前提条件・例外:**
 - 先に `mg.open.sheet(url)` 済みであること（未接続時は `ValueError`）
 - `df` を省略する場合は `mg.report.data` が DataFrame であること
 - DataFrame 以外を渡した場合は `TypeError`
-- アップサート不能時は `None`
+- 読込・書込失敗やキー不整合は例外。読込失敗時は上書きしません。
 
 ### `mg.launch_gs(url)`
 

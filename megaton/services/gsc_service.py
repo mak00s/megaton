@@ -336,7 +336,7 @@ class GSCService:
                             current_start,
                             exc,
                         )
-                    return pd.DataFrame()
+                    raise
                 except Exception as exc:
                     if verbose:
                         logger.error(
@@ -344,7 +344,7 @@ class GSCService:
                             current_start,
                             exc,
                         )
-                    return pd.DataFrame()
+                    raise
 
                 rows = response.get("rows", [])
                 if not rows:

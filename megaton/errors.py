@@ -3,7 +3,39 @@
 
 class Error(Exception):
     """Base class for other exceptions"""
-    pass
+
+    def __str__(self):
+        return getattr(self, "message", None) or super().__str__()
+
+
+def describe_error(exc: BaseException, *, operation: str, target: str) -> dict:
+    """Return JSON-ready diagnostic context without discarding exception causes.
+
+    Transient status does not imply a mutation is safe to replay. Callers must
+    reconcile writes whose response was lost before deciding to resubmit.
+    """
+    cause = exc
+    seen = set()
+    while cause.__cause__ is not None and id(cause) not in seen:
+        seen.add(id(cause))
+        cause = cause.__cause__
+    response = getattr(cause, "response", None)
+    status = getattr(response, "status_code", None)
+    if status is None:
+        status = getattr(getattr(cause, "resp", None), "status", None)
+    if status is None:
+        code = getattr(cause, "code", None)
+        status = code if isinstance(code, int) else None
+    return {
+        "operation": operation,
+        "target": target,
+        "error_type": type(exc).__name__,
+        "message": str(exc),
+        "cause_type": type(cause).__name__,
+        "cause_message": str(cause),
+        "http_status": status,
+        "transient": status in {429, 500, 502, 503, 504},
+    }
 
 
 class ApiDisabled(Error):

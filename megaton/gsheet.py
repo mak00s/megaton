@@ -16,7 +16,7 @@ from google.auth.exceptions import RefreshError
 from gspread_dataframe import set_with_dataframe
 import gspread
 
-from . import errors, retry_utils
+from . import errors, retry_utils, gsheet_lowlevel
 
 LOGGER = logging.getLogger(__name__)
 
@@ -365,13 +365,7 @@ class MegatonGS(object):
             if not self.parent._client:
                 LOGGER.warning("Open URL first.")
                 return
-            self._maybe_retry(
-                "Google Sheets create worksheet",
-                lambda: self.parent._driver.add_worksheet(title=name, rows=100, cols=20),
-                max_retries=max_retries,
-                backoff_factor=backoff_factor,
-                retry_on_requests=True,
-            )
+            self.parent._driver.add_worksheet(title=name, rows=100, cols=20)
             self.select(name)
 
         def delete(self, name: str, *, max_retries: Optional[int] = None, backoff_factor: Optional[float] = None):
@@ -382,13 +376,7 @@ class MegatonGS(object):
                 ws = self.parent._driver.worksheet(name)
             except gspread.exceptions.WorksheetNotFound:
                 raise errors.SheetNotFound
-            self._maybe_retry(
-                "Google Sheets delete worksheet",
-                lambda: self.parent._driver.del_worksheet(ws),
-                max_retries=max_retries,
-                backoff_factor=backoff_factor,
-                retry_on_requests=True,
-            )
+            self.parent._driver.del_worksheet(ws)
             if self._driver and self._driver.title == name:
                 self._driver = None
 
@@ -414,16 +402,7 @@ class MegatonGS(object):
             except gspread.exceptions.WorksheetNotFound:
                 raise errors.SheetNotFound
 
-            self._maybe_retry(
-                "Google Sheets duplicate worksheet",
-                lambda: self.parent._driver.duplicate_sheet(
-                    source_ws.id,
-                    new_sheet_name=new_sheet_name,
-                ),
-                max_retries=max_retries,
-                backoff_factor=backoff_factor,
-                retry_on_requests=True,
-            )
+            self.parent._driver.duplicate_sheet(source_ws.id, new_sheet_name=new_sheet_name)
             return self.select(
                 new_sheet_name,
                 max_retries=max_retries,
@@ -728,44 +707,21 @@ class MegatonGS(object):
             """Save the dataframe to the sheet"""
             if not len(df):
                 LOGGER.info("no data to write.")
-                return
+                return False
             elif not self._driver:
-                LOGGER.warning("Please select a sheet first.")
-                return
+                raise errors.SheetNotFound("Please select a sheet first.")
             elif mode == 'w':
-                try:
-                    self.clear()
-                except gspread.exceptions.APIError as e:
-                    _raise_for_api_error(e)
-
-                self._maybe_retry(
-                    "Google Sheets overwrite (set_with_dataframe)",
-                    lambda: set_with_dataframe(
-                        self._driver,
-                        df,
-                        include_index=include_index,
-                        include_column_header=True,
-                        row=row,
-                        resize=True,
-                    ),
-                    max_retries=max_retries,
-                    backoff_factor=backoff_factor,
-                    retry_on_requests=True,
+                return self._atomic_overwrite(
+                    df, row=row, include_index=include_index,
+                    max_retries=max_retries, backoff_factor=backoff_factor,
                 )
-                return True
             elif mode == 'a':
                 next_row = self.next_available_row
                 current_row = self._driver.row_count
                 new_rows = df.shape[0]
                 if current_row < next_row + new_rows - 1:
                     LOGGER.debug(f"adding {next_row + new_rows - current_row - 1} rows")
-                    self._maybe_retry(
-                        "Google Sheets add rows",
-                        lambda: self._driver.add_rows(next_row + new_rows - current_row),
-                        max_retries=max_retries,
-                        backoff_factor=backoff_factor,
-                        retry_on_requests=True,
-                    )
+                    self._driver.add_rows(next_row + new_rows - current_row)
                     self._refresh()
 
                 # Append is not strictly idempotent; avoid retrying on generic network errors by default.
@@ -822,60 +778,83 @@ class MegatonGS(object):
 
             if not len(df):
                 LOGGER.info("no data to write.")
-                return
+                return False
             if not self._driver:
-                LOGGER.warning("Please select a sheet first.")
-                return
+                raise errors.SheetNotFound("Please select a sheet first.")
 
-            try:
-                # Keep rows above `row` and clear old payload from target row onward.
-                self._maybe_retry(
-                    "Google Sheets batch clear",
-                    lambda: self._driver.batch_clear([f"{row}:{self._driver.row_count}"]),
-                    max_retries=max_retries,
-                    backoff_factor=backoff_factor,
-                    retry_on_requests=True,
-                )
-            except gspread.exceptions.APIError as e:
-                _raise_for_api_error(e)
-
-            header_rows = 1
-            required_last_row = row + len(df) + header_rows - 1
-            if self._driver.row_count < required_last_row:
-                self._maybe_retry(
-                    "Google Sheets add rows",
-                    lambda: self._driver.add_rows(required_last_row - self._driver.row_count),
-                    max_retries=max_retries,
-                    backoff_factor=backoff_factor,
-                    retry_on_requests=True,
-                )
-                self._refresh()
-
-            required_cols = len(df.columns) + (1 if include_index else 0)
-            if self._driver.col_count < required_cols:
-                self._maybe_retry(
-                    "Google Sheets add cols",
-                    lambda: self._driver.add_cols(required_cols - self._driver.col_count),
-                    max_retries=max_retries,
-                    backoff_factor=backoff_factor,
-                    retry_on_requests=True,
-                )
-                self._refresh()
-
-            self._maybe_retry(
-                "Google Sheets overwrite from row (set_with_dataframe)",
-                lambda: set_with_dataframe(
-                    self._driver,
-                    df,
-                    include_index=include_index,
-                    include_column_header=True,
-                    row=row,
-                    resize=False,
-                ),
-                max_retries=max_retries,
-                backoff_factor=backoff_factor,
-                retry_on_requests=True,
+            return self._atomic_overwrite(
+                df, row=row, include_index=include_index,
+                max_retries=max_retries, backoff_factor=backoff_factor,
             )
+
+        def _atomic_overwrite(self, df, *, row, include_index, max_retries, backoff_factor):
+            if row < 1:
+                raise ValueError("row must be >= 1")
+            payload = (df.reset_index() if include_index else df).copy()
+            # Datetime columns are written as ISO strings so cell_data() turns
+            # them into real Sheets date/datetime serials (as USER_ENTERED did).
+            for col in payload.columns:
+                if pd.api.types.is_datetime64_any_dtype(payload[col]):
+                    series = payload[col]
+                    valid = series.dropna()
+                    date_only = series.dt.tz is None and bool(len(valid)) and (valid.dt.normalize() == valid).all()
+                    payload[col] = series.map(
+                        lambda value: None if pd.isna(value) else (
+                            value.date().isoformat() if date_only else value.isoformat()
+                        )
+                    )
+            rows = gsheet_lowlevel.dataframe_update_cells_rows(payload, parse_dates=True)
+            ws = self._driver
+            row_count = max(ws.row_count, row + len(rows) - 1)
+            column_count = max(ws.col_count, len(payload.columns))
+            grid_changed = row_count != ws.row_count or column_count != ws.col_count
+            requests = [
+                gsheet_lowlevel.update_grid_properties_request(
+                    ws.id,
+                    row_count=row_count,
+                    column_count=column_count,
+                ),
+                {"updateCells": {
+                    "range": {"sheetId": ws.id, "startRowIndex": row - 1},
+                    "fields": "userEnteredValue",
+                }},
+                {"updateCells": {
+                    "start": {"sheetId": ws.id, "rowIndex": row - 1, "columnIndex": 0},
+                    "rows": rows,
+                    "fields": "userEnteredValue",
+                }},
+            ]
+            # Apply date formats only to the cells that contain date serials.
+            # Group adjacent equal formats without changing mixed-column text.
+            for ci in range(len(payload.columns)):
+                formats = [
+                    record["values"][ci].get("userEnteredFormat", {}).get("numberFormat")
+                    for record in rows[1:]
+                ]
+                for fmt, start, end in gsheet_lowlevel.contiguous_runs(formats):
+                    if fmt is None:
+                        continue
+                    requests.append({"repeatCell": {
+                        "range": {
+                            "sheetId": ws.id,
+                            "startRowIndex": row + start, "endRowIndex": row + end,
+                            "startColumnIndex": ci, "endColumnIndex": ci + 1,
+                        },
+                        "cell": {"userEnteredFormat": {"numberFormat": fmt}},
+                        "fields": "userEnteredFormat.numberFormat",
+                    }})
+            try:
+                self._maybe_retry(
+                    "Google Sheets atomic overwrite",
+                    lambda: self.parent._driver.batch_update({"requests": requests}),
+                    max_retries=max_retries,
+                    backoff_factor=backoff_factor,
+                    retry_on_requests=True,
+                )
+            except gspread.exceptions.APIError as exc:
+                _raise_for_api_error(exc)
+            if grid_changed:
+                self._refresh()
             return True
 
         class Cell(object):

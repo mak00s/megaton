@@ -4,6 +4,9 @@ Megaton の実用例をまとめています。API の仕様は [api-reference.m
 
 ## セットアップ
 
+定期ジョブを2.1.3から更新する場合は [失敗時の契約とCLI診断例](reliability.md)
+を確認してください。取得失敗を空データとして処理せず、例外でジョブを停止します。
+
 ```python
 from megaton.start import Megaton
 

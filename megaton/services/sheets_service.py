@@ -261,8 +261,7 @@ class SheetsService:
 
     def _select_or_create_sheet(self, sheet_name: str, *, create_if_missing: bool) -> bool:
         if not self.app.gs:
-            print("Google Sheetsが開かれていません。先に mg.open.sheet(url) を実行してください。")
-            return False
+            raise ValueError("Google Sheetsが開かれていません。先に mg.open.sheet(url) を実行してください。")
         if sheet_name in self.app.gs.sheets:
             return bool(self.select_sheet(sheet_name))
         if not create_if_missing:
@@ -270,12 +269,12 @@ class SheetsService:
             return False
         try:
             self.app.gs.sheet.create(sheet_name)
-            self.app.state.gs_sheet_name = sheet_name
-            print(f"'{sheet_name}' シートを作成しました。")
-            return True
         except Exception as exc:
             print(f"'{sheet_name}' シートの作成に失敗しました: {exc}")
-            return False
+            raise
+        self.app.state.gs_sheet_name = sheet_name
+        print(f"'{sheet_name}' シートを作成しました。")
+        return True
 
     def save_sheet(
         self,
@@ -329,6 +328,8 @@ class SheetsService:
                     backoff_factor=backoff_factor,
                 )
                 print(f"データを「{sheet_name}」シートへ反映しました。")
+            return bool(wrote)
+        raise errors.SheetNotFound(f"Cannot save worksheet: {sheet_name}")
 
     def append_sheet(
         self,
@@ -365,6 +366,9 @@ class SheetsService:
                     backoff_factor=backoff_factor,
                 )
                 print(f"データを「{sheet_name}」シートに追記しました。")
+                return True
+            return False
+        raise errors.SheetNotFound(f"Cannot append worksheet: {sheet_name}")
 
     def open_or_create_sheet(self, sheet_url: str, sheet_name: str) -> Optional[bool]:
         if not self.app.gs or (self.app.gs.url and self.app.gs.url != sheet_url):
@@ -390,16 +394,14 @@ class SheetsService:
 
     def read_df(self, sheet_url: str, sheet_name: str) -> pd.DataFrame:
         if not self.open_sheet(sheet_url):
-            return pd.DataFrame()
+            raise errors.RequestError(f"Cannot open spreadsheet: {sheet_url}")
         try:
             self.app.gs.sheet.select(sheet_name)
             self.app.state.gs_sheet_name = sheet_name
         except errors.SheetNotFound:
-            print(f"{sheet_name} シートが存在しません。")
-            return pd.DataFrame()
+            raise
         except Exception as exc:
-            print(f"⚠️ Failed to read sheet '{sheet_name}': {exc}")
-            return pd.DataFrame()
+            raise errors.RequestError(f"Cannot read {sheet_url} / {sheet_name}") from exc
 
         data = self.app.gs.sheet.data or []
         return pd.DataFrame(data)
@@ -421,22 +423,24 @@ class SheetsService:
         width_max: int = 500,
         single_byte_multiplier: int = 7,
         multi_byte_multiplier: int = 14,
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame:
         if not isinstance(df_new, pd.DataFrame):
             raise TypeError("df_new must be a pandas.DataFrame")
+        keys = [keys] if isinstance(keys, str) else list(keys)
+        if not keys or (not df_new.empty and any(key not in df_new.columns for key in keys)):
+            raise ValueError("keys must name existing DataFrame columns")
 
         if create_if_missing:
             if not self.open_or_create_sheet(sheet_url, sheet_name):
-                return None
+                raise errors.RequestError(f"Cannot open {sheet_url} / {sheet_name}")
         else:
             if not self.open_sheet(sheet_url):
-                return None
+                raise errors.RequestError(f"Cannot open spreadsheet: {sheet_url}")
             try:
                 self.app.gs.sheet.select(sheet_name)
                 self.app.state.gs_sheet_name = sheet_name
             except errors.SheetNotFound:
-                print(f"{sheet_name} シートが存在しません。")
-                return None
+                raise
 
         try:
             df_existing = pd.DataFrame(
@@ -447,10 +451,13 @@ class SheetsService:
             )
         except Exception as exc:
             logger.exception("Failed to read sheet '%s' for upsert", sheet_name)
-            print(f"'{sheet_name}' シートの読み込みに失敗しました: {exc}")
-            df_existing = pd.DataFrame()
+            raise errors.RequestError(
+                f"Cannot upsert {sheet_url} / {sheet_name}: existing data could not be read; no write performed."
+            ) from exc
 
         df_new = df_new.copy()
+        if df_new.empty:
+            return df_existing
         if df_existing.empty:
             try:
                 self.app.gs.sheet.overwrite_data(
@@ -475,7 +482,7 @@ class SheetsService:
             except Exception as exc:
                 logger.exception("Failed to overwrite sheet '%s' (empty upsert)", sheet_name)
                 print(f"'{sheet_name}' シートへの書き込みに失敗しました: {exc}")
-                return None
+                raise
 
         df_existing = df_existing.copy()
         for key in keys:
@@ -488,8 +495,7 @@ class SheetsService:
             keys_to_remove = set(tuple(row) for row in df_new[keys].drop_duplicates().values)
             mask = df_existing[keys].apply(tuple, axis=1).isin(keys_to_remove)
         except KeyError as exc:
-            print(f"重複判定に必要な列が見つかりません: {exc}")
-            return None
+            raise ValueError(f"Existing sheet is missing upsert keys: {keys}") from exc
 
         df_cleaned = df_existing[~mask]
         df_combined = pd.concat([df_cleaned, df_new], ignore_index=True)
@@ -531,7 +537,7 @@ class SheetsService:
         except Exception as exc:
             logger.exception("Failed to overwrite sheet '%s' (upsert)", sheet_name)
             print(f"'{sheet_name}' シートへの書き込みに失敗しました: {exc}")
-            return None
+            raise
 
     def update_cells(self, sheet_url: str, sheet_name: str, updates: dict) -> Optional[bool]:
         if not updates:

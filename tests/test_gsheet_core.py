@@ -258,25 +258,25 @@ def test_save_data_mode_w_maps_clear_errors(monkeypatch):
     sheet, ws = _build_sheet()
     df = pd.DataFrame([{"a": 1}])
 
-    def _raise():
+    def _raise(body):
         raise _api_error("PERMISSION_DENIED")
 
-    monkeypatch.setattr(sheet, "clear", _raise)
+    monkeypatch.setattr(sheet.parent._driver, "batch_update", _raise)
     with pytest.raises(errors.BadPermission):
         sheet.save_data(df, mode="w")
 
-    def _raise2():
+    def _raise2(body):
         raise _api_error("disabled")
 
-    monkeypatch.setattr(sheet, "clear", _raise2)
+    monkeypatch.setattr(sheet.parent._driver, "batch_update", _raise2)
     with pytest.raises(errors.ApiDisabled):
         sheet.save_data(df, mode="w")
 
     # 未分類 APIError (例: 429) は握りつぶさず再送出する
-    def _raise3():
+    def _raise3(body):
         raise _api_error("RATE_LIMIT_EXCEEDED", code=429)
 
-    monkeypatch.setattr(sheet, "clear", _raise3)
+    monkeypatch.setattr(sheet.parent._driver, "batch_update", _raise3)
     with pytest.raises(gspread.exceptions.APIError):
         sheet.save_data(df, mode="w")
 
@@ -318,7 +318,7 @@ def test_overwrite_data_from_row_maps_batch_clear_errors(monkeypatch):
     def _raise(_ranges):
         raise _api_error("disabled")
 
-    monkeypatch.setattr(ws, "batch_clear", _raise)
+    monkeypatch.setattr(sheet.parent._driver, "batch_update", _raise)
     with pytest.raises(errors.ApiDisabled):
         sheet.overwrite_data_from_row(df, row=2)
 
@@ -326,26 +326,15 @@ def test_overwrite_data_from_row_maps_batch_clear_errors(monkeypatch):
 def test_overwrite_data_from_row_resizes_and_writes(monkeypatch):
     sheet, ws = _build_sheet(worksheet=_FakeWorksheet(row_count=2, col_count=1))
     df = pd.DataFrame([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
-    calls = {}
-
-    monkeypatch.setattr(sheet, "_refresh", lambda: None)
-
-    def _record(*args, **kwargs):
-        calls["kwargs"] = kwargs
-
-    monkeypatch.setitem(
-        sheet.overwrite_data_from_row.__globals__,
-        "set_with_dataframe",
-        _record,
-    )
-    result = sheet.overwrite_data_from_row(df, row=3)
-
-    assert result is True
-    assert "3:2" in ws.batch_clears
-    assert ws.added_rows > 0
-    assert ws.added_cols > 0
-    assert calls["kwargs"]["row"] == 3
-    assert calls["kwargs"]["include_column_header"] is True
+    assert sheet.overwrite_data_from_row(df, row=3) is True
+    assert not ws.batch_clears
+    assert ws.added_rows == ws.added_cols == 0
+    batches = sheet.parent._driver.batch_updates
+    assert len(batches) == 1
+    requests = batches[0]["requests"]
+    assert requests[0]["updateSheetProperties"]["properties"]["gridProperties"]["rowCount"] == 5
+    assert requests[1]["updateCells"]["range"]["startRowIndex"] == 2
+    assert requests[2]["updateCells"]["rows"][1]["values"][0]["userEnteredValue"] == {"numberValue": 1.0}
 
 
 def test_last_row_reads_range_via_retry_wrapper(monkeypatch):

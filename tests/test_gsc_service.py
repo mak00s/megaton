@@ -194,15 +194,14 @@ def test_query_does_not_fallback_site_url_after_paging_started():
     client = _FakeClient(responses, errors_by_key=errors_by_key)
     service = GSCService(app=None, client=client)
 
-    df = service.query(
-        site_url="https://example.com",
-        start_date="2024-01-01",
-        end_date="2024-01-31",
-        dimensions=["query", "page"],
-        row_limit=1,
-    )
-
-    assert df.empty
+    with pytest.raises(HttpError):
+        service.query(
+            site_url="https://example.com",
+            start_date="2024-01-01",
+            end_date="2024-01-31",
+            dimensions=["query", "page"],
+            row_limit=1,
+        )
     assert len(client.analytics.calls) == 2
     assert client.analytics.calls[0][0] == "https://example.com"
     assert client.analytics.calls[1][0] == "https://example.com"

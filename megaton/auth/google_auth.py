@@ -5,6 +5,7 @@ Functions for handling Authentications
 import json
 import logging
 import os
+import hashlib
 from collections import defaultdict
 
 import google.oauth2.credentials
@@ -110,14 +111,21 @@ def get_cache_path(json_path: str):
     dir_path = os.path.join(os.path.expanduser("~"), ".config")
     os.makedirs(dir_path, exist_ok=True)
     base_name = os.path.splitext(os.path.basename(json_path))[0]
-    return os.path.join(dir_path, f"cache_{base_name}.json")
+    expanded = os.path.expanduser(json_path)
+    # Only canonicalize real files; synthetic keys (inline OAuth cache_key)
+    # must not depend on the current working directory.
+    identity = os.path.realpath(expanded) if os.path.isfile(expanded) else json_path
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
+    return os.path.join(dir_path, f"cache_{base_name}_{digest}.json")
 
 
 def save_credentials(file_path: str, credentials: Credentials):
     """Save Credentials to cache file
     """
     cache_path = get_cache_path(file_path)
-    with open(cache_path, 'w') as w:
+    fd = os.open(cache_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, 'w') as w:
         LOGGER.debug(f"saving credentials to {cache_path}")
         w.write(credentials.to_json())
     return credentials

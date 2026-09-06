@@ -158,7 +158,8 @@ def test_get_credential_type_from_info_handles_variants():
 def test_get_cache_path_uses_home_config_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(auth.google_auth.os.path, "expanduser", lambda _: str(tmp_path))
     cache = auth.get_cache_path("client-secret.json")
-    assert cache.endswith(".config/cache_client-secret.json")
+    assert os.path.basename(cache).startswith("cache_client-secret_")
+    assert cache.endswith(".json")
     assert os.path.isdir(os.path.join(tmp_path, ".config"))
 
 def test_save_credentials_writes_json(tmp_path, monkeypatch):

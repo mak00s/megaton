@@ -2,6 +2,13 @@
 
 Megaton は Notebook での分析と配布を速く回すためのツールです。API の仕様は [api-reference.md](api-reference.md)、実用例は [cookbook.md](cookbook.md) を参照してください。
 
+## Reliability Implementation
+
+Sheets の namespace は `services/sheet_namespace.py` へ分離し、`start.py`
+では公開クラスの参照を維持する。取得エラーと0件を区別し、upsert の読込失敗は
+書込前に停止する。上書きは共通の値変換を使った単一 batchUpdate とする。
+移行上の変更と運用上の境界は [reliability.md](reliability.md) を参照。
+
 ## 目的
 
 - Notebook 上での試行錯誤を最短距離で回す

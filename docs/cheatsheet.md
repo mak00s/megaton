@@ -1,6 +1,7 @@
 # Megaton Cheat Sheet
 
 - 詳細: `api-reference.md`
+- 未リリース版の失敗時契約・認証キャッシュ移行: [reliability.md](reliability.md)
 
 ## Start
 
