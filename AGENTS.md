@@ -10,6 +10,8 @@
 
 - Extend existing `mg` namespaces and Result methods before adding parallel APIs. Keep one canonical public route and preserve documented compatibility.
 - Low-level Sheets request builders and retry helpers belong in `megaton/gsheet_lowlevel.py`; worksheet behavior in `megaton/gsheet.py`; the notebook facade in `megaton/start.py`.
+- The `mg.sheets` / `mg.sheet` namespaces live in `megaton/services/sheet_namespace.py`; save/append/upsert logic in `megaton/services/sheets_service.py`.
+- `ReportResult` / `SearchResult` and their chain methods live in `megaton/_result.py` (re-exported from `megaton/start.py`).
 - Keep private helpers private; expose a supported public entry point when consumers need shared functionality.
 - Preserve selection state, session defaults, and explicit error behavior. Do not silently replace failures with empty results.
 
