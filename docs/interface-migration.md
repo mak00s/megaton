@@ -1,6 +1,6 @@
 # Python / CLI / MCP Boundary Migration
 
-Status: implementation complete; releases pending (2026-10-13).
+Status: implementation complete; releases in progress (2026-10-13).
 
 ## Contract
 
@@ -64,8 +64,8 @@ not advertised as read-only. MCP exposure must enforce its own allowed actions.
 2. Run keyed hygiene CI for the committed app 0.40.0 changes and release.
 3. Upgrade consumers deliberately; do not alter their pinned releases here.
 
-Reviewed changes are committed locally; no push, tag or publication is
-part of this implementation.
+Reviewed changes are committed locally. Core push, CI, tagging and PyPI release
+precede app push, keyed CI, tagging and GitHub release. Consumer pins stay fixed.
 Core work: /Users/mak/Repos/github_mak00s/megaton.
 App work: clean megaton-app-current under this task's workspace. Old app
 checkouts remain diagnostic-only with their existing push-disabled settings.

@@ -41,8 +41,7 @@ result.save("result.csv")
 The core package provides single Google queries; `megaton-app` adds multi-step
 workflows, Adobe, jobs, audits, validation and delivery. See the
 [machine interface contract](docs/cli.md) for GSC/BQ requests, authentication,
-JSON output and MCP integration. The command is introduced in 2.3.0; until that
-version is published, install this checkout with `pip install -e .`.
+JSON output and MCP integration. These commands are available from 2.3.0.
 
 ## Core Concepts
 

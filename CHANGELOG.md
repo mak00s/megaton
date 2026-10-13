@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## 2.3.0 - Unreleased
+## 2.3.0 - 2026-10-13
 
 - Add `megaton.query.run_query`, validated GA4/GSC/BQ single requests and
   `QueryResult` with DataFrame, JSON metadata and CSV/JSON output.
