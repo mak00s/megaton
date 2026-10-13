@@ -112,7 +112,8 @@ class Megaton:
     def __init__(self,
                  credential: Optional[str] = None,
                  cache_key: Optional[str] = None,
-                 headless: bool = False):
+                 headless: bool = False,
+                 initialize_ga: bool = True):
         _ensure_deps(in_colab=self.in_colab, headless=headless)
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
@@ -120,6 +121,8 @@ class Megaton:
         self.auth_menu = None
         self.headless = headless
         self.ga = {}  # GA clients
+        self._initialize_ga = initialize_ga
+        self._ga_initialization_error = None
         self.gs = None  # Google Sheets client
         self._sc_client = None  # Google Search Console client
         self.bq = None  # BigQuery
@@ -392,8 +395,11 @@ class Megaton:
 
     def _build_ga_clients(self):
         """GA APIの準備"""
+        if not getattr(self, "_initialize_ga", True):
+            return
         from . import ga4
         self.ga = {}
+        self._ga_initialization_error = None
         if not self.creds:
             logger.warning('認証が完了していないため、GA クライアントを初期化できません。')
             return
@@ -402,11 +408,14 @@ class Megaton:
             client = ga4.MegatonGA4(self.creds)
             client._state = self.state
             client._ga_version = '4'
+            if client.accounts is None:
+                self._ga_initialization_error = RuntimeError("GA4 account discovery failed")
             if client.accounts:
                 self.ga['4'] = client
             else:
                 logger.warning("GA4はアカウントが無いのでスキップします。")
         except errors.ApiDisabled as e:
+            self._ga_initialization_error = e
             logger.warning(f"GCPプロジェクトで{e.api}を有効化してください。")
 
     def save_df(self, df: pd.DataFrame, filename: str, mode: str = 'w', include_dates: bool = True, quiet: bool = False):
@@ -1795,6 +1804,8 @@ class Megaton:
                 return df.sort_values(by=by, ascending=ascending)
 
             def _run_single(self, d, m, filter_d=None, filter_m=None, sort=None, **kwargs):
+                # Never expose a previous successful report after a failed request.
+                self.parent.data = None
                 rename_columns = {}
                 dimensions, _, rename_d, _ = self._split_defs(d)
                 metrics, _, rename_m, _ = self._split_defs(m)
@@ -1808,26 +1819,20 @@ class Megaton:
                         kwargs[_k] = session_retry[_k]
 
                 ver = self.parent.parent.ga_ver
-                try:
-                    if ver:
-                        # Forward remaining kwargs (limit / max_retries / backoff_factor
-                        # / timeout / on_exhausted / start_date / end_date) to GA4 run.
-                        self.parent.data = self.parent.parent.ga[ver].report.run(
-                            dimensions,
-                            metrics,
-                            dimension_filter=filter_d,
-                            metric_filter=filter_m,
-                            order_bys=sort,
-                            **kwargs,
-                        )
-                        if isinstance(self.parent.data, pd.DataFrame):
-                            self.parent.data = utils.prep_df(self.parent.data, rename_columns=rename_columns)
-                        return self.parent.data
-                    logger.warning("GAのアカウントを選択してください。")
-                except (errors.BadRequest, ValueError) as e:
-                    print("抽出条件に問題があります。", e.message)
-                except errors.ApiDisabled as e:
-                    logger.warning(f"GCPプロジェクトで{e.api}を有効化してください")
+                if ver:
+                    # Forward page size, total cap and retry settings to GA4.
+                    self.parent.data = self.parent.parent.ga[ver].report.run(
+                        dimensions,
+                        metrics,
+                        dimension_filter=filter_d,
+                        metric_filter=filter_m,
+                        order_bys=sort,
+                        **kwargs,
+                    )
+                    if isinstance(self.parent.data, pd.DataFrame):
+                        self.parent.data = utils.prep_df(self.parent.data, rename_columns=rename_columns)
+                    return self.parent.data
+                logger.warning("GAのアカウントを選択してください。")
                 return self.parent.data
 
             def __call__(self, d: list, m: list, filter_d=None, filter_m=None, sort=None, **kwargs):

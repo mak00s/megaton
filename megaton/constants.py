@@ -15,3 +15,6 @@ DEFAULT_SCOPES = [
 GOOGLE_SHEET_GA4_TEMPLATE_URL = 'https://docs.google.com/spreadsheets/d/1Jr4au61Xy7gfGBf5yvNKdT43awsSv98zOs4FTfM6Nms'
 GOOGLE_SHEET_GA4_TEMPLATE_SHEET1 = '推奨CustomDimension'
 GOOGLE_SHEET_GA4_TEMPLATE_SHEET2 = '推奨BQ'
+GSC_DIMENSIONS = frozenset({
+    "date", "hour", "country", "device", "page", "query", "searchAppearance", "month",
+})

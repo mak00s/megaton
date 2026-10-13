@@ -2,6 +2,24 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.3.0 - Unreleased
+
+- Add `megaton.query.run_query`, validated GA4/GSC/BQ single requests and
+  `QueryResult` with DataFrame, JSON metadata and CSV/JSON output.
+- Install `megaton query` and `megaton resources`; support `python -m megaton`.
+- Require explicit authentication; permit explicit ADC for BigQuery and
+  caller-selected clients. Add the `bigquery` extra for DataFrame conversion.
+- Share operations across Python, CLI, Notebook and MCP adapters. Workflows,
+  Adobe, job/batch, validation and delivery remain in megaton-app.
+- Gate the new contracts with blocking Pyright and installed-wheel CLI smoke CI.
+- Propagate GA4 invalid requests and disabled-API failures from Notebook sessions
+  and clear previous report data before each execution. Failed requests never
+  return a previous successful DataFrame.
+- Single-query limits cap source rows; Notebook limits remain page sizes.
+  GSC path conversion reaggregates metrics and standalone GSC skips GA4 discovery.
+- Support GSC `searchAppearance` grouping and filters in validation and execution;
+  keep the supported dimension inventory shared between both layers.
+
 ## 2.2.0 - 2026-09-06
 
 - Sheets upsert aborts on read failure without overwriting existing history.

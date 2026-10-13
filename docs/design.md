@@ -1,6 +1,6 @@
 # Design Notes
 
-Megaton は Notebook での分析と配布を速く回すためのツールです。API の仕様は [api-reference.md](api-reference.md)、実用例は [cookbook.md](cookbook.md) を参照してください。
+Megaton は Python・CLI・Notebook から Google の分析データを取得・整形・保存するツールです。MCP adapter も同じ単発実行契約を利用します。API の仕様は [api-reference.md](api-reference.md)、実用例は [cookbook.md](cookbook.md) を参照してください。
 
 ## Reliability Implementation
 
@@ -11,14 +11,27 @@ Sheets の namespace は `services/sheet_namespace.py` へ分離し、`start.py`
 
 ## 目的
 
-- Notebook 上での試行錯誤を最短距離で回す
+- Python・CLI からの単発分析と Notebook 上の試行錯誤を最短距離で回す
 - 「取得 → 整形 → 保存」を少ないコードで繋ぐ
-- 分析者がその場で判断できる UX を優先する
+- 人間が結果を確認でき、機械が入力・結果・失敗を明示的に扱える契約を提供する
+
+## 所有境界
+
+- `megaton`: Google 系分析操作、単発クエリ契約、結果・エラー、installable CLI
+- `megaton-app`: 認証の自動振り分け、Adobe、job/batch、監査、検証、納品の連携
+- 消費 repo: 案件設定、品質基準、分類、宛先、承認方針
+- MCP adapter: transport、認証、tool の公開範囲。クエリ実装は共有 API を呼ぶ
+
+主導線は Python `megaton.query.run_query` と CLI `megaton query`。
+Notebook の `mg.*` は引き続き安定 API。CLI/MCP のリクエストは対象・期間・
+認証を明示し、暗黙の選択状態や checkout 内の設定を必要としない。
+移行範囲と検証記録は [interface-migration.md](interface-migration.md) を参照。
 
 ## Public API の設計ルール
 
-Megaton の public API は、Google API / gspread / pandas の薄い wrapper ではなく、
-Notebook 上で人間が分析作業を進めるための stateful app として設計します。
+Notebook の `mg.*` API は、Google API / gspread / pandas の薄い wrapper ではなく、
+人間が分析作業を進めるための stateful session として設計します。
+単発クエリ API はその操作を明示入力で実行し、UI と独立した結果を返します。
 
 - **操作語彙を優先する**: public API は `mg.<domain>.<verb>` または
   `mg.<verb>.to.<target>` の形を基本にし、「何をするか」が先に読める名前にする。
@@ -92,7 +105,7 @@ Notebook 上で人間が分析作業を進めるための stateful app として
 
 ## 互換性ポリシー
 
-- **安定 API**: `mg.*` のパブリックメソッド（引数名・戻り値型）、`SearchResult` / `ReportResult` のチェーンメソッド
+- **安定 API**: `mg.*` のパブリックメソッド（引数名・戻り値型）、`SearchResult` / `ReportResult` のチェーンメソッド、`megaton.query` の実行・結果契約と CLI の versioned JSON 契約
 - **破壊的変更**: メジャーバージョン（2.0.0）でのみ行い、CHANGELOG に明記する
 - **対象外**: `_` prefix の内部メソッド、`megaton.transform` 等の内部モジュール構造は予告なく変更する場合がある
 
@@ -102,4 +115,4 @@ Notebook 上で人間が分析作業を進めるための stateful app として
 - 本番 ETL / DWH パイプラインの置き換え
 - 解析ロジックの自動推論や隠れた最適化
 
-Megaton は「Notebook で速く試せること」を中心に設計されています。
+Megaton は「取得・整形・保存を Python と CLI から単独で実行できること」を中心に設計されています。

@@ -902,6 +902,9 @@ class MegatonGA4(object):
                 metrics = metrics[:10]
 
             limit = kwargs.get('limit', 10000)
+            max_rows = kwargs.get('max_rows')
+            if max_rows is not None and (isinstance(max_rows, bool) or not isinstance(max_rows, int) or max_rows < 1):
+                raise ValueError("max_rows must be a positive integer")
             start_date = kwargs.get('start_date', self.start_date)
             end_date = kwargs.get('end_date', self.end_date)
             # Calendar tokens (prev-month-start etc., v1.5+) are resolved
@@ -933,6 +936,8 @@ class MegatonGA4(object):
 
             all_rows, offset, page = [], 0, 1
             while True:
+                if max_rows is not None:
+                    request.limit = min(limit, max_rows - len(all_rows))
                 (data, total_rows, headers, types) = self._request_report_api(
                     offset,
                     request,
@@ -942,11 +947,11 @@ class MegatonGA4(object):
                     timeout=timeout,
                 )
                 if len(data) > 0:
-                    all_rows.extend(data)
+                    all_rows.extend(data if max_rows is None else data[:max_rows - len(all_rows)])
                     if offset == 0:
                         LOGGER.info(f"Total {total_rows} rows found.")
                     LOGGER.info(f" p{page}: retrieved #{offset + 1} - {offset + len(data)}")
-                    if offset + len(data) == total_rows:
+                    if offset + len(data) >= total_rows or (max_rows is not None and len(all_rows) >= max_rows):
                         break
                     else:
                         page += 1

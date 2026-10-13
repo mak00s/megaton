@@ -4,7 +4,45 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Megaton is a Python toolkit for working with Google Analytics 4, Google Search Console, Google Sheets, and BigQuery from Notebooks with minimal code. It focuses on fast iteration during analysis and provides a UX tailored for Notebook workflows.
+Megaton is a Python and CLI toolkit for Google Analytics 4, Search Console,
+Google Sheets and BigQuery. Run a single query without an application checkout;
+use the same operations from scripts, Notebooks and MCP adapters.
+
+## Python and CLI
+
+```bash
+pip install megaton
+megaton query --params query.json --credential /path/to/google.json --output result.csv
+megaton resources gsc --credential /path/to/google.json
+python -m megaton query --params query.json --validate-only
+```
+
+`query.json` selects the resource and dates explicitly:
+
+```json
+{
+  "schema_version": "1.0",
+  "source": "ga4",
+  "property_id": "123456789",
+  "date_range": {"start": "2026-01-01", "end": "2026-01-31"},
+  "dimensions": ["date"],
+  "metrics": ["sessions"]
+}
+```
+
+```python
+from megaton.query import run_query
+
+result = run_query(params, credential="/path/to/google.json")
+df = result.df
+result.save("result.csv")
+```
+
+The core package provides single Google queries; `megaton-app` adds multi-step
+workflows, Adobe, jobs, audits, validation and delivery. See the
+[machine interface contract](docs/cli.md) for GSC/BQ requests, authentication,
+JSON output and MCP integration. The command is introduced in 2.3.0; until that
+version is published, install this checkout with `pip install -e .`.
 
 ## Core Concepts
 
@@ -16,7 +54,7 @@ scheduled jobs from 2.1.3.
 
 - **Result objects** — Method chaining via `SearchResult` / `ReportResult`
 - **Simple flow** — Open → Set dates → Run → Save
-- **Notebook-first** — Designed for inspecting intermediate results at every step
+- **Shared operations** — Explicit machine requests and interactive Notebook sessions
 
 ## Quick Start
 

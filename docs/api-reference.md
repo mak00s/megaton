@@ -2,6 +2,15 @@
 
 このドキュメントは、Megaton の全 API を網羅的に説明します。クイックリファレンスは [cheatsheet.md](cheatsheet.md) を参照してください。
 
+## Single-query execution (Python / CLI / MCP)
+
+`megaton.query.run_query(params, credential=..., cache_key=..., adc=False,
+client=None)` validates one GA4/GSC/BigQuery request and returns
+`QueryResult(df, params)`. Its installed CLI is `megaton query`;
+`megaton resources` lists properties, sites or datasets. Authentication and
+targets are explicit; no app checkout is required. Full request, output and
+failure contracts: [cli.md](cli.md).
+
 ---
 
 ## 目次

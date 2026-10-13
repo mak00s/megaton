@@ -93,3 +93,11 @@ jobs:
         run: python -m build
       - name: Validate package
         run: python -m twine check dist/*
+      - name: Verify installed CLI outside checkout
+        run: |
+          python -m venv /tmp/megaton-wheel-smoke
+          /tmp/megaton-wheel-smoke/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/megaton-wheel-smoke/bin/megaton --help
+          /tmp/megaton-wheel-smoke/bin/megaton query --params "$GITHUB_WORKSPACE/examples/query-ga4.json" --validate-only
+          /tmp/megaton-wheel-smoke/bin/python -m megaton query --params "$GITHUB_WORKSPACE/examples/query-ga4.json" --validate-only

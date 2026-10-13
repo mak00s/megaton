@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "source": "ga4",
+  "property_id": "123456789",
+  "date_range": {"start": "2026-01-01", "end": "2026-01-31"},
+  "dimensions": ["date"],
+  "metrics": ["sessions"]
+}

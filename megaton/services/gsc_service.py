@@ -9,7 +9,7 @@ from urllib.parse import unquote
 import pandas as pd
 from googleapiclient.errors import HttpError
 
-from .. import retry_utils, searchconsole
+from .. import constants, retry_utils, searchconsole
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +159,9 @@ class GSCService:
         if "weighted_position" in df.columns:
             agg_dict["weighted_position"] = "sum"
 
-        grouped = df.groupby(dims, as_index=False).agg(agg_dict)
+        grouped = df.groupby(dims, as_index=False, dropna=False).agg(agg_dict)
         if "weighted_position" in grouped.columns:
-            grouped["position"] = (grouped["weighted_position"] / grouped["impressions"]).round(6)
+            grouped["position"] = (grouped["weighted_position"] / grouped["impressions"].replace(0, float("nan"))).fillna(0).round(6)
             grouped.drop(columns=["weighted_position"], inplace=True)
 
         metric_cols = [col for col in ["clicks", "impressions", "position"] if col in grouped.columns]
@@ -184,6 +184,8 @@ class GSCService:
         clean: bool = False,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        if "searchAppearance" in dimensions and len(dimensions) != 1:
+            raise ValueError("searchAppearance must be the only grouping dimension; use a filter for breakdowns")
         client = self._get_client()
         max_retries = self._resolve_max_retries(max_retries)
         backoff_factor = self._resolve_backoff_factor(backoff_factor)
@@ -194,7 +196,7 @@ class GSCService:
         if metrics is None:
             metrics = ["clicks", "impressions", "ctr", "position"]
 
-        allowed_dims = {"date", "hour", "country", "device", "page", "query", "month"}
+        allowed_dims = constants.GSC_DIMENSIONS
         filter_dims = allowed_dims - {"month"}
         allowed_ops = {
             "contains",
@@ -260,11 +262,14 @@ class GSCService:
             fallback_next = False
 
             while True:
+                page_limit = min(row_limit, max_rows - total_rows)
+                if page_limit <= 0:
+                    break
                 request_body = {
                     "startDate": start_date,
                     "endDate": end_date,
                     "dimensions": api_dimensions,
-                    "rowLimit": row_limit,
+                    "rowLimit": page_limit,
                     "startRow": current_start,
                 }
 
@@ -350,13 +355,14 @@ class GSCService:
                 if not rows:
                     break
 
+                rows = rows[:page_limit]
                 all_rows.extend(rows)
                 total_rows += len(rows)
 
                 if verbose:
                     logger.info("Fetched %s rows (startRow=%s)", len(rows), current_start)
 
-                if len(rows) < row_limit:
+                if len(rows) < page_limit:
                     break
                 if total_rows >= max_rows:
                     if verbose:
