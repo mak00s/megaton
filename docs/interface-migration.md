@@ -1,6 +1,6 @@
 # Python / CLI / MCP Boundary Migration
 
-Status: implementation complete; releases in progress (2026-10-13).
+Status: implementation and releases complete (2026-10-13).
 
 ## Contract
 
@@ -53,19 +53,30 @@ not advertised as read-only. MCP exposure must enforce its own allowed actions.
 - Installed core CLI and python-module CLI validated requests from /tmp without
   app or ipywidgets installed. Subsequently installed app wheel and exercised
   app-to-core GA4 delegation with a mocked API client from /tmp.
-- App full-history secret-pattern check passed. HMAC identifier check could
-  not run locally because its key is unavailable; CI must run the keyed check.
+- App full-history keyed identifier and secret-pattern checks passed in GitHub
+  CI (run 38382322577). Local key remains unavailable; CI supplied the Secret.
 - Live Google calls were not performed. Tests mock API responses and verify
   target selection, dates, filters, errors, empty results and output contracts.
 
-## Release Order and Follow-up
+## Released Versions and Follow-up
 
-1. Publish Megaton 2.3.0 after the committed changes pass remote CI.
-2. Run keyed hygiene CI for the committed app 0.40.0 changes and release.
-3. Upgrade consumers deliberately; do not alter their pinned releases here.
+1. Megaton 2.3.0: main CI passed on Python 3.11/3.12/3.13, tag pushed,
+   GitHub release and PyPI wheel/sdist published. Fresh PyPI install and CLI passed.
+2. App 0.40.0: pushed after the core dependency was available; main CI passed
+   including keyed hygiene, typing, tests, coverage and packaging. Tag and GitHub
+   release published with wheel/sdist. No app PyPI publication.
+3. Consumer pins remain unchanged. megaton-notebooks stays on app v0.33.0.
+   Upgrade it separately after reviewing row caps and comparing old/new totals.
 
-Reviewed changes are committed locally. Core push, CI, tagging and PyPI release
-precede app push, keyed CI, tagging and GitHub release. Consumer pins stay fixed.
+- [Core release](https://github.com/mak00s/megaton/releases/tag/v2.3.0)
+- [Core PyPI](https://pypi.org/project/megaton/2.3.0/)
+- [Core CI](https://github.com/mak00s/megaton/actions/runs/38381918490)
+- [Core publisher](https://github.com/mak00s/megaton/actions/runs/38382116917)
+- [App release](https://github.com/mak00s/megaton-app/releases/tag/v0.40.0)
+- [App main CI](https://github.com/mak00s/megaton-app/actions/runs/38382322577)
+
+Reviewed changes and release preparation are committed and pushed. Core release
+precedes app release. Consumer pins stay fixed.
 Core work: /Users/mak/Repos/github_mak00s/megaton.
 App work: clean megaton-app-current under this task's workspace. Old app
 checkouts remain diagnostic-only with their existing push-disabled settings.
