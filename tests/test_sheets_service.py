@@ -4,6 +4,8 @@ import pandas as pd
 import pytest
 
 from megaton import errors
+from megaton import gsheet_lowlevel
+from megaton.gsheet import MegatonGS
 from megaton.services.sheets_service import SheetsService
 
 
@@ -111,6 +113,204 @@ def _make_app(gs):
         in_colab=False,
         state=SimpleNamespace(gs_url=None, gs_title=None, gs_sheet_name=None),
     )
+
+
+class _RoundTripSheet(_FakeSheet):
+    """Execute real record reading and atomic cell building against a fake grid."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.cells = []
+        self.ws = SimpleNamespace(
+            title="report", id=1, row_count=100, col_count=10,
+            get_all_records=self._records,
+        )
+        api = SimpleNamespace(batch_update=self._batch, fetch_sheet_metadata=self._metadata)
+        self.real = MegatonGS.Sheet(SimpleNamespace(_driver=api))
+        self.real._driver = self.ws
+
+    def _records(self, **kwargs):
+        headers = [cell["userEnteredValue"]["stringValue"] for cell in self.cells[0]]
+        return [dict(zip(headers, [next(iter(cell.get("userEnteredValue", {}).values()), "")
+                                  for cell in row])) for row in self.cells[1:]] if self.cells else []
+
+    def _metadata(self, **kwargs):
+        self.last_metadata_params = kwargs["params"]
+        return {"sheets": [{"data": [{"rowData": [{"values": [
+            {"effectiveValue": cell.get("userEnteredValue", {}),
+             "effectiveFormat": cell.get("userEnteredFormat", {})} for cell in row
+        ]} for row in self.cells]}]}]}
+
+    def _batch(self, payload):
+        for request in payload["requests"]:
+            update = request.get("updateCells", {})
+            if "rows" in update:
+                old = self.cells
+                self.cells = [record["values"] for record in update["rows"]]
+                for ri, row in enumerate(self.cells):
+                    for ci, cell in enumerate(row):
+                        cell.pop("userEnteredFormat", None)
+                        if ri < len(old) and ci < len(old[ri]):
+                            cell["userEnteredFormat"] = old[ri][ci].get("userEnteredFormat", {})
+            repeat = request.get("repeatCell", {})
+            if repeat:
+                region = repeat["range"]
+                for ri in range(region["startRowIndex"], region["endRowIndex"]):
+                    self.cells[ri][region["startColumnIndex"]]["userEnteredFormat"] = repeat["cell"]["userEnteredFormat"]
+
+    def get_records(self, **kwargs):
+        if not self.cells:
+            return []
+        return self.real.get_records(**kwargs)
+
+    def overwrite_data(self, df, include_index=False, **kwargs):
+        self.parent.last_written = df.copy()
+        return self.real._atomic_overwrite(
+            df, row=1, include_index=include_index, max_retries=None, backoff_factor=None,
+        )
+
+
+@pytest.mark.parametrize("date", [
+    "2024-01-01", "2024-01-01 10:30:15", pd.Timestamp("2024-01-01 10:30:15"),
+    pd.Timestamp("2024-01-01 10:30:15.123456"),
+])
+def test_upsert_date_keys_survive_real_cell_roundtrip(date):
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    service = SheetsService(_make_app(gs))
+    for count in (1, 2, 3):
+        result = service.upsert_df(gs.url, "report", pd.DataFrame([{"date": date, "count": count}]), keys=["date"])
+        assert len(result) == 1
+        assert result["count"].tolist() == [count]
+        assert len(gs.sheet.cells) == 2
+
+
+def test_upsert_preserves_distinct_subsecond_keys_and_nonkey_date_formats():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    service = SheetsService(_make_app(gs))
+    first = pd.DataFrame([
+        {"key": "2024-01-01 10:30:15.100000", "n": 9, "date": "2024-01-02"},
+        {"key": "2024-01-01 10:30:15.200000", "n": 100, "date": "2024-01-03"},
+    ])
+    service.upsert_df(gs.url, "report", first, keys=["key"], sort_by=["n"])
+    second = pd.DataFrame([{"key": "2024-01-01 10:30:15.100000", "n": 101, "date": "2024-01-02"}])
+    result = service.upsert_df(gs.url, "report", second, keys=["key"], sort_by=["n"])
+    assert len(result) == 2
+    assert result["n"].tolist() == [100, 101]
+    for row, expected in zip(gs.sheet.cells[1:], ("2024-01-03", "2024-01-02")):
+        assert row[2]["userEnteredValue"] == gsheet_lowlevel.cell_data(expected)["userEnteredValue"]
+        assert row[2]["userEnteredFormat"]["numberFormat"]["type"] == "DATE"
+
+
+def test_retained_nonkey_date_moves_to_unformatted_row_with_original_format():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    service = SheetsService(_make_app(gs))
+    service.upsert_df(gs.url, "report", pd.DataFrame([
+        {"key": "a", "n": 100, "date": "2024-01-02"},
+        {"key": "b", "n": 9, "date": ""},
+    ]), keys=["key"])
+    original = {"type": "DATE", "pattern": "dd/mm/yyyy"}
+    gs.sheet.cells[1][2]["userEnteredFormat"]["numberFormat"] = original
+    service.upsert_df(gs.url, "report", pd.DataFrame([
+        {"key": "c", "n": 10, "date": ""},
+    ]), keys=["key"], sort_by=["n"])
+    assert gs.sheet.cells[3][0]["userEnteredValue"]["stringValue"] == "a"
+    assert gs.sheet.cells[3][2]["userEnteredValue"] == {"numberValue": 45293.0}
+    assert gs.sheet.cells[3][2]["userEnteredFormat"]["numberFormat"] == original
+
+
+def test_upsert_numeric_sort_and_no_dataframe_map(monkeypatch):
+    monkeypatch.delattr(pd.DataFrame, "map", raising=False)
+    gs = _FakeGS("https://example.com/sheet", {"report": [{"key": "a", "n": 9}, {"key": "b", "n": 100}]})
+    result = SheetsService(_make_app(gs)).upsert_df(
+        gs.url, "report", pd.DataFrame([{"key": "c", "n": 10}]), keys=["key"], sort_by=["n"],
+    )
+    assert result["n"].tolist() == [9, 10, 100]
+
+
+@pytest.mark.parametrize("date", ["2024-01-01", "2024-01-01 10:30:15.123456"])
+def test_upsert_returns_public_dates_and_sizes_without_internal_objects(date):
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    gs.sheet.id = 1
+    widths = []
+    gs._driver.batch_update = widths.append
+    service = SheetsService(_make_app(gs))
+    service.upsert_df(gs.url, "report", pd.DataFrame([{"key": "a", "date": date}]), keys=["key"])
+    original_cell = gs.sheet.cells[1][1]["userEnteredValue"].copy()
+    result = service.upsert_df(gs.url, "report", pd.DataFrame([
+        {"key": "b", "date": "2024-01-02"},
+    ]), keys=["key"], auto_width=True)
+    assert not any(isinstance(value, gsheet_lowlevel._NativeDate) for value in result["date"])
+    assert pd.Timestamp(result["date"].iloc[0]) == pd.Timestamp(date)
+    assert "_NativeDate" not in result.to_csv(index=False)
+    assert (pd.to_datetime(result["date"].map(pd.Timestamp)) - pd.Timestamp("2024-01-01")).notna().all()
+    date_width = widths[-1]["requests"][1]["updateDimensionProperties"]["properties"]["pixelSize"]
+    assert 50 <= date_width < 300
+    assert gs.sheet.cells[1][1]["userEnteredValue"] == original_cell
+    assert gs.sheet.last_metadata_params["ranges"] == "'report'!A1:B2"
+    empty = service.upsert_df(gs.url, "report", pd.DataFrame(columns=["key", "date"]), keys=["key"])
+    assert not any(isinstance(value, gsheet_lowlevel._NativeDate) for value in empty["date"])
+    assert len(empty) == 2
+
+
+def test_date_serial_and_textual_serial_are_distinct_upsert_keys():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    service = SheetsService(_make_app(gs))
+    incoming = pd.DataFrame([{"key": "2024-01-01", "n": 1}, {"key": "45292", "n": 2}])
+    for _ in range(3):
+        result = service.upsert_df(gs.url, "report", incoming, keys=["key"])
+        assert len(result) == 2
+        assert result["n"].sum() == 3
+
+
+def test_upsert_numeric_keys_are_not_inferred_as_dates():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    service = SheetsService(_make_app(gs))
+    for _ in range(2):
+        result = service.upsert_df(gs.url, "report", pd.DataFrame([
+            {"key": 45292, "n": 1}, {"key": "0012", "n": 2},
+        ]), keys=["key"])
+        assert len(result) == 2
+    assert any(isinstance(value, (int, float)) and value == 45292 for value in result["key"])
+    assert any(value == "0012" for value in result["key"])
+    assert all(cell.get("userEnteredFormat", {}).get("numberFormat", {}).get("type") != "DATE"
+               for row in gs.sheet.cells[1:] for cell in row)
+
+
+def test_incomplete_date_keys_are_idempotent_after_cell_roundtrip():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    service = SheetsService(_make_app(gs))
+    incoming = pd.DataFrame([{"date": "2024-01-01", "medium": None, "n": 1}])
+    for _ in range(3):
+        result = service.upsert_df(gs.url, "report", incoming, keys=["date", "medium"])
+        assert len(result) == 1
+
+
+def test_upsert_sorts_native_and_new_dates_on_the_same_timeline():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    gs.sheet = _RoundTripSheet(gs)
+    service = SheetsService(_make_app(gs))
+    service.upsert_df(gs.url, "report", pd.DataFrame([
+        {"date": "1899-12-29", "n": 1}, {"date": "1900-01-09", "n": 3},
+    ]), keys=["date"])
+    result = service.upsert_df(gs.url, "report", pd.DataFrame([
+        {"date": pd.Timestamp("1899-12-31"), "n": 2},
+    ]), keys=["date"])
+    assert result["n"].tolist() == [1, 2, 3]
+
+
+def test_upsert_mixed_sort_fallback_preserves_numeric_secondary_sort():
+    gs = _FakeGS("https://example.com/sheet", {"report": [{"key": "a", "group": 1, "n": 100}]})
+    result = SheetsService(_make_app(gs)).upsert_df(gs.url, "report", pd.DataFrame([
+        {"key": "b", "group": "1", "n": 9}, {"key": "c", "group": "1", "n": 10},
+    ]), keys=["key"], sort_by=["group", "n"])
+    assert result["n"].tolist() == [9, 10, 100]
 
 
 def test_upsert_preserves_numeric_and_text_key_types():

@@ -460,7 +460,7 @@ class MegatonGS(object):
             return self.last_row + 1
 
         def get_records(self, *, max_retries: Optional[int] = None, backoff_factor: Optional[float] = None,
-                        value_render_option=None, numericise_ignore=None):
+                        value_render_option=None, numericise_ignore=None, preserve_dates=False):
             """Read all records with header row as keys."""
             if not self._driver:
                 LOGGER.error("Please select a sheet first.")
@@ -470,13 +470,46 @@ class MegatonGS(object):
                 options["value_render_option"] = value_render_option
             if numericise_ignore is not None:
                 options["numericise_ignore"] = numericise_ignore
-            return self._maybe_retry(
+            records = self._maybe_retry(
                 "Google Sheets read records",
                 lambda: self._driver.get_all_records(**options),
                 max_retries=max_retries,
                 backoff_factor=backoff_factor,
                 retry_on_requests=True,
             )
+            if not preserve_dates or not records:
+                return records
+            if value_render_option != "UNFORMATTED_VALUE" or numericise_ignore != ["all"]:
+                raise ValueError("preserve_dates requires unformatted, non-numericised records")
+            title = self._driver.title.replace("'", "''")
+            last_cell = gspread.utils.rowcol_to_a1(len(records) + 1, len(records[0]))
+            metadata = self._maybe_retry(
+                "Google Sheets read date formats",
+                lambda: self.parent._driver.fetch_sheet_metadata(params={
+                    "ranges": "'" + title + "'!A1:" + last_cell,
+                    "fields": "sheets(data(startRow,startColumn,rowData(values(effectiveValue,effectiveFormat.numberFormat))))",
+                    "includeGridData": True,
+                }),
+                max_retries=max_retries, backoff_factor=backoff_factor,
+                retry_on_requests=True,
+            )
+            headers = list(records[0])
+            for sheet in metadata.get("sheets", []):
+                for grid in sheet.get("data", []):
+                    for offset, row in enumerate(grid.get("rowData", [])):
+                        index = grid.get("startRow", 0) + offset - 1
+                        if not 0 <= index < len(records):
+                            continue
+                        for ci, cell in enumerate(row.get("values", []), grid.get("startColumn", 0)):
+                            fmt = cell.get("effectiveFormat", {}).get("numberFormat", {})
+                            serial = cell.get("effectiveValue", {}).get("numberValue")
+                            if ci >= len(headers) or serial is None or fmt.get("type") not in ("DATE", "DATE_TIME", "TIME"):
+                                continue
+                            key = headers[ci]
+                            if records[index][key] != serial:
+                                raise ValueError("Sheet changed while reading date formats; no write performed")
+                            records[index][key] = gsheet_lowlevel._NativeDate(serial, fmt)
+            return records
 
         @property
         def data(self):

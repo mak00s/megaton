@@ -55,6 +55,10 @@ def test_convert_metric_numeric_and_fallback():
     for kind in ("SECONDS", "HOURS", "MINUTES", "MILLISECONDS", "CURRENCY", "METERS"):
         assert report._convert_metric("673.8335", "TYPE_" + kind) == 673.8335
         assert report._convert_metric("not-number", "TYPE_" + kind) == "not-number"
+    for kind in ("SECONDS", "HOURS", "MINUTES", "MILLISECONDS"):
+        assert type(report._convert_metric("1234", "TYPE_" + kind)) is int
+        assert type(report._convert_metric("1234.5", "TYPE_" + kind)) is float
+        assert pd.DataFrame({"duration": [report._convert_metric("1234", "TYPE_" + kind)]}).to_csv(index=False) == "duration\n1234\n"
 
 
 def test_parse_response_converts_metric_values():

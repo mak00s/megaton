@@ -28,6 +28,26 @@ def test_records_native_read_disables_numericising_text_identifiers():
     assert calls[-1] == {"value_render_option": "UNFORMATTED_VALUE", "numericise_ignore": ["all"]}
 
 
+def test_preserve_dates_requires_consistent_native_read():
+    sheet = MegatonGS.Sheet(SimpleNamespace())
+    sheet._driver = SimpleNamespace(get_all_records=lambda **kw: [{"date": "2024-01-01"}])
+    with pytest.raises(ValueError, match="unformatted"):
+        sheet.get_records(preserve_dates=True)
+
+
+def test_preserve_dates_stops_when_metadata_and_values_disagree():
+    metadata = {"sheets": [{"data": [{"rowData": [{}, {"values": [{
+        "effectiveValue": {"numberValue": 45293},
+        "effectiveFormat": {"numberFormat": {"type": "DATE", "pattern": "yyyy-mm-dd"}},
+    }]}]}]}]}
+    sheet = MegatonGS.Sheet(SimpleNamespace(_driver=SimpleNamespace(
+        fetch_sheet_metadata=lambda **kw: metadata,
+    )))
+    sheet._driver = SimpleNamespace(title="report", get_all_records=lambda **kw: [{"date": 45292}])
+    with pytest.raises(ValueError, match="Sheet changed"):
+        sheet.get_records(value_render_option="UNFORMATTED_VALUE", numericise_ignore=["all"], preserve_dates=True)
+
+
 def _api_error(message: str, code: int = 403) -> gspread.exceptions.APIError:
     resp = requests.Response()
     resp.status_code = code

@@ -1,14 +1,36 @@
 """Google Sheets service wrapper."""
 
 import logging
+from datetime import datetime, timedelta
 from numbers import Real
 from typing import Optional
 
 import pandas as pd
 
-from .. import errors, gsheet, mount_google_drive
+from .. import errors, gsheet, gsheet_lowlevel, mount_google_drive
 
 logger = logging.getLogger(__name__)
+
+
+def _public_sheet_frame(frame):
+    """Keep native serial/format carriers out of public results and sizing."""
+    def public_value(value):
+        if not isinstance(value, gsheet_lowlevel._NativeDate):
+            return value
+        instant = datetime(1899, 12, 30) + timedelta(days=value.serial)
+        kind = value.number_format.get("type")
+        if kind == "TIME":
+            return instant.time()
+        if kind == "DATE" and instant == instant.replace(hour=0, minute=0, second=0, microsecond=0):
+            return instant.date()
+        return instant
+    result = frame.copy()
+    for column in frame.columns:
+        if any(isinstance(value, gsheet_lowlevel._NativeDate) for value in frame[column]):
+            result[column] = pd.Series(
+                [public_value(value) for value in frame[column]], index=frame.index, dtype=object,
+            )
+    return result
 
 
 class SheetsService:
@@ -450,6 +472,7 @@ class SheetsService:
                     backoff_factor=backoff_factor,
                     value_render_option="UNFORMATTED_VALUE",
                     numericise_ignore=["all"],
+                    preserve_dates=True,
                 )
             )
         except Exception as exc:
@@ -460,9 +483,10 @@ class SheetsService:
 
         df_new = df_new.copy()
         if df_new.empty:
-            return df_existing
+            return _public_sheet_frame(df_existing)
         if df_existing.empty:
             try:
+                public_frame = _public_sheet_frame(df_new)
                 self.app.gs.sheet.overwrite_data(
                     df_new,
                     include_index=False,
@@ -470,7 +494,7 @@ class SheetsService:
                     backoff_factor=backoff_factor,
                 )
                 self._apply_write_options(
-                    df_new,
+                    public_frame,
                     auto_width=auto_width,
                     freeze_header=freeze_header,
                     width_min=width_min,
@@ -481,26 +505,42 @@ class SheetsService:
                     backoff_factor=backoff_factor,
                 )
                 print(f"'{sheet_name}' シートへ {len(df_new)} 行を書き込みました。")
-                return df_new
+                return public_frame
             except Exception as exc:
                 logger.exception("Failed to overwrite sheet '%s' (empty upsert)", sheet_name)
                 print(f"'{sheet_name}' シートへの書き込みに失敗しました: {exc}")
                 raise
 
         df_existing = df_existing.copy()
-        # Normalize keys for matching without turning typed output into text.
+        # Legacy formatted dates are parsed only when the incoming column has
+        # an explicit datetime dtype. Native cells retain their serial/format.
         date_keys = [key for key in keys if pd.api.types.is_datetime64_any_dtype(df_new[key])]
         for key in date_keys:
             if key in df_existing:
                 def date_value(value):
+                    if isinstance(value, gsheet_lowlevel._NativeDate):
+                        return value
                     if isinstance(value, Real) and not pd.isna(value):
-                        return pd.Timestamp("1899-12-30") + pd.to_timedelta(value, unit="D")
-                    return pd.to_datetime(value, format="mixed", errors="raise")
+                        return gsheet_lowlevel._NativeDate(float(value), {
+                            "type": "DATE_TIME", "pattern": "yyyy-mm-dd hh:mm:ss.000",
+                        })
+                    return pd.Timestamp(value) if not pd.isna(value) else value
                 df_existing[key] = df_existing[key].map(date_value)
         try:
-            normalize = lambda value: "" if pd.isna(value) else str(value).strip()
-            new_keys = df_new[keys].map(normalize)
-            existing_keys = df_existing[keys].map(normalize)
+            def normalize(value):
+                cell = gsheet_lowlevel.cell_data(value)["userEnteredValue"]
+                if "numberValue" in cell:
+                    number = cell["numberValue"]
+                    return str(int(number)) if float(number).is_integer() else repr(float(number))
+                return str(next(iter(cell.values()), "")).strip()
+            def key_value(value):
+                cell = gsheet_lowlevel.cell_data(value)["userEnteredValue"]
+                kind, content = next(iter(cell.items()), ("stringValue", ""))
+                if kind == "stringValue" and content == "":
+                    return ""
+                return (kind, content)
+            new_keys = df_new[keys].apply(lambda col: col.map(key_value))
+            existing_keys = df_existing[keys].apply(lambda col: col.map(key_value))
             new_tuples = new_keys.apply(tuple, axis=1)
             existing_tuples = existing_keys.apply(tuple, axis=1)
             incomplete = new_keys.eq("").any(axis=1)
@@ -521,6 +561,10 @@ class SheetsService:
             row = df_new.loc[index].astype(object)
             row = row.where(pd.notna(row), "")
             history = history.astype(object).where(pd.notna(history), "")
+            row = row.map(lambda value: gsheet_lowlevel.cell_data(value)["userEnteredValue"])
+            history = history.apply(lambda col: col.map(
+                lambda value: gsheet_lowlevel.cell_data(value)["userEnteredValue"]
+            ))
             if not history.empty and history.eq(row, axis="columns").all(axis=1).any():
                 skip_new.loc[index] = True
             elif len(history) > 1:
@@ -537,9 +581,21 @@ class SheetsService:
             if missing_sort:
                 print(f"ソート対象の列が見つかりません: {missing_sort}")
             else:
-                order = df_combined[sort_cols].astype(str).apply(lambda col: col.str.strip()).sort_values(
-                    by=sort_cols, kind="stable"
-                ).index
+                def sort_value(value):
+                    cell = gsheet_lowlevel.cell_data(value)
+                    fmt = cell.get("userEnteredFormat", {}).get("numberFormat", {})
+                    if fmt.get("type") in ("DATE", "DATE_TIME", "TIME"):
+                        return cell["userEnteredValue"]["numberValue"]
+                    return value
+                sort_frame = df_combined[sort_cols].apply(
+                    lambda col: col.map(sort_value)
+                )
+                for col in sort_cols:
+                    try:
+                        sort_frame[col].sort_values()
+                    except TypeError:
+                        sort_frame[col] = sort_frame[col].map(normalize)
+                order = sort_frame.sort_values(by=sort_cols, kind="stable").index
                 df_combined = df_combined.loc[order]
 
         if columns:
@@ -549,6 +605,7 @@ class SheetsService:
             df_combined = df_combined[columns]
 
         try:
+            public_frame = _public_sheet_frame(df_combined)
             self.app.gs.sheet.overwrite_data(
                 df_combined,
                 include_index=False,
@@ -556,7 +613,7 @@ class SheetsService:
                 backoff_factor=backoff_factor,
             )
             self._apply_write_options(
-                df_combined,
+                public_frame,
                 auto_width=auto_width,
                 freeze_header=freeze_header,
                 width_min=width_min,
@@ -567,7 +624,7 @@ class SheetsService:
                 backoff_factor=backoff_factor,
             )
             print(f"'{sheet_name}' シートを更新しました（新規 {len(df_new)} 行、削除 {mask.sum()} 行）。")
-            return df_combined
+            return public_frame
         except Exception as exc:
             logger.exception("Failed to overwrite sheet '%s' (upsert)", sheet_name)
             print(f"'{sheet_name}' シートへの書き込みに失敗しました: {exc}")

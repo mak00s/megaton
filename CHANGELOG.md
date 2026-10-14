@@ -2,8 +2,21 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## Unreleased
+## 2.4.0 - Unreleased
 
+- Keep internal date-cell carriers out of upsert results and automatic column
+  widths; return standard date/time values while writing original serials and
+  formats. Distinguish textual keys from numeric/date serial keys. Limit the
+  extra date-format read to the populated record rectangle.
+  Incoming values are returned unchanged, so result date columns can contain
+  both standard date/datetime values and caller-provided strings.
+- Match upsert keys using the same numeric serials as cell writes, including
+  ISO date strings and subsecond datetimes, without rounding keys to seconds.
+  Preserve native date/time serials and formats in all retained columns when
+  rows move; upserts now read cell number formats as well as native values.
+- Sort numeric upsert columns numerically; normalize only incomparable mixed
+  columns. Use Series.map rather than the pandas 2.1-only DataFrame.map API.
+- Keep integral GA4 time metrics as integers; decimal time metrics use floats.
 - Return decimal GA4 time, currency and distance metrics as numbers rather than
   strings. Keep unknown/malformed values unchanged for existing diagnostics.
 - Write pandas nullable integers and NumPy real scalars as Sheets numbers,
@@ -11,7 +24,7 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 - Write Python date scalars as real Sheets dates, including object-dtype
   report columns, rather than turning them into date-looking text.
 - Upsert matches keys without stringifying written key values; datetime keys
-  match formatted existing dates and retain their datetime type.
+  match legacy formatted existing dates as well as native serial cells.
 - Match missing upsert keys to persisted blank cells without treating literal
   `nan` identifiers as blanks. Repeated identical incomplete-key rows preserve
   existing duplicate history; ambiguous changes stop before writing.

@@ -723,7 +723,10 @@ class MegatonGA4(object):
             elif type in ['FLOAT', 'HOURS', 'MINUTES', 'SECONDS', 'MILLISECONDS',
                           'CURRENCY', 'FEET', 'METERS', 'KILOMETERS', 'MILES', 'STANDARD']:
                 try:
-                    return float(value)
+                    number = float(value)
+                    if type in ['HOURS', 'MINUTES', 'SECONDS', 'MILLISECONDS'] and number.is_integer():
+                        return int(number)
+                    return number
                 except (TypeError, ValueError):
                     return value
             else:

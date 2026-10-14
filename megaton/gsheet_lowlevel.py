@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime as _dt
 import logging
 import math
+from dataclasses import dataclass
 from numbers import Integral, Real
 import re
 import time
@@ -283,6 +284,14 @@ _DATETIME_RE = re.compile(
 _SHEETS_EPOCH_DATE = _dt.date(1899, 12, 30)
 
 
+@dataclass(frozen=True)
+class _NativeDate:
+    """A persisted date cell, without a lossy serial-to-datetime round trip."""
+
+    serial: float
+    number_format: dict
+
+
 def _is_missing_scalar(value: Any) -> bool:
     if value is None:
         return True
@@ -350,6 +359,11 @@ def cell_data(
     ISO date and naive ISO datetime strings are written as real Sheets serials
     with a display format. Other strings stay strings.
     """
+    if isinstance(value, _NativeDate):
+        return {
+            "userEnteredValue": {"numberValue": value.serial},
+            "userEnteredFormat": {"numberFormat": dict(value.number_format)},
+        }
     if _is_missing_scalar(value):
         return {"userEnteredValue": cell_value(value, parse_formulas=parse_formulas)}
     if parse_dates and isinstance(value, _dt.date):
