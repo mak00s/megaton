@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## 2.4.0 - Unreleased
+## 2.4.0 - 2026-10-15
 
 - Keep internal date-cell carriers out of upsert results and automatic column
   widths; return standard date/time values while writing original serials and
