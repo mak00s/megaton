@@ -715,13 +715,17 @@ class MegatonGA4(object):
                     TIME (in HH:MM:SS format)
             """
             type = type.replace('TYPE_', '')
-            if type in ['INTEGER', 'HOURS', 'MINUTES', 'SECONDS', 'MILLISECONDS']:
+            if type == 'INTEGER':
                 try:
                     return int(value)
                 except:
                     return value
-            elif type in ['FLOAT']:
-                return float(value)
+            elif type in ['FLOAT', 'HOURS', 'MINUTES', 'SECONDS', 'MILLISECONDS',
+                          'CURRENCY', 'FEET', 'METERS', 'KILOMETERS', 'MILES', 'STANDARD']:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return value
             else:
                 return value
 

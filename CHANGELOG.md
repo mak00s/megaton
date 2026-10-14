@@ -2,6 +2,23 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## Unreleased
+
+- Return decimal GA4 time, currency and distance metrics as numbers rather than
+  strings. Keep unknown/malformed values unchanged for existing diagnostics.
+- Write pandas nullable integers and NumPy real scalars as Sheets numbers,
+  while preserving textual identifiers and their leading zeroes.
+- Write Python date scalars as real Sheets dates, including object-dtype
+  report columns, rather than turning them into date-looking text.
+- Upsert matches keys without stringifying written key values; datetime keys
+  match formatted existing dates and retain their datetime type.
+- Match missing upsert keys to persisted blank cells without treating literal
+  `nan` identifiers as blanks. Repeated identical incomplete-key rows preserve
+  existing duplicate history; ambiguous changes stop before writing.
+- Read native cell values for upserts with gspread numericising disabled, so
+  text such as `nan` and leading-zero identifiers cannot become other keys.
+  Interpret native date serial keys using the Sheets epoch.
+
 ## 2.3.0 - 2026-10-13
 
 - Add `megaton.query.run_query`, validated GA4/GSC/BQ single requests and

@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime as _dt
 import logging
 import math
+from numbers import Integral, Real
 import re
 import time
 from collections.abc import Iterable
@@ -301,12 +302,12 @@ def cell_value(value: Any, *, parse_formulas: bool = True) -> dict:
         return {"stringValue": ""}
     if isinstance(value, bool):
         return {"boolValue": value}
-    if isinstance(value, int):
+    if isinstance(value, Integral):
         return {"numberValue": float(value)}
-    if isinstance(value, float):
+    if isinstance(value, Real):
         if math.isnan(value) or math.isinf(value):
             return {"stringValue": ""}
-        return {"numberValue": value}
+        return {"numberValue": float(value)}
     if isinstance(value, str):
         s = value.strip()
         if not s:
@@ -349,6 +350,10 @@ def cell_data(
     ISO date and naive ISO datetime strings are written as real Sheets serials
     with a display format. Other strings stay strings.
     """
+    if _is_missing_scalar(value):
+        return {"userEnteredValue": cell_value(value, parse_formulas=parse_formulas)}
+    if parse_dates and isinstance(value, _dt.date):
+        value = value.isoformat()
     if isinstance(value, str):
         if not parse_formulas and not parse_dates:
             return {"userEnteredValue": cell_value(value, parse_formulas=False)}

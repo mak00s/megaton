@@ -459,14 +459,20 @@ class MegatonGS(object):
             """
             return self.last_row + 1
 
-        def get_records(self, *, max_retries: Optional[int] = None, backoff_factor: Optional[float] = None):
+        def get_records(self, *, max_retries: Optional[int] = None, backoff_factor: Optional[float] = None,
+                        value_render_option=None, numericise_ignore=None):
             """Read all records with header row as keys."""
             if not self._driver:
                 LOGGER.error("Please select a sheet first.")
                 return
+            options = {}
+            if value_render_option is not None:
+                options["value_render_option"] = value_render_option
+            if numericise_ignore is not None:
+                options["numericise_ignore"] = numericise_ignore
             return self._maybe_retry(
                 "Google Sheets read records",
-                lambda: self._driver.get_all_records(),
+                lambda: self._driver.get_all_records(**options),
                 max_retries=max_retries,
                 backoff_factor=backoff_factor,
                 retry_on_requests=True,

@@ -52,6 +52,9 @@ def test_convert_metric_numeric_and_fallback():
     assert report._convert_metric("10", "TYPE_INTEGER") == 10
     assert report._convert_metric("1.5", "TYPE_FLOAT") == 1.5
     assert report._convert_metric("not-number", "TYPE_INTEGER") == "not-number"
+    for kind in ("SECONDS", "HOURS", "MINUTES", "MILLISECONDS", "CURRENCY", "METERS"):
+        assert report._convert_metric("673.8335", "TYPE_" + kind) == 673.8335
+        assert report._convert_metric("not-number", "TYPE_" + kind) == "not-number"
 
 
 def test_parse_response_converts_metric_values():

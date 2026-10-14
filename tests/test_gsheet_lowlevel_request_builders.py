@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 import pandas as pd
 
 from megaton.gsheet_lowlevel import (
@@ -14,6 +15,17 @@ from megaton.gsheet_lowlevel import (
 
 def test_cell_value_preserves_string_codes() -> None:
     assert cell_value("03311187") == {"stringValue": "03311187"}
+
+
+def test_nullable_numeric_columns_remain_sheet_numbers():
+    from megaton.gsheet_lowlevel import dataframe_update_cells_rows
+
+    frame = pd.DataFrame({"count": pd.Series([12, pd.NA], dtype="Int64"),
+                          "code": ["0012", "0007"]})
+    rows = dataframe_update_cells_rows(frame)
+    assert rows[1]["values"][0]["userEnteredValue"] == {"numberValue": 12.0}
+    assert rows[1]["values"][1]["userEnteredValue"] == {"stringValue": "0012"}
+    assert rows[2]["values"][0]["userEnteredValue"] == {"stringValue": ""}
 
 
 def test_cell_value_builds_scalar_user_entered_values() -> None:
@@ -32,6 +44,12 @@ def test_cell_data_writes_iso_dates_as_sheet_serials() -> None:
         "userEnteredValue": {"numberValue": 46196.0},
         "userEnteredFormat": {"numberFormat": {"type": "DATE", "pattern": "yyyy-mm-dd"}},
     }
+
+
+def test_python_date_scalars_write_real_sheet_dates():
+    assert cell_data(date(2026, 6, 23)) == cell_data("2026-06-23")
+    assert cell_data(date(2026, 6, 23), parse_dates=False) == {
+        "userEnteredValue": {"stringValue": "2026-06-23"}}
 
 
 def test_cell_data_writes_naive_iso_datetimes_as_sheet_serials() -> None:

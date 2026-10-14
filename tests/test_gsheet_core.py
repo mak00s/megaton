@@ -15,6 +15,19 @@ def _new_gs():
     return gs
 
 
+def test_records_native_read_disables_numericising_text_identifiers():
+    calls = []
+    def get_all_records(**kwargs):
+        calls.append(kwargs)
+        return [{"source": "nan", "code": "0012", "users": 3}]
+    sheet = MegatonGS.Sheet(SimpleNamespace())
+    sheet._driver = SimpleNamespace(get_all_records=get_all_records)
+    assert sheet.get_records()[0]["source"] == "nan"
+    assert calls[-1] == {}
+    assert sheet.get_records(value_render_option="UNFORMATTED_VALUE", numericise_ignore=["all"])[0]["code"] == "0012"
+    assert calls[-1] == {"value_render_option": "UNFORMATTED_VALUE", "numericise_ignore": ["all"]}
+
+
 def _api_error(message: str, code: int = 403) -> gspread.exceptions.APIError:
     resp = requests.Response()
     resp.status_code = code

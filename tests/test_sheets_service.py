@@ -28,6 +28,7 @@ class _FakeSheet:
         return self.parent._sheets.get(self._name, [])
 
     def get_records(self, **_kwargs):
+        self.parent.last_read_options = _kwargs
         return self.data
 
     def select(self, name: str):
@@ -110,6 +111,102 @@ def _make_app(gs):
         in_colab=False,
         state=SimpleNamespace(gs_url=None, gs_title=None, gs_sheet_name=None),
     )
+
+
+def test_upsert_preserves_numeric_and_text_key_types():
+    gs = _FakeGS("https://example.com/sheet", {"report": [
+        {"month": 202608, "code": "0012", "users": 1},
+        {"month": 202609, "code": "0012", "users": 2},
+    ]})
+    gs.sheet.select("report")
+    service = SheetsService(_make_app(gs))
+    result = service.upsert_df("https://example.com/sheet", "report", pd.DataFrame([
+        {"month": 202609, "code": "0012", "users": 3},
+    ]), keys=["month", "code"])
+    assert result["month"].tolist() == [202608, 202609]
+    assert result["code"].tolist() == ["0012", "0012"]
+    assert result["users"].tolist() == [1, 3]
+
+
+def test_upsert_date_keys_match_formatted_history_without_duplicates():
+    gs = _FakeGS("https://example.com/sheet", {"report": [
+        {"ym": "2026/8/1", "count": 1}, {"ym": "2026/9/1", "count": 2}]})
+    gs.sheet.select("report")
+    service = SheetsService(_make_app(gs))
+    result = service.upsert_df("https://example.com/sheet", "report", pd.DataFrame([
+        {"ym": pd.Timestamp("2026-09-01"), "count": 3}]), keys=["ym"])
+    assert result["ym"].tolist() == [pd.Timestamp("2026-08-01"), pd.Timestamp("2026-09-01")]
+    assert result["count"].tolist() == [1, 3]
+
+
+@pytest.mark.parametrize("missing", [None, float("nan"), pd.NA, ""])
+def test_upsert_blank_keys_remain_idempotent_and_preserve_history(missing):
+    gs = _FakeGS("https://example.com/sheet", {"report": [
+        {"month": 202608, "medium": "", "users": 0},
+        {"month": 202609, "medium": "", "users": 0},
+        {"month": 202609, "medium": "", "users": 0},
+        {"month": 202609, "medium": "organic", "users": 2}]})
+    gs.sheet.select("report")
+    service = SheetsService(_make_app(gs))
+    incoming = pd.DataFrame([
+        {"month": 202609, "medium": missing, "users": 0},
+        {"month": 202609, "medium": "organic", "users": 3}])
+    for _ in range(2):
+        service.upsert_df("https://example.com/sheet", "report", incoming, keys=["month", "medium"])
+        assert len(gs.last_written) == 4
+        assert gs.last_written["users"].sum() == 3
+        assert len(gs.last_written[gs.last_written["medium"].eq("")]) == 3
+
+
+def test_upsert_blank_key_ambiguous_change_stops_before_write():
+    gs = _FakeGS("https://example.com/sheet", {"report": [
+        {"medium": "", "users": 1}, {"medium": "", "users": 2}]})
+    service = SheetsService(_make_app(gs))
+    with pytest.raises(ValueError, match="ambiguous historical"):
+        service.upsert_df("https://example.com/sheet", "report",
+                          pd.DataFrame([{"medium": None, "users": 3}]), keys=["medium"])
+    assert gs.last_written is None
+
+
+def test_upsert_literal_nan_is_not_a_blank_key():
+    gs = _FakeGS("https://example.com/sheet", {"report": [{"medium": "nan", "users": 2}]})
+    service = SheetsService(_make_app(gs))
+    result = service.upsert_df("https://example.com/sheet", "report",
+                              pd.DataFrame([{"medium": None, "users": 0}]), keys=["medium"])
+    assert len(result) == 2
+    assert result["users"].sum() == 2
+    assert gs.last_read_options["value_render_option"] == "UNFORMATTED_VALUE"
+    assert gs.last_read_options["numericise_ignore"] == ["all"]
+
+
+def test_upsert_native_date_serial_keys_match_datetime_input():
+    serial = (pd.Timestamp("2026-09-01") - pd.Timestamp("1899-12-30")).days
+    gs = _FakeGS("https://example.com/sheet", {"report": [{"ym": serial, "count": 1}]})
+    service = SheetsService(_make_app(gs))
+    result = service.upsert_df("https://example.com/sheet", "report",
+                              pd.DataFrame([{"ym": pd.Timestamp("2026-09-01"), "count": 3}]), keys=["ym"])
+    assert result["ym"].tolist() == [pd.Timestamp("2026-09-01")]
+    assert result["count"].tolist() == [3]
+
+
+def test_upsert_new_null_key_is_idempotent_after_sheets_blank_roundtrip():
+    gs = _FakeGS("https://example.com/sheet", {"report": []})
+    service = SheetsService(_make_app(gs))
+    incoming = pd.DataFrame([{"medium": pd.NA, "source": None, "users": 0}])
+    for _ in range(3):
+        result = service.upsert_df("https://example.com/sheet", "report", incoming,
+                                   keys=["medium", "source"])
+        assert len(result) == 1
+        gs._sheets["report"] = result.astype(object).where(pd.notna(result), "").to_dict("records")
+
+
+def test_upsert_single_blank_history_row_can_be_updated():
+    gs = _FakeGS("https://example.com/sheet", {"report": [{"medium": "", "users": 1}]})
+    service = SheetsService(_make_app(gs))
+    result = service.upsert_df("https://example.com/sheet", "report",
+                              pd.DataFrame([{"medium": None, "users": 3}]), keys=["medium"])
+    assert len(result) == 1
+    assert result["users"].sum() == 3
 
 
 def test_upsert_df_deduplicates_and_sorts():

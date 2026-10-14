@@ -1,6 +1,7 @@
 """Google Sheets service wrapper."""
 
 import logging
+from numbers import Real
 from typing import Optional
 
 import pandas as pd
@@ -447,6 +448,8 @@ class SheetsService:
                 self.app.gs.sheet.get_records(
                     max_retries=max_retries,
                     backoff_factor=backoff_factor,
+                    value_render_option="UNFORMATTED_VALUE",
+                    numericise_ignore=["all"],
                 )
             )
         except Exception as exc:
@@ -485,20 +488,48 @@ class SheetsService:
                 raise
 
         df_existing = df_existing.copy()
-        for key in keys:
-            if key in df_existing.columns:
-                df_existing[key] = df_existing[key].astype(str).str.strip()
-            if key in df_new.columns:
-                df_new[key] = df_new[key].astype(str).str.strip()
-
+        # Normalize keys for matching without turning typed output into text.
+        date_keys = [key for key in keys if pd.api.types.is_datetime64_any_dtype(df_new[key])]
+        for key in date_keys:
+            if key in df_existing:
+                def date_value(value):
+                    if isinstance(value, Real) and not pd.isna(value):
+                        return pd.Timestamp("1899-12-30") + pd.to_timedelta(value, unit="D")
+                    return pd.to_datetime(value, format="mixed", errors="raise")
+                df_existing[key] = df_existing[key].map(date_value)
         try:
-            keys_to_remove = set(tuple(row) for row in df_new[keys].drop_duplicates().values)
-            mask = df_existing[keys].apply(tuple, axis=1).isin(keys_to_remove)
+            normalize = lambda value: "" if pd.isna(value) else str(value).strip()
+            new_keys = df_new[keys].map(normalize)
+            existing_keys = df_existing[keys].map(normalize)
+            new_tuples = new_keys.apply(tuple, axis=1)
+            existing_tuples = existing_keys.apply(tuple, axis=1)
+            incomplete = new_keys.eq("").any(axis=1)
+            keys_to_remove = set(new_tuples[~incomplete])
+            mask = existing_tuples.isin(keys_to_remove)
         except KeyError as exc:
             raise ValueError(f"Existing sheet is missing upsert keys: {keys}") from exc
 
+        # Incomplete keys can have historical duplicates. Keep those rows when
+        # the incoming row is already present; never collapse ambiguous history.
+        skip_new = pd.Series(False, index=df_new.index)
+        history_indexes = {}
+        for index, key_tuple in existing_tuples.items():
+            history_indexes.setdefault(key_tuple, []).append(index)
+        for index in df_new.index[incomplete]:
+            matches = history_indexes.get(new_tuples.loc[index], [])
+            history = df_existing.loc[matches].reindex(columns=df_new.columns)
+            row = df_new.loc[index].astype(object)
+            row = row.where(pd.notna(row), "")
+            history = history.astype(object).where(pd.notna(history), "")
+            if not history.empty and history.eq(row, axis="columns").all(axis=1).any():
+                skip_new.loc[index] = True
+            elif len(history) > 1:
+                raise ValueError("Cannot update an incomplete upsert key with ambiguous historical rows; no write performed")
+            else:
+                mask.loc[matches] = True
+
         df_cleaned = df_existing[~mask]
-        df_combined = pd.concat([df_cleaned, df_new], ignore_index=True)
+        df_combined = pd.concat([df_cleaned, df_new[~skip_new]], ignore_index=True)
 
         sort_cols = sort_by or list(keys)
         if sort_cols:
@@ -506,7 +537,10 @@ class SheetsService:
             if missing_sort:
                 print(f"ソート対象の列が見つかりません: {missing_sort}")
             else:
-                df_combined.sort_values(by=sort_cols, inplace=True)
+                order = df_combined[sort_cols].astype(str).apply(lambda col: col.str.strip()).sort_values(
+                    by=sort_cols, kind="stable"
+                ).index
+                df_combined = df_combined.loc[order]
 
         if columns:
             for col in columns:
