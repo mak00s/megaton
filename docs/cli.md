@@ -88,7 +88,7 @@ not a read-only sandbox. SQL parameters and job orchestration remain in app.
 
 ## Result and Failure
 
-Python returns `QueryResult(df, params)`. A selected Megaton session can be
+Python returns `QueryResult(df, params, completeness)`. A selected Megaton session can be
 passed as `client=` for GA4/GSC; for BQ it is a native BigQuery client.
 The session's target and dates are explicitly updated. Do not concurrently
 share one mutable session between executions. Authentication arguments cannot
@@ -96,9 +96,16 @@ be combined with `client=`. Resource discovery creates its own client.
 
 Without `--output`, stdout contains one JSON document with `status`,
 `schema_version`, `source`, `row_count`, `columns`, normalized `params` and
-`data`. Dates use ISO JSON values; nonfinite/missing values become null.
+`data`, plus count-only `completeness` evidence for GA4/GSC (null for BigQuery).
+It contains `status` (`complete`/`truncated`/`unknown`), raw `fetched_rows`,
+`row_limit`, known `total_rows`, `discarded_rows` and `limit_reached`. These
+describe API pagination before transforms, not provider-side coverage guarantees.
+Do not infer completeness from the displayed row count. Dates use ISO JSON values;
+nonfinite/missing values become null.
 CSV output has headers and no DataFrame index. JSON files use the result
-envelope. With `--output`, stdout reports path and row count instead of rows.
+envelope. With `--output`, stdout reports path, row count and available completeness
+instead of rows (the field is omitted for manual/BQ results without evidence).
+CSV alone cannot encode that evidence; retain the JSON stdout alongside it.
 Requests/SQL/results may contain sensitive data: callers own storage policy.
 
 Exit 0 means success (including zero rows), 2 means invalid request/options, 1 means

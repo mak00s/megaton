@@ -12,6 +12,9 @@ from typing import Any
 import pandas as pd
 
 from .constants import GSC_DIMENSIONS
+from .query_metadata import COMPLETENESS_ATTR, QueryCompleteness
+
+QUERY_COMPLETENESS_CONTRACT = "raw_rows/v1"
 
 
 class QueryValidationError(ValueError):
@@ -183,6 +186,7 @@ class QueryResult:
 
     df: pd.DataFrame
     params: dict[str, Any]
+    completeness: QueryCompleteness | None = None
 
     def to_dict(self) -> dict[str, Any]:
         records = self.df.to_json(orient="records", date_format="iso")
@@ -192,6 +196,7 @@ class QueryResult:
             "status": "ok", "schema_version": "1.0", "source": self.params["source"],
             "row_count": len(self.df), "columns": list(self.df.columns),
             "params": self.params,
+            "completeness": self.completeness.to_dict() if self.completeness is not None else None,
             "data": json.loads(records),
         }
 
@@ -231,6 +236,7 @@ def run_query(
     """
     request = validate_query(params)
     source = request["source"]
+    completeness = None
     _validate_auth(source, credential, cache_key, adc, client)
     if source == "bigquery":
         bq = client if client is not None else _bq_client(request["project_id"], credential, adc)
@@ -267,6 +273,7 @@ def run_query(
         if result is None or not isinstance(result.df, pd.DataFrame):
             raise RuntimeError("query did not return a DataFrame result")
         df = result.df.copy()
+        completeness = QueryCompleteness.from_frame(df, row_limit=request["limit"])
         if source == "gsc" and request.get("page_to_path") and "page" in df.columns:
             from urllib.parse import urlparse
 
@@ -279,7 +286,8 @@ def run_query(
                 if "ctr" in columns:
                     df["ctr"] = (df["clicks"] / df["impressions"].replace(0, float("nan"))).fillna(0)
                 df = df.reindex(columns=columns)
-    return QueryResult(df=df, params=request)
+        df.attrs[COMPLETENESS_ATTR] = completeness.to_dict()
+    return QueryResult(df=df, params=request, completeness=completeness)
 
 
 def list_resources(

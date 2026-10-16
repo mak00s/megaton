@@ -1225,6 +1225,8 @@ class Megaton:
                 )
                 
                 # clean=True の場合、_clean_page() を適用
+                from .query_metadata import COMPLETENESS_ATTR
+                completeness = result.attrs.get(COMPLETENESS_ATTR)
                 if clean and 'page' in result.columns:
                     from megaton.services.gsc_service import GSCService
                     result['page'] = result['page'].apply(GSCService._clean_page)
@@ -1232,6 +1234,8 @@ class Megaton:
                     search_result = SearchResult(result, self.parent, dimensions)
                     result = search_result._aggregate_gsc(result, dimensions)
                 
+                if completeness is not None:
+                    result.attrs[COMPLETENESS_ATTR] = completeness
                 self.parent.data = result
                 return SearchResult(result, self.parent, dimensions)
 
@@ -1830,7 +1834,11 @@ class Megaton:
                         **kwargs,
                     )
                     if isinstance(self.parent.data, pd.DataFrame):
+                        from .query_metadata import COMPLETENESS_ATTR
+                        completeness = self.parent.data.attrs.get(COMPLETENESS_ATTR)
                         self.parent.data = utils.prep_df(self.parent.data, rename_columns=rename_columns)
+                        if completeness is not None:
+                            self.parent.data.attrs[COMPLETENESS_ATTR] = completeness
                     return self.parent.data
                 logger.warning("GAのアカウントを選択してください。")
                 return self.parent.data

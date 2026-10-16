@@ -2,6 +2,15 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.5.0 - 2026-10-17
+
+- Add `QueryResult.completeness` and the `raw_rows/v1` capability contract.
+  Preserve raw fetched-row count, total cap, known GA4 total, discarded GSC rows,
+  limit reach and complete/truncated/unknown status before frame transformations.
+  GSC reaching its cap is unknown, not necessarily truncated; GA4 exactly at its
+  known total is complete. JSON output includes this evidence. Existing fluent
+  report/search return types and GA4 notebook page-size semantics remain intact.
+
 ## 2.4.0 - 2026-10-15
 
 - Keep internal date-cell carriers out of upsert results and automatic column

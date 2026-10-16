@@ -11,6 +11,23 @@ client=None)` validates one GA4/GSC/BigQuery request and returns
 targets are explicit; no app checkout is required. Full request, output and
 failure contracts: [cli.md](cli.md).
 
+`QueryResult.completeness` is a `QueryCompleteness` value for GA4/GSC (null for
+BigQuery/manual results). `to_dict()`/JSON include its count-only representation:
+`status` (`complete`/`truncated`/`unknown`), `fetched_rows`, `row_limit`, `total_rows`,
+`discarded_rows`, and computed `limit_reached`. The module advertises
+`QUERY_COMPLETENESS_CONTRACT = "raw_rows/v1"`.
+
+Counts describe raw API pagination, before GSC URL/month reaggregation. GA4's
+known total distinguishes exact completion at the cap from truncation. GSC has no
+total: a full final page at the cap is unknown; exhaustion below the cap establishes
+API pagination completion, not the absence of provider privacy/coverage limits.
+Missing/invalid metadata is unknown even for a small/empty output frame. Metadata
+is also carried in `df.attrs["megaton_query_completeness"]`; arbitrary user pandas
+transforms need not preserve attrs, so retain the typed query result for decisions.
+Core preserves explicit cap semantics and returns evidence; consumers choose
+whether to reject partial/unknown results. Fluent report/search APIs remain
+compatible. This additive contract is available starting with Megaton 2.5.0.
+
 ---
 
 ## 目次

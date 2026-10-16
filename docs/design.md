@@ -76,6 +76,11 @@ Notebook の `mg.*` API は、Google API / gspread / pandas の薄い wrapper �
 
 ## Result ベースの API
 
+単一クエリの取得完全性は、低レベルAPIページ取得時に記録し、
+`QueryResult.completeness`へ渡す。加工後のDataFrame行数から逆算しない。
+既知の総件数があるGA4と総件数がないGSCを区別し、判断不能はunknownとする。
+この証拠を使った完全抽出の強制や部分結果の許可は、呼び出し元の方針として分離する。
+
 - `SearchResult` / `ReportResult` を返し、メソッドチェーンで処理する
 - 中間状態を DataFrame として即確認でき、Notebook の探索に適合する
 - 状態は明示的に結果オブジェクトに保持し、暗黙の副作用を最小化する

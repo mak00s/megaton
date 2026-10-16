@@ -942,6 +942,7 @@ class MegatonGA4(object):
             # print(request)
 
             all_rows, offset, page = [], 0, 1
+            total_rows = 0
             while True:
                 if max_rows is not None:
                     request.limit = min(limit, max_rows - len(all_rows))
@@ -971,18 +972,32 @@ class MegatonGA4(object):
                     break
 
             if len(all_rows) > 0:
-                LOGGER.info(f"All {len(all_rows)} rows were retrieved.")
+                LOGGER.info(f"Retrieved {len(all_rows)} of {total_rows} rows.")
                 if to_pd:
                     df = pd.DataFrame(all_rows, columns=headers)
                     df = utils.change_column_type(df)
                     df.columns = dimensions + metrics
+                    from .query_metadata import COMPLETENESS_ATTR, QueryCompleteness
+
+                    df.attrs[COMPLETENESS_ATTR] = QueryCompleteness(
+                        fetched_rows=len(all_rows), row_limit=max_rows, total_rows=total_rows,
+                        status="complete" if len(all_rows) == total_rows else (
+                            "truncated" if len(all_rows) < total_rows else "unknown"),
+                    ).to_dict()
                     return df
                 else:
                     return all_rows, headers, types
             else:
                 LOGGER.warning("no data found.")
                 if to_pd:
-                    return pd.DataFrame()
+                    from .query_metadata import COMPLETENESS_ATTR, QueryCompleteness
+
+                    df = pd.DataFrame()
+                    df.attrs[COMPLETENESS_ATTR] = QueryCompleteness(
+                        fetched_rows=0, row_limit=max_rows, total_rows=total_rows,
+                        status="complete" if total_rows == 0 else "truncated",
+                    ).to_dict()
+                    return df
                 else:
                     return all_rows, headers, types
 

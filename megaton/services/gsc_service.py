@@ -255,11 +255,13 @@ class GSCService:
                 )
 
         all_rows = []
+        exhausted = False
         for idx, site_candidate in enumerate(site_candidates):
             all_rows = []
             current_start = start_row
             total_rows = 0
             fallback_next = False
+            exhausted = False
 
             while True:
                 page_limit = min(row_limit, max_rows - total_rows)
@@ -353,6 +355,7 @@ class GSCService:
 
                 rows = response.get("rows", [])
                 if not rows:
+                    exhausted = True
                     break
 
                 rows = rows[:page_limit]
@@ -363,6 +366,7 @@ class GSCService:
                     logger.info("Fetched %s rows (startRow=%s)", len(rows), current_start)
 
                 if len(rows) < page_limit:
+                    exhausted = True
                     break
                 if total_rows >= max_rows:
                     if verbose:
@@ -375,7 +379,13 @@ class GSCService:
             break
 
         if not all_rows:
-            return pd.DataFrame()
+            from ..query_metadata import COMPLETENESS_ATTR, QueryCompleteness
+
+            frame = pd.DataFrame()
+            frame.attrs[COMPLETENESS_ATTR] = QueryCompleteness(
+                fetched_rows=0, row_limit=max_rows, status="complete" if exhausted else "unknown",
+            ).to_dict()
+            return frame
 
         data = []
         for idx, row in enumerate(all_rows):
@@ -395,7 +405,14 @@ class GSCService:
             data.append(row_data)
 
         df = pd.DataFrame(data)
+        from ..query_metadata import COMPLETENESS_ATTR, QueryCompleteness
+
+        metadata = QueryCompleteness(
+            fetched_rows=len(all_rows), row_limit=max_rows, discarded_rows=len(all_rows) - len(data),
+            status="complete" if exhausted and len(data) == len(all_rows) else "unknown",
+        ).to_dict()
         if df.empty:
+            df.attrs[COMPLETENESS_ATTR] = metadata
             return df
 
         if clean and "page" in df.columns:
@@ -420,7 +437,9 @@ class GSCService:
                 df[metric] = 0
 
         ordered = [col for col in dimensions if col in df.columns] + metrics
-        return df[ordered]
+        result = df[ordered]
+        result.attrs[COMPLETENESS_ATTR] = metadata
+        return result
 
     def fetch_sites(
         self,

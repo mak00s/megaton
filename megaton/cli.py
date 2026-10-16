@@ -48,6 +48,8 @@ def main(argv: list[str] | None = None) -> int:
                     if args.output:
                         result.save(args.output)
                         payload = {"status": "ok", "output": args.output, "row_count": len(result.df)}
+                        if result.completeness is not None:
+                            payload["completeness"] = result.completeness.to_dict()
                     else:
                         payload = result.to_dict()
             else:
