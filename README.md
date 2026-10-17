@@ -15,7 +15,14 @@ pip install megaton
 megaton query --params query.json --credential /path/to/google.json --output result.csv
 megaton resources gsc --credential /path/to/google.json
 python -m megaton query --params query.json --validate-only
+megaton auth list                      # machine-wide credential store (2.6.0+)
+megaton query --params query.json --sa corp-ga
 ```
+
+Credentials can live in one per-machine store (`~/.config/megaton`) and be
+named by identity (`Megaton(sa="corp-ga")`, `Megaton(account="sim")`,
+`megaton auth token --account sim --scopes docs`). See
+[docs/credential-store.md](docs/credential-store.md).
 
 `query.json` selects the resource and dates explicitly:
 

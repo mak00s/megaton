@@ -20,4 +20,5 @@
 - Run targeted tests for every behavior change; use `python -m pytest --cov=megaton --cov-report=term-missing` for broad changes.
 - Update API documentation and [CHANGELOG.md](CHANGELOG.md) with public behavior changes; avoid duplicating full specifications in this file.
 - Never commit credentials, tokens, or private notebook output. Do not use live external writes as ordinary unit tests.
+- Credentials come from the machine-wide store (`megaton/auth/store.py`, `megaton auth`, [docs/credential-store.md](docs/credential-store.md)): resolve by identity (`account=` / `sa=`), never widen a token's scopes in code, and keep the `hint` of `CredentialStoreError` a runnable `megaton auth login ...` command.
 - Preserve unrelated worktree changes. Publishing packages, pushing, and releasing require an explicit request.

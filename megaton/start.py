@@ -113,8 +113,14 @@ class Megaton:
                  credential: Optional[str] = None,
                  cache_key: Optional[str] = None,
                  headless: bool = False,
-                 initialize_ga: bool = True):
+                 initialize_ga: bool = True,
+                 *,
+                 account: Optional[str] = None,
+                 sa: Optional[str] = None,
+                 scopes: Optional[list] = None,
+                 store_home: Optional[str] = None):
         _ensure_deps(in_colab=self.in_colab, headless=headless)
+        self._store_home = store_home
         self.json = None
         self.required_scopes = constants.DEFAULT_SCOPES
         self.creds = None
@@ -151,7 +157,10 @@ class Megaton:
         self._credential = credential
         if self.in_colab:
             mount_google_drive()
-        self.auth(credential=self._credential, cache_key=cache_key)
+        if account or sa:
+            self.auth(credential=self._credential, cache_key=cache_key, account=account, sa=sa, scopes=scopes)
+        else:
+            self.auth(credential=self._credential, cache_key=cache_key)
 
     def _notify_invalid_oauth_config(self, message: str):
         clear_output(wait=True)
@@ -296,12 +305,17 @@ class Megaton:
         ]
         return [name for name, active in services if active]
 
-    def auth(self, credential: Optional[str] = None, cache_key: Optional[str] = None):
+    def auth(self, credential: Optional[str] = None, cache_key: Optional[str] = None,
+             account: Optional[str] = None, sa: Optional[str] = None, scopes: Optional[list] = None):
         """認証
+        ・account / sa → 認証ストア（~/.config/megaton）から識別子で取得
         ・ディレクトリ→選択メニュー
         ・ファイル→そのまま認証
         ・JSON文字列→メモリから認証（SA or OAuth）
         """
+        if account or sa:
+            self._auth_from_store(account=account, sa=sa, scopes=scopes)
+            return
         source = auth_provider.resolve_credential_source(
             credential,
             in_colab=self.in_colab,
@@ -392,6 +406,30 @@ class Megaton:
         warning_value = source.value if source.value is not None else credential
         if warning_value:
             logger.warning('指定した認証情報を解釈できません: %s', warning_value)
+
+    def _auth_from_store(self, *, account: Optional[str], sa: Optional[str], scopes: Optional[list]):
+        """認証ストアから識別子で資格情報を取得する（account=ユーザー、sa=サービスアカウント）"""
+        from .auth.store import CredentialStore
+
+        if account and sa:
+            raise ValueError("pass account or sa, not both")
+        store = CredentialStore(home=getattr(self, "_store_home", None))
+        if sa:
+            self.creds = store.service_account_credentials(sa, scopes or self.required_scopes)
+            self.json = f"<store:sa:{sa}>"
+        else:
+            self.creds = store.user_credentials(account, scopes)
+            self.json = f"<store:user:{store.resolve_email(account)}>"
+        granted = list(getattr(self.creds, "scopes", None) or [])
+        has_analytics = bool(sa) or not granted or any("analytics" in s for s in granted)
+        if not self.headless:
+            self.select.ga()
+        elif has_analytics:
+            logger.debug('Headless mode: store credentials loaded without UI.')
+            self._build_ga_clients()
+        else:
+            logger.debug('Store credentials lack an analytics scope; GA clients are not initialized.')
+        self._reset_pending_oauth()
 
     def _build_ga_clients(self):
         """GA APIの準備"""

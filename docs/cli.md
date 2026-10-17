@@ -16,10 +16,16 @@ cat query.json | python -m megaton query --params - --validate-only
 megaton resources ga4 --credential /absolute/path/google.json
 megaton resources gsc --credential /absolute/path/google.json
 megaton resources bigquery --project-id example-project --adc
+# From 2.6.0: name a service account in the credential store instead of a path
+megaton query --params query.json --sa corp-ga
+megaton auth list
 ```
 
 No app checkout, credential-directory scanning or client inventory is required.
 Explicit credential files use existing Megaton authentication for GA4/GSC.
+`--sa NAME` resolves a service-account key from the machine-wide
+[credential store](credential-store.md) (`~/.config/megaton`); `megaton auth`
+manages that store (user logins, tokens, imports).
 User OAuth requires an existing cache; pass `--cache-key` where needed.
 GA4 currently uses Analytics Admin API property discovery as well as Data API.
 BQ credential files use Google Auth; ADC is available only by explicit `--adc`.

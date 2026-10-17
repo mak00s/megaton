@@ -63,7 +63,7 @@ compatible. This additive contract is available starting with Megaton 2.5.0.
 
 ## 初期化
 
-### `Megaton(credential=None, cache_key=None, headless=False)`
+### `Megaton(credential=None, cache_key=None, headless=False, *, account=None, sa=None, scopes=None)`
 
 Megaton インスタンスを作成します。
 
@@ -76,6 +76,17 @@ Megaton インスタンスを作成します。
 - `headless` (bool) - UI なしモード（default: False）
   - `True`: ウィジェット UI を表示せず、コードで明示的に指定
   - `False`: UI で対話的に選択可能
+- `account` (str | None) - 認証ストアのユーザー（メールまたは別名）。2.6.0 以降
+- `sa` (str | None) - 認証ストアのサービスアカウント名。2.6.0 以降
+- `scopes` (list | None) - `account`/`sa` 使用時のスコープ（別名 `docs`, `sheets`, `analytics` 等か URL）。`sa` の既定は `DEFAULT_SCOPES`、`account` の既定はトークンに付与済みのスコープ
+- `store_home` (str | None) - 認証ストアの場所（既定は `$MEGATON_HOME` または `~/.config/megaton`）
+
+`account`/`sa` を指定すると `credential` は無視され、[認証ストア](credential-store.md)から識別子で資格情報を取得します。
+
+```python
+mg = Megaton(sa="corp-ga", headless=True)            # サービスアカウント
+mg = Megaton(account="sim", scopes=["sheets"], headless=True)  # ユーザーのトークン
+```
 
 **戻り値:** Megaton インスタンス
 

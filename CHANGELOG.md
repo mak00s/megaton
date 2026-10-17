@@ -2,6 +2,22 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.6.0 - 2026-10-17
+
+- Credential store: one machine-wide directory (`~/.config/megaton` or
+  `$MEGATON_HOME`) holds user OAuth tokens (`users/<email>.json`), service
+  account keys (`sa/<name>.json`), the OAuth client and an alias registry
+  (`credentials.toml`). `megaton.auth.CredentialStore` resolves credentials by
+  identity, refreshes and persists user tokens, and raises
+  `CredentialStoreError` whose `hint` is the `megaton auth login` command that
+  repairs the token. Requested scopes never expand a grant.
+- `megaton auth` CLI: `init`, `list`, `login`, `token`, `check`, `import`,
+  `path`, `scopes`. `login` merges new scopes into the user's existing token and
+  refuses to save a token for a different signed-in account.
+- `Megaton(account=..., sa=..., scopes=...)` authenticates from the store;
+  `megaton query` / `megaton resources` accept `--sa NAME`.
+  See [docs/credential-store.md](docs/credential-store.md).
+
 ## 2.5.1 - 2026-10-19
 
 - Mark GA4 empty-on-retry-exhaustion results as unknown with no known total,

@@ -8,6 +8,8 @@ import json
 import sys
 from pathlib import Path
 
+from .auth import cli as auth_cli
+from .auth.store import CredentialStore, CredentialStoreError
 from .query import (
     QueryValidationError,
     _validate_auth,
@@ -29,10 +31,21 @@ def main(argv: list[str] | None = None) -> int:
     resources.add_argument("--project-id")
     for command in (query, resources):
         command.add_argument("--credential", help="Explicit Google credential JSON file")
+        command.add_argument("--sa", help="Service account name in the credential store (see `megaton auth`)")
         command.add_argument("--cache-key", help="Existing Megaton OAuth cache identifier")
         command.add_argument("--adc", action="store_true", help="Explicitly use ADC for BigQuery")
+    auth_cli.add_parser(commands)
     args = parser.parse_args(argv)
+    if args.command == "auth":
+        return auth_cli.run(args)
     try:
+        if args.sa:
+            if args.credential:
+                raise QueryValidationError("pass --credential or --sa, not both")
+            try:
+                args.credential = str(CredentialStore().service_account_path(args.sa))
+            except CredentialStoreError as exc:
+                raise QueryValidationError(str(exc)) from exc
         # Legacy Python APIs may print; stdout must remain one JSON document.
         with contextlib.redirect_stdout(sys.stderr):
             if args.command == "query":
