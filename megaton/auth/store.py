@@ -453,6 +453,8 @@ class CredentialStore:
             def flow_factory(client_file, scopes):  # noqa: E306
                 return InstalledAppFlow.from_client_secrets_file(str(client_file), scopes=scopes)
         flow = flow_factory(client, merged)
+        # Google adds "openid" to the granted set; oauthlib treats that as an error unless relaxed.
+        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
         creds = flow.run_local_server(port=port, open_browser=open_browser, login_hint=email,
                                       prompt="consent", access_type="offline")
         signed_in = self.identity(creds)
