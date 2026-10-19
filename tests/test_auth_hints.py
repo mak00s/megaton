@@ -106,3 +106,31 @@ def test_suppressed_context_silences_tips_and_restores(home, tmp_path):
     assert hints.hints_enabled()
     assert hints.suggest_store(path, stream=out)
     assert out.getvalue().count("[megaton] hint:") == 1
+
+
+def test_cli_sa_option_does_not_suggest_sa(home, tmp_path, monkeypatch, capsys):
+    from megaton import cli
+
+    (home.sa_dir / "corp.json").write_text(json.dumps(sa_key()), encoding="utf-8")
+    seen = []
+
+    def fake_list(source, **kwargs):
+        seen.append(hints.suggest_store(kwargs["credential"]))
+        return []
+
+    monkeypatch.setattr(cli, "list_resources", fake_list)
+    assert cli.main(["resources", "gsc", "--sa", "corp"]) == 0
+    assert seen == [False]
+    assert "[megaton] hint:" not in capsys.readouterr().err
+    assert hints.hints_enabled()  # suppression ends with the command
+
+
+def test_cli_credential_path_still_gets_tip(home, tmp_path, monkeypatch, capsys):
+    from megaton import cli
+
+    (home.sa_dir / "corp.json").write_text(json.dumps(sa_key()), encoding="utf-8")
+    path = key_file(tmp_path)
+    monkeypatch.setattr(cli, "list_resources",
+                        lambda source, **kwargs: hints.suggest_store(kwargs["credential"]) and [])
+    assert cli.main(["resources", "gsc", "--credential", str(path)]) == 0
+    assert 'pass sa="corp"' in capsys.readouterr().err

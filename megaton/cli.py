@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 
-from .auth import cli as auth_cli
+from .auth import cli as auth_cli, hints
 from .auth.store import CredentialStore, CredentialStoreError
 from .query import (
     QueryAuthenticationError,
@@ -49,7 +49,9 @@ def main(argv: list[str] | None = None) -> int:
                 # An unknown store entry is an authentication failure (exit 1), not a malformed request.
                 raise QueryAuthenticationError(str(exc)) from exc
         # Legacy Python APIs may print; stdout must remain one JSON document.
-        with contextlib.redirect_stdout(sys.stderr):
+        # --sa already names a store entry, so the "pass sa=" tip for its key file would be noise.
+        quiet_tips = hints.suppressed() if args.sa else contextlib.nullcontext()
+        with contextlib.redirect_stdout(sys.stderr), quiet_tips:
             if args.command == "query":
                 raw = sys.stdin.read() if args.params == "-" else Path(args.params).read_text(encoding="utf-8")
                 params = validate_query(json.loads(raw))
