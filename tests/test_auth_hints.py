@@ -134,3 +134,63 @@ def test_cli_credential_path_still_gets_tip(home, tmp_path, monkeypatch, capsys)
                         lambda source, **kwargs: hints.suggest_store(kwargs["credential"]) and [])
     assert cli.main(["resources", "gsc", "--credential", str(path)]) == 0
     assert 'pass sa="corp"' in capsys.readouterr().err
+
+
+# ---- 2.6.2 review fixes: login scopes, quoted paths, tip only after OAuth success ----
+
+def oauth_client(tmp_path, file="client.json"):
+    path = tmp_path / file
+    path.write_text(json.dumps({"installed": {
+        "client_id": "cid.apps.googleusercontent.com", "client_secret": "s",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth", "token_uri": "https://oauth2.googleapis.com/token",
+        "redirect_uris": ["http://localhost"],
+    }}), encoding="utf-8")
+    return path
+
+
+def test_oauth_login_hint_requests_the_legacy_session_scopes(home, tmp_path):
+    import shlex
+
+    from megaton.auth.store import expand_scopes
+
+    message = hints.store_hint(oauth_client(tmp_path))
+    command = message.split("`megaton auth login", 1)[1].split("`", 1)[0]
+    scopes = shlex.split(command)[shlex.split(command).index("--scopes") + 1]
+    assert set(scopes.split(",")) == {"analytics", "analytics.edit", "sheets", "drive", "webmasters"}
+    assert "cloud-platform" not in scopes and "use sa= for BigQuery/Cloud" in message
+    assert len(expand_scopes(scopes)) == 5
+
+
+@pytest.mark.parametrize("kind", ["sa", "oauth"])
+def test_paths_with_spaces_are_quoted(home, tmp_path, kind):
+    import shlex
+
+    folder = tmp_path / "my keys"
+    folder.mkdir()
+    path = key_file(folder, file="client key.json") if kind == "sa" else oauth_client(folder, "client key.json")
+    message = hints.store_hint(path)
+    command = message.split("`megaton auth import", 1)[1].split("`", 1)[0]
+    argv = shlex.split(command)
+    assert str(path) in argv
+
+
+def _headless_oauth(monkeypatch, tmp_path, cached):
+    from megaton import start
+    from megaton.auth import google_auth
+
+    monkeypatch.setattr(google_auth, "load_credentials", lambda *a, **k: cached)
+    monkeypatch.setattr(start.Megaton, "_notify_invalid_oauth_config", lambda self, message: None)
+    monkeypatch.setattr(start.Megaton, "_build_ga_clients", lambda self: None)
+    return start.Megaton(str(oauth_client(tmp_path)), headless=True)
+
+
+def test_failed_headless_oauth_prints_no_tip(home, tmp_path, monkeypatch, capsys):
+    mg = _headless_oauth(monkeypatch, tmp_path, cached=None)
+    assert mg.creds is None
+    assert "[megaton] hint:" not in capsys.readouterr().err
+
+
+def test_successful_headless_oauth_prints_tip(home, tmp_path, monkeypatch, capsys):
+    mg = _headless_oauth(monkeypatch, tmp_path, cached=object())
+    assert mg.creds is not None
+    assert "megaton auth login --account <email>" in capsys.readouterr().err

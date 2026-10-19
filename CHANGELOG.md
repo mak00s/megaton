@@ -2,6 +2,17 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.6.2 - 2026-10-19
+
+- The OAuth migration tip now asks for the scopes a legacy session actually uses
+  (`analytics,analytics.edit,sheets,drive,webmasters`), so following it does not
+  lose Sheets/Drive/Analytics-edit access. Google Cloud scopes stay on service
+  accounts (`sa=`), keeping user tokens out of Cloud session control.
+- File paths in suggested commands are shell-quoted; paths with spaces no longer
+  split into separate arguments.
+- The OAuth-client tip is printed only after authentication succeeded, matching the
+  documented contract; a failed or pending headless/Colab flow prints none.
+
 ## 2.6.1 - 2026-10-19
 
 - Point legacy credential paths at the credential store. After a service-account,

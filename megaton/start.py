@@ -377,18 +377,16 @@ class Megaton:
                     return
                 if not self._validate_oauth_client(source.info):
                     return
-                from .auth.hints import suggest_store
-                suggest_store(source.value)
                 if self.headless:
-                    if self._handle_headless_oauth(source.info, source.value, source.value):
-                        return
-                    return
-                if self.in_colab:
-                    if self._handle_oauth_credentials(source.info, source.value, source.value):
-                        return
-                    return
-                if self._handle_oauth_local_server(source.info, source.value, source.value):
-                    return
+                    handled = self._handle_headless_oauth(source.info, source.value, source.value)
+                elif self.in_colab:
+                    handled = self._handle_oauth_credentials(source.info, source.value, source.value)
+                else:
+                    handled = self._handle_oauth_local_server(source.info, source.value, source.value)
+                # Tip only after the handler authenticated; a pending or failed flow gets none.
+                if handled and self.creds is not None:
+                    from .auth.hints import suggest_store
+                    suggest_store(source.value)
                 return
             if creds_type == 'service_account':
                 self.creds = auth_google.load_service_account_credentials_from_file(source.value, constants.DEFAULT_SCOPES)
