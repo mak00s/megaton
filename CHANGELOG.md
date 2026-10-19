@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## Unreleased
+## 2.6.1 - 2026-10-19
 
 - Point legacy credential paths at the credential store. After a service-account,
   OAuth-client or BigQuery key file authenticates, print one stderr tip per file
@@ -10,6 +10,9 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   account is already stored, otherwise the `megaton auth import`/`login` command.
   Silent in CI (`CI`, `GITHUB_ACTIONS`) and with `MEGATON_HINTS=0`. Tips never
   change or break authentication.
+- `megaton.auth.hints.suppressed()` silences tips for keys a caller selects
+  automatically (used by megaton-app's credential router), and the CLI no longer
+  suggests `--sa` when it was already given `--sa`.
 
 ## 2.6.0 - 2026-10-19
 
