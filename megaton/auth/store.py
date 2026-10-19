@@ -84,7 +84,6 @@ _SCOPE_IMPLIES: dict[str, set[str]] = {
     _G + "drive.readonly": {_G + "spreadsheets.readonly", _G + "documents.readonly"},
     _G + "spreadsheets": {_G + "spreadsheets.readonly"},
     _G + "documents": {_G + "documents.readonly"},
-    _G + "analytics.edit": {_G + "analytics.readonly"},
     _G + "webmasters": {_G + "webmasters.readonly"},
     _G + "tagmanager.edit.containers": {_G + "tagmanager.readonly"},
     _G + "calendar": {_G + "calendar.readonly"},
@@ -206,11 +205,28 @@ def _fetch_identity(access_token: str) -> dict:
 
 
 def _write_private(path: Path, text: str) -> None:
+    """Write atomically (temp file + rename) with mode 0600 so readers never see a partial file."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(text)
-    os.chmod(path, 0o600)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _safe_name(value: str, what: str) -> str:
+    """Reject names that could escape the store directory."""
+    value = (value or "").strip()
+    if not value or value in (".", "..") or "/" in value or "\\" in value or value.startswith("."):
+        raise CredentialStoreError(f"invalid {what}: {value!r}")
+    return value
 
 
 class CredentialStore:
@@ -271,7 +287,7 @@ class CredentialStore:
         if not isinstance(info, dict) or not ({"installed", "web"} & set(info)):
             raise CredentialStoreError(f"{source} is not an OAuth client file")
         self.init()
-        target = self.home / OAUTH_CLIENT_FILE
+        target = self.oauth_client_path  # honours [oauth].client in the registry
         _write_private(target, json.dumps(info, ensure_ascii=False, indent=2) + "\n")
         return target
 
@@ -305,7 +321,7 @@ class CredentialStore:
         )
 
     def user_token_path(self, email: str) -> Path:
-        return self.users_dir / f"{email}.json"
+        return self.users_dir / f"{_safe_name(email, 'email')}.json"
 
     def _load_token(self, email: str) -> dict:
         path = self.user_token_path(email)
@@ -394,8 +410,11 @@ class CredentialStore:
         info = dict(base or {})
         info.update(json.loads(creds.to_json()))
         info["account"] = email
-        if creds.scopes:
-            info["scopes"] = list(creds.scopes)
+        # Record what Google actually granted (the consent screen lets users untick scopes),
+        # not what was requested; the requested list is what Credentials.to_json() writes.
+        granted = list(getattr(creds, "granted_scopes", None) or creds.scopes or [])
+        if granted:
+            info["scopes"] = granted
         path = self.user_token_path(email)
         _write_private(path, json.dumps(info, ensure_ascii=False, indent=2) + "\n")
         return path
@@ -454,9 +473,17 @@ class CredentialStore:
                 return InstalledAppFlow.from_client_secrets_file(str(client_file), scopes=scopes)
         flow = flow_factory(client, merged)
         # Google adds "openid" to the granted set; oauthlib treats that as an error unless relaxed.
-        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
-        creds = flow.run_local_server(port=port, open_browser=open_browser, login_hint=email,
-                                      prompt="consent", access_type="offline")
+        # The granted set is recorded by _save_user, so the relaxed check loses nothing.
+        previous = os.environ.get("OAUTHLIB_RELAX_TOKEN_SCOPE")
+        os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+        try:
+            creds = flow.run_local_server(port=port, open_browser=open_browser, login_hint=email,
+                                          prompt="consent", access_type="offline")
+        finally:
+            if previous is None:
+                os.environ.pop("OAUTHLIB_RELAX_TOKEN_SCOPE", None)
+            else:
+                os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = previous
         signed_in = self.identity(creds)
         if signed_in.casefold() != email.casefold():
             raise CredentialStoreError(
@@ -483,11 +510,19 @@ class CredentialStore:
             raise CredentialStoreError(f"{source} is not an authorized-user token")
         granted = self._token_scopes(info)
         creds = Credentials.from_authorized_user_info(info, scopes=granted or None)
-        signed_in = email or ""
-        if USERINFO_SCOPE in granted or not email:
+        # The owner is always verified online; a token that cannot prove its owner is not imported.
+        try:
             signed_in = self.identity(creds)
-            if email and signed_in.casefold() != email.casefold():
-                raise CredentialStoreError(f"{source} belongs to {signed_in}, not {email}")
+        except CredentialStoreError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - HTTP/refresh failures become one actionable error
+            raise CredentialStoreError(
+                f"cannot verify the owner of {source}: {exc}",
+                hint=f"megaton auth login --account {email or '<email>'} --scopes "
+                     + (",".join(short_scope(s) for s in granted) or "docs,drive"),
+            ) from exc
+        if email and signed_in.casefold() != email.casefold():
+            raise CredentialStoreError(f"{source} belongs to {signed_in}, not {email}")
         self.init()
         self._save_user(signed_in, creds, info)
         return self._user_entry(signed_in)
@@ -519,9 +554,7 @@ class CredentialStore:
 
     def service_account_path(self, name: str) -> Path:
         """Alias, file stem, file name, or unique service-account id → key file path."""
-        name = (name or "").strip()
-        if not name:
-            raise CredentialStoreError("service account name is required")
+        name = _safe_name(name, "service account name")
         aliases = self._sa_aliases()
         if name in aliases:
             candidate = Path(aliases[name]).expanduser()
@@ -556,7 +589,8 @@ class CredentialStore:
         if not isinstance(info, dict) or info.get("type") != "service_account":
             raise CredentialStoreError(f"{source} is not a service account key")
         self.init()
-        target = self.sa_dir / (f"{name}.json" if name else source.name)
+        target = self.sa_dir / (f"{_safe_name(name, 'service account name')}.json" if name
+                                else _safe_name(source.name, "file name"))
         _write_private(target, json.dumps(info, ensure_ascii=False, indent=2) + "\n")
         for entry in self.service_accounts():
             if entry.path == target:

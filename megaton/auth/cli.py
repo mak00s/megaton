@@ -7,7 +7,8 @@ import json
 import sys
 from typing import Optional
 
-from .store import SCOPE_ALIASES, CredentialStore, CredentialStoreError, short_scope
+from .store import (SCOPE_ALIASES, CredentialStore, CredentialStoreError, expand_scopes,
+                    scopes_satisfied, short_scope)
 
 
 def add_parser(commands: argparse._SubParsersAction) -> None:
@@ -93,6 +94,11 @@ def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
                                  open_browser=not args.no_browser)
         print(f"saved {entry.path}")
         print("scopes: " + ", ".join(short_scope(s) for s in entry.scopes))
+        missing = scopes_satisfied(entry.scopes, expand_scopes(args.scopes))
+        if missing:
+            print("WARNING not granted (unticked on the consent screen?): "
+                  + ", ".join(short_scope(s) for s in missing), file=sys.stderr)
+            return 1
         return 0
     if command == "token":
         print(store.user_access_token(args.account, args.scopes))

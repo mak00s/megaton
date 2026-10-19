@@ -11,6 +11,7 @@ from pathlib import Path
 from .auth import cli as auth_cli
 from .auth.store import CredentialStore, CredentialStoreError
 from .query import (
+    QueryAuthenticationError,
     QueryValidationError,
     _validate_auth,
     list_resources,
@@ -45,7 +46,8 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 args.credential = str(CredentialStore().service_account_path(args.sa))
             except CredentialStoreError as exc:
-                raise QueryValidationError(str(exc)) from exc
+                # An unknown store entry is an authentication failure (exit 1), not a malformed request.
+                raise QueryAuthenticationError(str(exc)) from exc
         # Legacy Python APIs may print; stdout must remain one JSON document.
         with contextlib.redirect_stdout(sys.stderr):
             if args.command == "query":

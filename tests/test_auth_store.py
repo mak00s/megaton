@@ -71,6 +71,9 @@ def test_scopes_satisfied_applies_implied_grants():
     assert scopes_satisfied([DRIVE], [SHEETS, DOCS]) == []
     assert scopes_satisfied(["https://mail.google.com/"], expand_scopes("gmail.readonly,gmail.send")) == []
     assert scopes_satisfied([DOCS], [DRIVE]) == [DRIVE]
+    # GA4 Data API accepts analytics / analytics.readonly only; analytics.edit must not imply readonly.
+    analytics_ro = "https://www.googleapis.com/auth/analytics.readonly"
+    assert scopes_satisfied(["https://www.googleapis.com/auth/analytics.edit"], [analytics_ro]) == [analytics_ro]
     assert short_scope(DOCS) == "docs"
 
 
@@ -326,9 +329,9 @@ def test_cli_query_sa_resolves_store_path(home, tmp_path, capsys, monkeypatch):
                                   "sql": "SELECT 1", "location": "US"}))
     assert cli.main(["query", "--params", str(params), "--sa", "bq", "--validate-only"]) == 0
     assert json.loads(capsys.readouterr().out)["validated"] is True
-    assert cli.main(["query", "--params", str(params), "--sa", "missing", "--validate-only"]) == 2
+    assert cli.main(["query", "--params", str(params), "--sa", "missing", "--validate-only"]) == 1
     payload = json.loads(capsys.readouterr().out)
-    assert payload["error_code"] == "INVALID_REQUEST" and "missing" in payload["message"]
+    assert payload["error_code"] == "EXECUTION_FAILED" and payload["error_type"] == "QueryAuthenticationError"
     assert cli.main(["query", "--params", str(params), "--sa", "bq", "--credential", "x", "--validate-only"]) == 2
 
 
@@ -357,3 +360,89 @@ def test_megaton_auth_from_store(monkeypatch, home, tmp_path):
 
     with pytest.raises(ValueError):
         start.Megaton(account="sim", sa="sheets", headless=True)
+
+
+# ---- review fixes -----------------------------------------------------------
+
+def test_import_user_token_refuses_unverifiable_owner(home, tmp_path):
+    source = tmp_path / "foreign.json"
+    write(source, token("x@example.com", scopes=[DOCS]))
+
+    def failing_identity(access_token):
+        raise RuntimeError("HTTP 401")
+
+    home._identity_fn = failing_identity
+    with pytest.raises(CredentialStoreError, match="cannot verify the owner") as exc:
+        home.import_user_token(source, email="claimed@example.com")
+    assert exc.value.hint.startswith("megaton auth login --account claimed@example.com")
+    assert not home.user_token_path("claimed@example.com").exists()
+
+
+def test_login_saves_granted_scopes_and_cli_warns(home, tmp_path, capsys, monkeypatch):
+    home.set_oauth_client(_client_file(tmp_path))
+    home._identity_fn = lambda token: {"email": "sim@example.com"}
+
+    class PartialFlow(FakeFlow):
+        def run_local_server(self, **kwargs):
+            creds = super().run_local_server(**kwargs)
+            creds._granted_scopes = ["openid", DOCS, USERINFO_SCOPE]  # user unticked drive
+            return creds
+
+    factory = lambda client_file, scopes: PartialFlow(client_file, scopes, "sim@example.com")  # noqa: E731
+    entry = home.login_user("sim@example.com", "docs,drive", flow_factory=factory)
+    assert set(entry.scopes) == {"openid", DOCS, USERINFO_SCOPE}
+    with pytest.raises(CredentialStoreError, match="lacks scopes: drive"):
+        home.user_credentials("sim", "drive")
+
+    original = CredentialStore.login_user
+    monkeypatch.setattr(CredentialStore, "login_user",
+                        lambda self, *a, **k: original(self, *a, flow_factory=factory, **k))
+    monkeypatch.setattr(CredentialStore, "identity", lambda self, creds: "sim@example.com")
+    assert cli.main(["auth", "login", "--account", "sim@example.com", "--scopes", "docs,drive"]) == 1
+    assert "not granted" in capsys.readouterr().err
+
+
+def test_login_restores_oauthlib_env(home, tmp_path, monkeypatch):
+    home.set_oauth_client(_client_file(tmp_path))
+    home._identity_fn = lambda token: {"email": "sim@example.com"}
+    monkeypatch.delenv("OAUTHLIB_RELAX_TOKEN_SCOPE", raising=False)
+    seen = {}
+
+    class EnvFlow(FakeFlow):
+        def run_local_server(self, **kwargs):
+            import os
+            seen["during"] = os.environ.get("OAUTHLIB_RELAX_TOKEN_SCOPE")
+            return super().run_local_server(**kwargs)
+
+    home.login_user("sim@example.com", "docs",
+                    flow_factory=lambda c, s: EnvFlow(c, s, "sim@example.com"))
+    import os
+    assert seen["during"] == "1" and "OAUTHLIB_RELAX_TOKEN_SCOPE" not in os.environ
+
+
+def test_write_is_atomic_and_private(home, monkeypatch):
+    path = home.user_token_path("sim@example.com")
+    write(path, token())
+    monkeypatch.setattr(store_mod.os, "replace", lambda src, dst: (_ for _ in ()).throw(OSError("disk full")))
+    with pytest.raises(OSError):
+        home._save_user("sim@example.com", home.user_credentials("sim", refresh=False))
+    assert json.loads(path.read_text())["token"] == "access-old"  # old file untouched
+    assert not list(home.users_dir.glob(".*.tmp"))
+    monkeypatch.undo()
+    home._save_user("sim@example.com", home.user_credentials("sim", refresh=False))
+    assert oct(path.stat().st_mode & 0o777) == "0o600" and not list(home.users_dir.glob(".*.tmp"))
+
+
+def test_names_cannot_escape_the_store(home):
+    for bad in ("../x", "a/b", "..", ".hidden"):
+        with pytest.raises(CredentialStoreError, match="invalid"):
+            home.user_token_path(bad)
+        with pytest.raises(CredentialStoreError, match="invalid"):
+            home.service_account_path(bad)
+
+
+def test_oauth_client_import_honours_registry_name(home, tmp_path):
+    home.registry_path.write_text('[oauth]\nclient = "clients/desktop.json"\n', encoding="utf-8")
+    saved = home.set_oauth_client(_client_file(tmp_path))
+    assert saved == home.home / "clients" / "desktop.json" == home.oauth_client_path
+    assert saved.is_file()

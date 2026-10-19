@@ -15,8 +15,13 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   `path`, `scopes`. `login` merges new scopes into the user's existing token and
   refuses to save a token for a different signed-in account.
 - `Megaton(account=..., sa=..., scopes=...)` authenticates from the store;
-  `megaton query` / `megaton resources` accept `--sa NAME`.
+  `megaton query` / `megaton resources` accept `--sa NAME` (an unknown name is
+  an authentication failure, exit 1).
   See [docs/credential-store.md](docs/credential-store.md).
+- Tokens record the scopes Google actually granted; `login` warns (exit 1)
+  when a requested scope was not granted; `import --user-token` always
+  verifies the owner online; store writes are atomic; names cannot escape
+  the store directory; `analytics.edit` no longer implies `analytics.readonly`.
 
 ## 2.5.1 - 2026-10-19
 
