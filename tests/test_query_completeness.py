@@ -10,6 +10,42 @@ from megaton.query_metadata import COMPLETENESS_ATTR
 from megaton.services.gsc_service import GSCService
 
 
+@pytest.mark.parametrize("failure", [False, True])
+def test_ga4_empty_result_distinguishes_success_from_retry_exhaustion(monkeypatch, failure):
+    from google.api_core.exceptions import ServiceUnavailable
+    from google.analytics.data_v1beta.types import RunReportResponse
+
+    client = Mock()
+    if failure:
+        client.run_report.side_effect = ServiceUnavailable("temporary")
+    else:
+        client.run_report.return_value = RunReportResponse(row_count=0)
+    report = MegatonGA4.Report(SimpleNamespace(
+        property=SimpleNamespace(id="123"), data_client=client))
+    monkeypatch.setattr(report, "_format_request", lambda **kw: SimpleNamespace())
+    monkeypatch.setattr("megaton.ga4.time.sleep", lambda *_: None)
+    frame = report.run(["country"], ["sessions"], max_rows=10,
+                       on_exhausted="empty", max_retries=2)
+    evidence = QueryCompleteness.from_frame(frame)
+    assert frame.empty
+    assert evidence.fetched_rows == 0
+    assert evidence.total_rows == (None if failure else 0)
+    assert evidence.status == ("unknown" if failure else "complete")
+    assert evidence.row_limit == 10
+    assert evidence.limit_reached is False
+    assert client.run_report.call_count == (2 if failure else 1)
+
+
+def test_filtered_frame_keeps_original_fetch_evidence():
+    frame = pd.DataFrame({"x": range(5)})
+    evidence = QueryCompleteness(5, 10, total_rows=5, status="complete")
+    frame.attrs[COMPLETENESS_ATTR] = evidence.to_dict()
+    filtered = frame[frame.x == 0]
+    assert len(filtered) == 1
+    assert QueryCompleteness.from_frame(filtered) == evidence
+    assert QueryCompleteness.from_frame(frame) == evidence
+
+
 @pytest.mark.parametrize("total,status", [(2, "complete"), (3, "truncated")])
 def test_ga4_exact_cap_uses_total_not_frame_length(monkeypatch, total, status):
     report = MegatonGA4.Report(SimpleNamespace(property=SimpleNamespace(id="123")))

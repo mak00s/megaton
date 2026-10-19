@@ -24,6 +24,19 @@ API pagination completion, not the absence of provider privacy/coverage limits.
 Missing/invalid metadata is unknown even for a small/empty output frame. Metadata
 is also carried in `df.attrs["megaton_query_completeness"]`; arbitrary user pandas
 transforms need not preserve attrs, so retain the typed query result for decisions.
+When transforms do preserve attrs, the evidence still describes the original API
+fetch, not the current DataFrame. For example, filtering five fully fetched rows
+down to one leaves `status="complete"` and `fetched_rows=5`; this does not certify
+that the filtered frame contains all original rows. `QueryCompleteness.from_frame()`
+reads this evidence without recalculating it. Use `len(df)` for the current output
+row count and validate downstream transformations separately.
+
+GA4's explicit `on_exhausted="empty"` fallback returns `status="unknown"`,
+`fetched_rows=0`, and `total_rows=None` after first-page retry exhaustion. A
+successful zero-row response instead has `status="complete"` and `total_rows=0`.
+The default exhaustion policy still raises; failures after a fetched page do not
+return a partial DataFrame.
+
 Core preserves explicit cap semantics and returns evidence; consumers choose
 whether to reject partial/unknown results. Fluent report/search APIs remain
 compatible. This additive contract is available starting with Megaton 2.5.0.

@@ -44,6 +44,11 @@ class QueryCompleteness:
 
     @classmethod
     def from_frame(cls, frame, *, row_limit: int | None = None) -> QueryCompleteness:
+        """Read original API pagination evidence, not current frame completeness.
+
+        Filtering or aggregation may retain attrs unchanged. Counts and status
+        still describe the source fetch; they are not recomputed from the frame.
+        """
         value = frame.attrs.get(COMPLETENESS_ATTR)
         try:
             if not isinstance(value, dict):

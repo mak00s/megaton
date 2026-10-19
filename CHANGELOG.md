@@ -2,6 +2,13 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## 2.5.1 - 2026-10-19
+
+- Mark GA4 empty-on-retry-exhaustion results as unknown with no known total,
+  rather than mistaking failed retrieval for a complete zero-row response.
+- Clarify that completeness metadata retained after DataFrame transformations
+  describes the original API fetch, not the transformed output.
+
 ## 2.5.0 - 2026-10-17
 
 - Add `QueryResult.completeness` and the `raw_rows/v1` capability contract.

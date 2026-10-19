@@ -874,6 +874,7 @@ class MegatonGA4(object):
                     "GA4 Data API error: %s -- returning EMPTY result "
                     "(on_exhausted='empty'); downstream data may be incomplete", e)
                 response = None
+                total_rows = None  # No response means the server total is unknown.
             except PermissionDenied as e:
                 LOGGER.error("権限がありません。")
                 message = getattr(e, 'message', repr(e))
@@ -995,7 +996,8 @@ class MegatonGA4(object):
                     df = pd.DataFrame()
                     df.attrs[COMPLETENESS_ATTR] = QueryCompleteness(
                         fetched_rows=0, row_limit=max_rows, total_rows=total_rows,
-                        status="complete" if total_rows == 0 else "truncated",
+                        status="unknown" if total_rows is None else (
+                            "complete" if total_rows == 0 else "truncated"),
                     ).to_dict()
                     return df
                 else:

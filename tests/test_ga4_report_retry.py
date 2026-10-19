@@ -93,7 +93,7 @@ def test_request_report_api_returns_empty_when_on_exhausted_empty(monkeypatch):
     )
 
     assert client.calls == 3
-    assert total_rows == 0
+    assert total_rows is None
     assert data == []
     assert headers == []
     assert types == []
