@@ -26,6 +26,10 @@ gcloudのユーザー認証（`gcloud auth login`）はWorkspace管理者のセ�
 
 **保存される内容**: トークンの `scopes` は Google が実際に許可した範囲（同意画面で外した分は含まない）。`login` は要求した範囲が許可されなかったとき警告して終了コード1を返す。`import --user-token` は所有者をオンラインで必ず確認し、確認できないトークンは取り込まない。書き込みは一時ファイル＋置換（原子的）。
 
+refresh後も要求scopeを検証する。`granted_scopes=[]` は明示的な空の権限として保存し、
+必要なscopeがあればエラーにする。`granted_scopes=None`（応答にscope情報がない場合）
+に限り、従来のscope情報を使用する。
+
 ## 配置
 
 ```

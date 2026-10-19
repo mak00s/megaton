@@ -450,13 +450,14 @@ def test_oauth_client_import_honours_registry_name(home, tmp_path):
 
 # ---- review fixes: post-refresh scope check, openid hints, explicit check ----
 
-def test_refresh_that_narrows_the_grant_fails_and_records_it(home, monkeypatch):
+@pytest.mark.parametrize("actual_grant", [[USERINFO_SCOPE, "openid"], []])
+def test_refresh_that_narrows_the_grant_fails_and_records_it(home, monkeypatch, actual_grant):
     write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
 
     def narrowed_refresh(self, creds, email):
         creds.token = "access-new"
         creds.expiry = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
-        creds._granted_scopes = [USERINFO_SCOPE, "openid"]
+        creds._granted_scopes = actual_grant
 
     monkeypatch.setattr(CredentialStore, "_refresh", narrowed_refresh)
     with pytest.raises(CredentialStoreError) as exc:
@@ -464,21 +465,24 @@ def test_refresh_that_narrows_the_grant_fails_and_records_it(home, monkeypatch):
     assert "lacks scopes: docs" in str(exc.value)
     assert exc.value.hint == "megaton auth login --account sim@example.com --scopes docs"
     saved = json.loads(home.user_token_path("sim@example.com").read_text())
-    assert set(saved["scopes"]) == {USERINFO_SCOPE, "openid"}
+    assert saved["scopes"] == actual_grant
     with pytest.raises(CredentialStoreError, match="lacks scopes: docs"):
         home.user_credentials("sim", scopes="docs")
 
 
-def test_refresh_keeping_the_grant_still_succeeds(home, monkeypatch):
+@pytest.mark.parametrize("actual_grant", [[DOCS, USERINFO_SCOPE, "openid"], None])
+def test_refresh_keeping_the_grant_still_succeeds(home, monkeypatch, actual_grant):
     write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
 
     def same_refresh(self, creds, email):
         creds.token = "access-new"
         creds.expiry = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
-        creds._granted_scopes = [DOCS, USERINFO_SCOPE, "openid"]
+        creds._granted_scopes = actual_grant
 
     monkeypatch.setattr(CredentialStore, "_refresh", same_refresh)
     assert home.user_credentials("sim", scopes="docs").token == "access-new"
+    saved = json.loads(home.user_token_path("sim@example.com").read_text())
+    assert saved["scopes"] == (actual_grant if actual_grant is not None else [DOCS, USERINFO_SCOPE])
 
 
 def test_openid_round_trips_through_refresh_failure_hint(home, monkeypatch):

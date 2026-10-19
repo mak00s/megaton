@@ -390,8 +390,8 @@ class CredentialStore:
             # Persist what Google now reports before judging it, so the stored grant
             # stays truthful even when this call fails for a narrowed grant.
             self._save_user(email, creds, info)
-            actual = list(getattr(creds, "granted_scopes", None) or [])
-            if actual:
+            actual = getattr(creds, "granted_scopes", None)
+            if actual is not None:
                 self._require_scopes(email, actual, required)
         return creds
 
@@ -424,9 +424,8 @@ class CredentialStore:
         info["account"] = email
         # Record what Google actually granted (the consent screen lets users untick scopes),
         # not what was requested; the requested list is what Credentials.to_json() writes.
-        granted = list(getattr(creds, "granted_scopes", None) or creds.scopes or [])
-        if granted:
-            info["scopes"] = granted
+        granted = getattr(creds, "granted_scopes", None)
+        info["scopes"] = list(granted if granted is not None else (creds.scopes or []))
         path = self.user_token_path(email)
         _write_private(path, json.dumps(info, ensure_ascii=False, indent=2) + "\n")
         return path

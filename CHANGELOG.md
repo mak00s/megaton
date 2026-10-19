@@ -22,6 +22,8 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   when a requested scope was not granted; `import --user-token` always
   verifies the owner online; store writes are atomic; names cannot escape
   the store directory; `analytics.edit` no longer implies `analytics.readonly`.
+- Post-refresh scope checks and persistence distinguish an explicitly empty
+  grant from missing grant metadata; empty grants never restore older scopes.
 
 ## 2.5.1 - 2026-10-19
 
