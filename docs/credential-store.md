@@ -98,6 +98,15 @@ TOKEN=$(megaton auth token --account sim --scopes docs)
 curl -s -H "Authorization: Bearer $TOKEN" "https://docs.googleapis.com/v1/documents/<id>?includeTabsContent=true"
 ```
 
+## 既存のパス指定からの移行ヒント
+
+`Megaton("/path/key.json")` や `megaton query --credential /path/key.json` のようにファイルパスで認証すると、成功後に標準エラーへ1行だけヒントを出す。同じサービスアカウントがストアにあれば `sa="<名前>"`（CLIは `--sa <名前>`）を、なければ `megaton auth import ...` を案内する。OAuthクライアントのファイルなら `megaton auth login` を案内する。
+
+- 同じファイルについては1プロセスで1回だけ。標準出力には出さない（JSON出力を壊さない）
+- CI（`CI` / `GITHUB_ACTIONS`）では出さない。ストアはMacごとの置き場でCIには無いため
+- `MEGATON_HINTS=0` で止められる
+- ヒントの処理が失敗しても認証には影響しない
+
 ## スコープ別名
 
 `docs`, `drive`, `drive.file`, `sheets`, `gmail.readonly`, `gmail.modify`, `gmail.compose`, `calendar`, `analytics`, `analytics.edit`, `webmasters`, `tagmanager`, `tagmanager.edit`, `bigquery`, `cloud-platform` など。`megaton auth scopes` で全一覧。上位スコープ（`drive` は `sheets`/`docs` を含む、`gmail.modify` は `gmail.readonly` を含む）は自動で充足と判定する。

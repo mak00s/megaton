@@ -377,6 +377,8 @@ class Megaton:
                     return
                 if not self._validate_oauth_client(source.info):
                     return
+                from .auth.hints import suggest_store
+                suggest_store(source.value)
                 if self.headless:
                     if self._handle_headless_oauth(source.info, source.value, source.value):
                         return
@@ -395,6 +397,8 @@ class Megaton:
                     self._notify_invalid_service_account(email)
                     return
                 self.json = source.value
+                from .auth.hints import suggest_store
+                suggest_store(source.value)
                 if not self.headless:
                     self.select.ga()
                 else:

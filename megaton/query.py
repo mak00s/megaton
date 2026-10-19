@@ -218,6 +218,8 @@ def _bq_client(project_id: str, credential: str | None, adc: bool):
         credentials, _ = google.auth.load_credentials_from_file(
             credential, scopes=["https://www.googleapis.com/auth/cloud-platform"],
         )
+        from .auth.hints import suggest_store
+        suggest_store(credential)
     elif adc:
         credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
     else:

@@ -2,6 +2,15 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## Unreleased
+
+- Point legacy credential paths at the credential store. After a service-account,
+  OAuth-client or BigQuery key file authenticates, print one stderr tip per file
+  (never on stdout, so JSON CLIs stay clean): `sa="<name>"` when the same service
+  account is already stored, otherwise the `megaton auth import`/`login` command.
+  Silent in CI (`CI`, `GITHUB_ACTIONS`) and with `MEGATON_HINTS=0`. Tips never
+  change or break authentication.
+
 ## 2.6.0 - 2026-10-19
 
 - Credential store: one machine-wide directory (`~/.config/megaton` or

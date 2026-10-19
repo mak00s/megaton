@@ -79,6 +79,7 @@ typeCheckingMode = "basic"
 include = [
     "megaton/query.py",
     "megaton/cli.py",
+    "megaton/auth/hints.py",
     "megaton/retry_utils.py",
     "megaton/state.py",
     "megaton/transform/traffic.py",
