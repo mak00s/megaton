@@ -225,6 +225,15 @@ def _bq_client(project_id: str, credential: str | None, adc: bool):
     return bigquery.Client(project=project_id, credentials=credentials)
 
 
+def _google_session(source: str, credential: str, cache_key: str | None):
+    """Headless Megaton session; standalone GSC skips GA4 account discovery."""
+    from .start import Megaton
+
+    if source == "gsc":
+        return Megaton(credential, headless=True, cache_key=cache_key, initialize_ga=False)
+    return Megaton(credential, headless=True, cache_key=cache_key)
+
+
 def run_query(
     params: Mapping[str, Any], *, credential: str | None = None,
     cache_key: str | None = None, adc: bool = False, client: Any = None,
@@ -246,10 +255,7 @@ def run_query(
         if client is None:
             if not credential:
                 raise QueryValidationError("GA4/GSC requires an explicit credential")
-            from .start import Megaton
-
-            options = {"initialize_ga": False} if source == "gsc" else {}
-            client = Megaton(credential, headless=True, cache_key=cache_key, **options)
+            client = _google_session(source, credential, cache_key)
             if client.creds is None:
                 raise QueryAuthenticationError("authentication did not produce credentials")
         period = request["date_range"]
@@ -301,10 +307,7 @@ def list_resources(
         return [{"id": item.dataset_id} for item in _bq_client(project, credential, adc).list_datasets()]
     if source not in {"ga4", "gsc"} or not credential or adc:
         raise QueryValidationError("GA4/GSC resources requires source and explicit credential")
-    from .start import Megaton
-
-    options = {"initialize_ga": False} if source == "gsc" else {}
-    mg = Megaton(credential, headless=True, cache_key=cache_key, **options)
+    mg = _google_session(source, credential, cache_key)
     if mg.creds is None:
         raise QueryAuthenticationError("authentication did not produce credentials")
     if source == "ga4" and getattr(mg, "_ga_initialization_error", None) is not None:
