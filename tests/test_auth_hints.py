@@ -95,3 +95,14 @@ def test_service_account_login_emits_tip_on_stderr_only(home, tmp_path, monkeypa
     captured = capsys.readouterr()
     assert "[megaton] hint:" in captured.err
     assert "[megaton] hint:" not in captured.out
+
+
+def test_suppressed_context_silences_tips_and_restores(home, tmp_path):
+    out = io.StringIO()
+    path = key_file(tmp_path)
+    with hints.suppressed():
+        assert not hints.hints_enabled()
+        assert not hints.suggest_store(path, stream=out)
+    assert hints.hints_enabled()
+    assert hints.suggest_store(path, stream=out)
+    assert out.getvalue().count("[megaton] hint:") == 1

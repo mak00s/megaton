@@ -11,16 +11,31 @@ from __future__ import annotations
 import json
 import os
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 HINTS_ENV = "MEGATON_HINTS"
 _OFF = {"0", "false", "no", "off"}
 _TRUE = {"1", "true", "yes"}
 _shown: set[str] = set()
+_suppressed: ContextVar[bool] = ContextVar("megaton_store_hints_suppressed", default=False)
+
+
+@contextmanager
+def suppressed() -> Iterator[None]:
+    """Silence tips for credentials a caller selected automatically (e.g. an app router)."""
+    token = _suppressed.set(True)
+    try:
+        yield
+    finally:
+        _suppressed.reset(token)
 
 
 def hints_enabled() -> bool:
+    if _suppressed.get():
+        return False
     if os.environ.get(HINTS_ENV, "").strip().lower() in _OFF:
         return False
     if os.environ.get("CI", "").strip().lower() in _TRUE or os.environ.get("GITHUB_ACTIONS"):
@@ -80,4 +95,4 @@ def suggest_store(path: str | Path, *, stream=None) -> bool:
         return False
 
 
-__all__ = ["HINTS_ENV", "hints_enabled", "store_hint", "suggest_store"]
+__all__ = ["HINTS_ENV", "hints_enabled", "store_hint", "suggest_store", "suppressed"]
