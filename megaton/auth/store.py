@@ -65,6 +65,9 @@ SCOPE_ALIASES: dict[str, str] = {
     "cloud-platform": _G + "cloud-platform",
     "userinfo.email": USERINFO_SCOPE,
     "email": USERINFO_SCOPE,
+    # Google adds "openid" to grants that include userinfo.email; accept it so stored
+    # scopes and the hints built from them can be passed back to `megaton auth login`.
+    "openid": "openid",
 }
 
 # A granted scope on the left also satisfies every scope on the right.
@@ -380,6 +383,20 @@ class CredentialStore:
         info = self._load_token(email)
         granted = self._token_scopes(info)
         required = expand_scopes(scopes)
+        self._require_scopes(email, granted, required)
+        creds = Credentials.from_authorized_user_info(info, scopes=granted or None)
+        if refresh and not creds.valid:
+            self._refresh(creds, email)
+            # Persist what Google now reports before judging it, so the stored grant
+            # stays truthful even when this call fails for a narrowed grant.
+            self._save_user(email, creds, info)
+            actual = list(getattr(creds, "granted_scopes", None) or [])
+            if actual:
+                self._require_scopes(email, actual, required)
+        return creds
+
+    @staticmethod
+    def _require_scopes(email: str, granted: Iterable[str], required: list[str]) -> None:
         missing = scopes_satisfied(granted, required)
         if missing:
             wanted = ",".join(short_scope(s) for s in required)
@@ -387,11 +404,6 @@ class CredentialStore:
                 f"token for {email} lacks scopes: {', '.join(short_scope(s) for s in missing)}",
                 hint=f"megaton auth login --account {email} --scopes {wanted}",
             )
-        creds = Credentials.from_authorized_user_info(info, scopes=granted or None)
-        if refresh and not creds.valid:
-            self._refresh(creds, email)
-            self._save_user(email, creds, info)
-        return creds
 
     def _refresh(self, creds, email: str) -> None:
         from google.auth.exceptions import RefreshError
@@ -605,6 +617,13 @@ class CredentialStore:
         if account:
             email = self.resolve_email(account)
             entries = [e for e in entries if e.email == email]
+            if not entries:
+                return [{
+                    "email": email, "aliases": [], "path": str(self.users_dir / f"{email}.json"),
+                    "scopes": [], "client_id": "", "expiry": None, "ok": False,
+                    "error": f"no user token for {email}",
+                    "hint": f"megaton auth login --account {email} --scopes docs,drive",
+                }]
         for entry in entries:
             status = entry.to_dict()
             try:

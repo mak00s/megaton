@@ -6,14 +6,23 @@ Available from Megaton 2.6.0.
 
 ## 2系統に分ける理由
 
-| 用途 | 資格情報 | 失効 | 識別子 |
+| 用途 | 資格情報 | 再認証の頻度 | 識別子 |
 |---|---|---|---|
-| Workspaceの中身（Docs・Drive・Sheets・Gmail・GA4・GSC・GTM） | ユーザーOAuthトークン（`users/<email>.json`） | しない（Google Cloudスコープを含めない限り、Workspaceのセッション制御の対象外） | `account` |
-| Google Cloud（BigQuery・Cloud Run など） | サービスアカウント鍵（`sa/<name>.json`） | しない | `sa` |
+| Workspaceの中身（Docs・Drive・Sheets・Gmail・GA4・GSC・GTM） | ユーザーOAuthトークン（`users/<email>.json`） | Google Cloudのセッション制御の対象外（Cloudスコープを含めない場合）。ただし下記の条件で失効しうる | `account` |
+| Google Cloud（BigQuery・Cloud Run など） | サービスアカウント鍵（`sa/<name>.json`） | 期限なし（鍵の削除・無効化、組織ポリシーの鍵有効期限を除く） | `sa` |
 
 gcloudのユーザー認証（`gcloud auth login`）はWorkspace管理者のセッション制御で毎日失効する。APIを叩く用途にはこのストアを使い、gcloudはGCPの操作だけに使う。
 
-**前提**: ユーザートークンが失効しないのは、OAuthクライアントのプロジェクトの公開ステータスが「本番」（または Workspace 内部向け）のとき。「テスト」状態の外部向けアプリではリフレッシュトークンが7日で失効する。`megaton auth check` が7日を超えて `ok` なら本番状態と判断できる。
+**ユーザートークンの失効**: セッション制御の対象外であることは、失効しないことを意味しない。リフレッシュトークンは次の場合に無効になる（[Google公式の失効条件](https://developers.google.com/identity/protocols/oauth2#expiration)）。
+
+- 本人がアカウント設定でアプリのアクセスを取り消した
+- 6か月間使われなかった
+- パスワードを変更し、トークンにGmailスコープが含まれていた
+- 同じOAuthクライアント・同じアカウントで発行数の上限を超え、古いものから無効になった
+- Workspace管理者がアプリやスコープを制限した、またはCloudスコープを含むトークンがGoogle Cloudのセッション制御を受けた
+- OAuthクライアントのプロジェクトが外部向けかつ公開ステータス「テスト」で、発行から7日が経過した
+
+公開ステータスはGoogle CloudコンソールのOAuth同意画面で確認する。`megaton auth check` の `ok` は確認時点で更新できたことだけを示し、公開ステータスや今後の有効性は保証しない。失効した場合は `check` が `NG` と再認可の `megaton auth login ...` を表示する。
 
 **保存される内容**: トークンの `scopes` は Google が実際に許可した範囲（同意画面で外した分は含まない）。`login` は要求した範囲が許可されなかったとき警告して終了コード1を返す。`import --user-token` は所有者をオンラインで必ず確認し、確認できないトークンは取り込まない。書き込みは一時ファイル＋置換（原子的）。
 
@@ -52,6 +61,7 @@ megaton auth import --user-token old_token.json     # 既存トークンを取�
 megaton auth login --account sim@example.com --scopes docs,drive,sheets
 megaton auth list                                   # 何があるか
 megaton auth check                                  # 更新できるか（失敗時は直すコマンドを表示）
+megaton auth check --account sim                    # 指定アカウントが未登録・失効なら終了コード1
 megaton auth token --account sim --scopes docs      # curl用のアクセストークン
 megaton auth path --sa corp-ga                      # gspread等にパスを渡したいとき
 megaton auth scopes                                 # スコープ別名の一覧

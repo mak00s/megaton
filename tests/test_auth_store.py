@@ -446,3 +446,64 @@ def test_oauth_client_import_honours_registry_name(home, tmp_path):
     saved = home.set_oauth_client(_client_file(tmp_path))
     assert saved == home.home / "clients" / "desktop.json" == home.oauth_client_path
     assert saved.is_file()
+
+
+# ---- review fixes: post-refresh scope check, openid hints, explicit check ----
+
+def test_refresh_that_narrows_the_grant_fails_and_records_it(home, monkeypatch):
+    write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
+
+    def narrowed_refresh(self, creds, email):
+        creds.token = "access-new"
+        creds.expiry = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
+        creds._granted_scopes = [USERINFO_SCOPE, "openid"]
+
+    monkeypatch.setattr(CredentialStore, "_refresh", narrowed_refresh)
+    with pytest.raises(CredentialStoreError) as exc:
+        home.user_credentials("sim", scopes="docs")
+    assert "lacks scopes: docs" in str(exc.value)
+    assert exc.value.hint == "megaton auth login --account sim@example.com --scopes docs"
+    saved = json.loads(home.user_token_path("sim@example.com").read_text())
+    assert set(saved["scopes"]) == {USERINFO_SCOPE, "openid"}
+    with pytest.raises(CredentialStoreError, match="lacks scopes: docs"):
+        home.user_credentials("sim", scopes="docs")
+
+
+def test_refresh_keeping_the_grant_still_succeeds(home, monkeypatch):
+    write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
+
+    def same_refresh(self, creds, email):
+        creds.token = "access-new"
+        creds.expiry = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
+        creds._granted_scopes = [DOCS, USERINFO_SCOPE, "openid"]
+
+    monkeypatch.setattr(CredentialStore, "_refresh", same_refresh)
+    assert home.user_credentials("sim", scopes="docs").token == "access-new"
+
+
+def test_openid_round_trips_through_refresh_failure_hint(home, monkeypatch):
+    from google.auth.exceptions import RefreshError
+
+    assert expand_scopes("openid") == ["openid"]
+    assert short_scope("openid") == "openid"
+    write(home.user_token_path("sim@example.com"),
+          token(scopes=(DOCS, USERINFO_SCOPE, "openid"), expiry="2020-01-01T00:00:00Z"))
+    monkeypatch.setattr("google.oauth2.credentials.Credentials.refresh",
+                        lambda self, request: (_ for _ in ()).throw(RefreshError("invalid_grant")))
+    with pytest.raises(CredentialStoreError) as exc:
+        home.user_credentials("sim")
+    hinted = exc.value.hint.split("--scopes ", 1)[1]
+    assert "openid" in hinted
+    assert set(expand_scopes(hinted)) == {DOCS, USERINFO_SCOPE, "openid"}
+
+
+def test_check_explicit_unknown_email_fails(home, capsys):
+    write(home.user_token_path("sim@example.com"), token())
+    [status] = home.check("absent@example.com")
+    assert status["ok"] is False and status["email"] == "absent@example.com"
+    assert status["hint"] == "megaton auth login --account absent@example.com --scopes docs,drive"
+    assert cli.main(["auth", "check", "--account", "absent@example.com", "--json"]) == 1
+    [printed] = json.loads(capsys.readouterr().out)
+    assert printed["ok"] is False
+    assert cli.main(["auth", "check", "--account", "absent@example.com"]) == 1
+    assert "NG  absent@example.com" in capsys.readouterr().out
