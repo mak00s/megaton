@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## 2.6.0 - 2026-10-17
+## 2.6.0 - 2026-10-19
 
 - Credential store: one machine-wide directory (`~/.config/megaton` or
   `$MEGATON_HOME`) holds user OAuth tokens (`users/<email>.json`), service
