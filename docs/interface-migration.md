@@ -77,7 +77,7 @@ not advertised as read-only. MCP exposure must enforce its own allowed actions.
 
 Reviewed changes and release preparation are committed and pushed. Core release
 precedes app release. Consumer pins stay fixed.
-Core work: /Users/mak/Repos/github_mak00s/megaton.
+Core work: /Users/mak/Repos/megaton.
 App work: clean megaton-app-current under this task's workspace. Old app
 checkouts remain diagnostic-only with their existing push-disabled settings.
 
