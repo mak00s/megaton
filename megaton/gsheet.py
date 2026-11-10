@@ -428,6 +428,15 @@ class MegatonGS(object):
             return self.name
 
         @property
+        def worksheet(self):
+            """選択中の gspread Worksheet を返す read-only アクセサ。
+
+            未選択のときは None。gspread の Worksheet API を直接使いたい上級者向けの
+            公開窓口（``mg.gs.workbook`` の worksheet 版。内部フィールド _driver の代わり）。
+            """
+            return self._driver
+
+        @property
         def id(self):
             """Sheet ID"""
             return self._driver.id if self._driver else None

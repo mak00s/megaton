@@ -2,6 +2,12 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## Unreleased
+
+- Add `mg.gs.sheet.worksheet`: a read-only accessor for the selected gspread
+  `Worksheet` (or `None`), the worksheet counterpart of `mg.gs.workbook`. Consumers
+  that need raw gspread worksheet calls use it instead of the private `_driver`.
+
 ## 2.6.2 - 2026-10-19
 
 - The OAuth migration tip now asks for the scopes a legacy session actually uses

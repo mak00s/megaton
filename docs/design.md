@@ -18,7 +18,7 @@ Sheets の namespace は `services/sheet_namespace.py` へ分離し、`start.py`
 ## 所有境界
 
 - `megaton`: Google 系分析操作、単発クエリ契約、結果・エラー、installable CLI
-- `megaton-app`: 認証の自動振り分け、Adobe、job/batch、監査、検証、納品の連携
+- `megaton-app`: 認証の自動振り分け、Adobe、job/batch、監査、検証、納品の連携。加えて、複数の消費 repo が共有する確認付きの書き込みアダプタ（Box、Gmail 下書き、Todoist、Google Docs、ブラウザのログイン）
 - 消費 repo: 案件設定、品質基準、分類、宛先、承認方針
 - MCP adapter: transport、認証、tool の公開範囲。クエリ実装は共有 API を呼ぶ
 

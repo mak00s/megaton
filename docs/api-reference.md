@@ -1062,6 +1062,19 @@ Google Sheets クライアントを初期化する互換 API です。通常は
 **前提条件:**
 - 先に `mg.open.sheet(url)` または `mg.launch_gs(url)` で `mg.gs` を初期化していること
 
+### `mg.gs.sheet.worksheet`
+
+選択中の gspread `Worksheet` を返す read-only property です（`mg.gs.workbook` の worksheet 版）。
+
+**戻り値:** gspread `Worksheet` | None
+
+**用途:**
+- megaton の高水準 API にない gspread の Worksheet API を直接使う場合
+- 未選択時は `None`
+
+**前提条件:**
+- 先に `mg.sheets.select(name)` などで worksheet を選択していること
+
 ---
 
 ## BigQuery API

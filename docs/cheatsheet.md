@@ -261,6 +261,6 @@ mg.sheet.save(df, max_retries=5)                   # per-call override（Advance
 
 - **Sheets の短縮 API**: `mg.save.to.sheet(...)` / `mg.append.to.sheet(...)` / `mg.upsert.to.sheet(...)` / `mg.report.to.sheet(name)`
 - **Sheets の互換 API**: `mg.launch_gs(url)`（主導線は `mg.open.sheet(url)`）
-- **生の gspread / retry**: `mg.gs.workbook`（gspread Spreadsheet）、`mg.gs.call_with_retry(op, func, max_retries?, backoff_factor?, retry_on_requests?)`
+- **生の gspread / retry**: `mg.gs.workbook`（gspread Spreadsheet）、`mg.gs.sheet.worksheet`（選択中の gspread Worksheet）、`mg.gs.call_with_retry(op, func, max_retries?, backoff_factor?, retry_on_requests?)`
 - **項目カテゴリの生取得**: `mg.ga["4"].property.show("custom_dimensions" | "user_properties" | "custom_metrics")`  # 主導線は `mg.show.ga.*`
 - **retry / timeout**: session 一括は `mg.set.retry(max_retries?, backoff_factor?, timeout?)`（GA4/Sheets/GSC共通、解決順 per-call → session → env → 既定）。per-call の `max_retries` / `backoff_factor` / `timeout` は escape hatch（「GA4 API retry / timeout」「Sheets API retry」参照）。

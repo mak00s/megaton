@@ -221,6 +221,14 @@ def test_workbook_property_exposes_driver():
     assert gs.workbook is driver
 
 
+def test_worksheet_property_exposes_selected_worksheet():
+    sheet, ws = _build_sheet()
+    assert sheet.worksheet is ws
+    # 未選択は None
+    sheet._driver = None
+    assert sheet.worksheet is None
+
+
 def test_sheets_reads_worksheets_via_retry_wrapper(monkeypatch):
     sheet, ws = _build_sheet()
     gs = _new_gs()
