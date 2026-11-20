@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import subprocess
 import sys
 from typing import Optional
 
@@ -28,9 +31,29 @@ def add_parser(commands: argparse._SubParsersAction) -> None:
     login.add_argument("--port", type=int, default=0, help="Loopback port (default: random)")
     login.add_argument("--no-browser", action="store_true", help="Print the URL instead of opening a browser")
 
-    token = sub.add_parser("token", help="Print a fresh access token for curl or other tools")
-    token.add_argument("--account", required=True)
-    token.add_argument("--scopes", help="Fail unless the token already covers these scopes")
+    epilog = """Examples:
+  megaton auth token --account sim --scopes docs,drive --check
+  megaton auth exec --account sim --scopes docs -- sh -c 'test -n "$GOOGLE_ACCESS_TOKEN" && echo set'
+
+Aliases: megaton auth scopes (use docs, not documents; sheets, not spreadsheets).
+Token mode: one token line on stdout; errors on stderr. Do not discard errors
+with 2>/dev/null; prefer exec or token --check. No new consent or scopes are added.
+Exit codes: 0 success; 2 invalid name/arguments; 3 insufficient scopes;
+4 account/token not registered; 5 credential refresh/network/store failure.
+exec returns the child's exit code (including codes above); launch failure: 126/127.
+The child inherits stdout/stderr; do not print the token from your command.
+"""
+    for name in ("token", "exec"):
+        command = sub.add_parser(
+            name, help="Check/print an access token" if name == "token" else "Run a command with a token in its environment",
+            epilog=epilog, formatter_class=argparse.RawDescriptionHelpFormatter)
+        command.add_argument("--account", required=True, help="Registered email or account alias")
+        command.add_argument("--scopes", help="Required existing scope aliases, e.g. docs,drive; omitted: no scope requirement")
+        if name == "token":
+            command.add_argument("--check", action="store_true", help="Print OK without exposing the token; same failure codes")
+        else:
+            command.add_argument("--env", default="GOOGLE_ACCESS_TOKEN", help="Child token environment variable (default: GOOGLE_ACCESS_TOKEN)")
+            command.add_argument("child_command", nargs=argparse.REMAINDER, help="-- followed by the command and its arguments (required)")
 
     check = sub.add_parser("check", help="Refresh stored user tokens and report validity")
     check.add_argument("--account")
@@ -58,7 +81,13 @@ def run(args: argparse.Namespace) -> int:
         return _dispatch(store, args)
     except CredentialStoreError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 1
+        return exc.exit_code if args.auth_command in ("token", "exec") else 1
+    except Exception:
+        if args.auth_command not in ("token", "exec"):
+            raise
+        print("error: credential operation failed; check store configuration and network; "
+              "use megaton auth token --help", file=sys.stderr)
+        return 5
 
 
 def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
@@ -100,9 +129,28 @@ def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
                   + ", ".join(short_scope(s) for s in missing), file=sys.stderr)
             return 1
         return 0
-    if command == "token":
-        print(store.user_access_token(args.account, args.scopes))
-        return 0
+    if command in ("token", "exec"):
+        if command == "exec":
+            child = args.child_command
+            if child and child[0] == "--":
+                child = child[1:]
+            if not child or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", args.env):
+                raise CredentialStoreError("exec requires a command after -- and a valid --env name",
+                                           hint="megaton auth exec --help", exit_code=2)
+        access_token = store.user_access_token(args.account, args.scopes)
+        if not access_token or access_token == "None":
+            raise CredentialStoreError("credential refresh returned no access token; check credential validity")
+        if command == "token":
+            print("OK" if args.check else access_token)
+            return 0
+        env = os.environ.copy()
+        env[args.env] = access_token
+        try:
+            result = subprocess.run(child, env=env)
+        except OSError as exc:
+            print("error: child command could not be launched; check executable and permissions", file=sys.stderr)
+            return 127 if isinstance(exc, FileNotFoundError) else 126
+        return result.returncode if result.returncode >= 0 else 128 - result.returncode
     if command == "check":
         results = store.check(args.account)
         if args.json:

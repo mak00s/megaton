@@ -2,6 +2,16 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
+## Unreleased
+
+- Add `auth exec` (default child environment: `GOOGLE_ACCESS_TOKEN`) and
+  `auth token --check`; authentication failures prevent child launch.
+- Distinguish auth token/exec failures: 2 invalid names/arguments, 3 missing scopes,
+  4 unregistered account/token, 5 refresh/network/store failure. Child exit status
+  is preserved; launch failures return 126/127. Legacy token stdout stays one line.
+- Suggest scope aliases on typos, provide self-contained CLI help, sanitize refresh
+  errors, and show package version plus import path with `megaton --version`.
+
 ## 2.7.0 - 2026-11-10
 
 - Add `mg.gs.sheet.worksheet`: a read-only accessor for the selected gspread

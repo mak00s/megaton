@@ -22,6 +22,11 @@ from .query import (
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="megaton")
+    from importlib.metadata import version
+    import megaton
+
+    parser.add_argument("--version", action="version",
+                        version=f"megaton {version('megaton')}\n{megaton.__file__}")
     commands = parser.add_subparsers(dest="command", required=True)
     query = commands.add_parser("query", help="Execute an explicit GA4/GSC/BQ request")
     query.add_argument("--params", required=True, help="JSON request file; - for stdin")

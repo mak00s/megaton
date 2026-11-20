@@ -21,7 +21,14 @@ megaton query --params query.json --sa corp-ga
 
 Credentials can live in one per-machine store (`~/.config/megaton`) and be
 named by identity (`Megaton(sa="corp-ga")`, `Megaton(account="sim")`,
-`megaton auth token --account sim --scopes docs`). See
+`megaton auth exec --account sim --scopes docs -- <command>`). The child receives
+`GOOGLE_ACCESS_TOKEN` (`--env NAME` overrides it); authentication failure prevents
+launch. Use `megaton auth token --account sim --scopes docs --check` to check
+without printing a token. Errors go to stderr: keep it visible, never discard it
+with `2>/dev/null`. Exit codes: 0 success, 2 invalid name/arguments, 3 missing
+scopes, 4 unregistered account/token, 5 refresh/network/store failure. `exec`
+returns the child status (126/127 if launch fails). `megaton --version` shows the
+package version and import path. See
 [docs/credential-store.md](docs/credential-store.md).
 
 `query.json` selects the resource and dates explicitly:

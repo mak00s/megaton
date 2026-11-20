@@ -141,7 +141,8 @@ def test_refresh_failure_hints_login(home, monkeypatch):
                         lambda self, request: (_ for _ in ()).throw(RefreshError("invalid_grant")))
     with pytest.raises(CredentialStoreError) as exc:
         home.user_credentials("sim")
-    assert "invalid_grant" in str(exc.value)
+    assert "refresh failed" in str(exc.value)
+    assert exc.value.exit_code == 5
     assert exc.value.hint.startswith("megaton auth login --account sim@example.com --scopes docs")
 
 
@@ -302,7 +303,7 @@ def test_cli_auth_init_list_path_and_token(home, tmp_path, capsys, monkeypatch):
     assert capsys.readouterr().out.strip() == str(home.sa_dir / "sheets.json")
     assert cli.main(["auth", "token", "--account", "sim"]) == 0
     assert capsys.readouterr().out.strip() == "access-old"
-    assert cli.main(["auth", "token", "--account", "sim", "--scopes", "drive"]) == 1
+    assert cli.main(["auth", "token", "--account", "sim", "--scopes", "drive"]) == 3
     err = capsys.readouterr().err
     assert "lacks scopes: drive" in err and "megaton auth login --account sim@example.com --scopes drive" in err
     assert cli.main(["auth", "scopes"]) == 0
@@ -511,3 +512,20 @@ def test_check_explicit_unknown_email_fails(home, capsys):
     assert printed["ok"] is False
     assert cli.main(["auth", "check", "--account", "absent@example.com"]) == 1
     assert "NG  absent@example.com" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("failure", ["refresh", "transport"])
+def test_refresh_error_details_are_not_disclosed(home, monkeypatch, capsys, failure):
+    import secrets
+    from google.auth.exceptions import RefreshError, TransportError
+
+    write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
+    error_type = RefreshError if failure == "refresh" else TransportError
+    def fail(*args):
+        raise error_type(secrets.token_urlsafe())
+    monkeypatch.setattr("google.oauth2.credentials.Credentials.refresh", fail)
+    assert cli.main(["auth", "token", "--account", "sim", "--check"]) == 5
+    output = capsys.readouterr()
+    assert not output.out
+    assert "refresh failed" in output.err
+    assert "check network" in output.err

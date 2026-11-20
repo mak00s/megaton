@@ -16,6 +16,7 @@ GA4, GSC); Google Cloud access goes through service accounts, which never expire
 
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import tomllib
@@ -112,11 +113,16 @@ client = "oauth-client.json"
 
 
 class CredentialStoreError(RuntimeError):
-    """A credential could not be resolved; ``hint`` is the command that fixes it."""
+    """Credential failure with a remediation ``hint`` and token/exec ``exit_code``.
 
-    def __init__(self, message: str, hint: Optional[str] = None):
+    Codes: 2 invalid name, 3 missing scopes, 4 unregistered account,
+    5 credential/refresh/network/store failure (default).
+    """
+
+    def __init__(self, message: str, hint: Optional[str] = None, *, exit_code: int = 5):
         super().__init__(message)
         self.hint = hint
+        self.exit_code = exit_code
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         base = super().__str__()
@@ -137,8 +143,16 @@ def expand_scopes(scopes: Optional[Iterable[str] | str]) -> list[str]:
         url = SCOPE_ALIASES.get(scope)
         if url is None:
             if not scope.startswith("https://"):
+                candidates = {url.rsplit("/", 1)[-1]: alias
+                              for alias, url in reversed(list(SCOPE_ALIASES.items()))}
+                suggestion = candidates.get(scope)
+                if suggestion is None:
+                    matches = difflib.get_close_matches(scope, SCOPE_ALIASES, n=1)
+                    suggestion = matches[0] if matches else None
+                suffix = f" (did you mean: {suggestion}?)" if suggestion else ""
                 raise CredentialStoreError(
-                    f"unknown scope alias: {scope}",
+                    f"unknown scope alias: {scope}{suffix}",
+                    exit_code=2,
                     hint="use one of: " + ", ".join(sorted(SCOPE_ALIASES)),
                 )
             url = scope
@@ -228,7 +242,7 @@ def _safe_name(value: str, what: str) -> str:
     """Reject names that could escape the store directory."""
     value = (value or "").strip()
     if not value or value in (".", "..") or "/" in value or "\\" in value or value.startswith("."):
-        raise CredentialStoreError(f"invalid {what}: {value!r}")
+        raise CredentialStoreError(f"invalid {what}: {value!r}", exit_code=2)
     return value
 
 
@@ -275,7 +289,7 @@ class CredentialStore:
             with open(self.registry_path, "rb") as handle:
                 data = tomllib.load(handle)
         except tomllib.TOMLDecodeError as exc:
-            raise CredentialStoreError(f"{self.registry_path} is not valid TOML: {exc}") from exc
+            raise CredentialStoreError(f"{self.registry_path} is not valid TOML; correct the registry syntax") from exc
         return data if isinstance(data, dict) else {}
 
     @property
@@ -303,7 +317,7 @@ class CredentialStore:
         """Alias or email → email. Without an alias, a unique local part also matches."""
         account = (account or "").strip()
         if not account:
-            raise CredentialStoreError("account is required")
+            raise CredentialStoreError("account is required", exit_code=2)
         aliases = self._user_aliases()
         if account in aliases:
             return aliases[account]
@@ -315,11 +329,13 @@ class CredentialStore:
         if not matches:
             raise CredentialStoreError(
                 f"no user token for '{account}' in {self.users_dir}",
+                exit_code=4,
                 hint=f"megaton auth login --account <email> --scopes docs,drive  (then alias it as "
                      f"'{account}' in {self.registry_path})",
             )
         raise CredentialStoreError(
             f"'{account}' matches several users: {', '.join(matches)}",
+            exit_code=2,
             hint=f"add an alias in {self.registry_path} or pass the full email",
         )
 
@@ -331,6 +347,7 @@ class CredentialStore:
         if not path.is_file():
             raise CredentialStoreError(
                 f"no token for {email} ({path})",
+                exit_code=4,
                 hint=f"megaton auth login --account {email} --scopes docs,drive",
             )
         info = json.loads(path.read_text(encoding="utf-8"))
@@ -379,10 +396,10 @@ class CredentialStore:
         """
         from google.oauth2.credentials import Credentials
 
+        required = expand_scopes(scopes)
         email = self.resolve_email(account)
         info = self._load_token(email)
         granted = self._token_scopes(info)
-        required = expand_scopes(scopes)
         self._require_scopes(email, granted, required)
         creds = Credentials.from_authorized_user_info(info, scopes=granted or None)
         if refresh and not creds.valid:
@@ -403,17 +420,18 @@ class CredentialStore:
             raise CredentialStoreError(
                 f"token for {email} lacks scopes: {', '.join(short_scope(s) for s in missing)}",
                 hint=f"megaton auth login --account {email} --scopes {wanted}",
+                exit_code=3,
             )
 
     def _refresh(self, creds, email: str) -> None:
-        from google.auth.exceptions import RefreshError
+        from google.auth.exceptions import GoogleAuthError
         from google.auth.transport.requests import Request
 
         try:
             creds.refresh(Request())
-        except RefreshError as exc:
+        except (GoogleAuthError, OSError) as exc:
             raise CredentialStoreError(
-                f"refresh failed for {email}: {exc}",
+                f"refresh failed for {email}; check network and credential validity",
                 hint=f"megaton auth login --account {email} --scopes "
                      + (",".join(short_scope(s) for s in (creds.scopes or [])) or "docs,drive"),
             ) from exc
