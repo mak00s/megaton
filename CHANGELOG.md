@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## Unreleased
+## 2.9.0 - 2026-11-22
 
 - Support keyless Workload Identity Federation (`external_account`) via explicit
   credential files/inline configs and `GOOGLE_APPLICATION_CREDENTIALS`. Required
