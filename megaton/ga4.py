@@ -35,6 +35,7 @@ from google.api_core.exceptions import PermissionDenied
 from google.api_core.exceptions import ResourceExhausted
 from google.api_core.exceptions import ServiceUnavailable
 from google.api_core.exceptions import Unauthenticated
+from google.auth.external_account import Credentials as ExternalAccountCredentials
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 
@@ -137,7 +138,7 @@ class MegatonGA4(object):
 
     # retry(stop=stop_after_attempt(1), retry=retry_if_exception_type(ServiceUnavailable))
     def authorize(self):
-        if not isinstance(self.credentials, (Credentials, service_account.Credentials)):
+        if not isinstance(self.credentials, (Credentials, service_account.Credentials, ExternalAccountCredentials)):
             self.credentials = None
             raise errors.BadCredentialFormat
 

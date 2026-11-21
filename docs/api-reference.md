@@ -69,7 +69,7 @@ Megaton インスタンスを作成します。
 
 **パラメータ:**
 - `credential` (str | dict | None) - 認証情報
-  - `None`: 環境変数 `MEGATON_CREDS_JSON` を使用
+  - `None`: `MEGATON_CREDS_JSON`、次に `GOOGLE_APPLICATION_CREDENTIALS` を使用（後者はファイルパス）
   - `str`: JSON 文字列、ファイルパス、またはディレクトリパス
   - `dict`: 認証情報の辞書
 - `cache_key` (str | None) - OAuth 資格情報キャッシュキー（default: None）
@@ -78,8 +78,10 @@ Megaton インスタンスを作成します。
   - `False`: UI で対話的に選択可能
 - `account` (str | None) - 認証ストアのユーザー（メールまたは別名）。2.6.0 以降
 - `sa` (str | None) - 認証ストアのサービスアカウント名。2.6.0 以降
-- `scopes` (list | None) - `account`/`sa` 使用時のスコープ（別名 `docs`, `sheets`, `analytics` 等か URL）。`sa` の既定は `DEFAULT_SCOPES`、`account` の既定はトークンに付与済みのスコープ
+- `scopes` (list | None) - `account`/`sa` または `external_account` 使用時のスコープ（別名 `docs`, `sheets`, `analytics` 等か URL）。`sa` の既定は `DEFAULT_SCOPES`、`account` の既定はトークンに付与済みのスコープ
 - `store_home` (str | None) - 認証ストアの場所（既定は `$MEGATON_HOME` または `~/.config/megaton`）
+
+`external_account` のファイル・辞書も受け付けます。必要なスコープを付けてGoogleの汎用ローダーへ渡し、`mg.creds` をGA4・BigQuery・gspread・Docs/Driveクライアントで共有できます。詳細とActions設定例は[鍵なし認証](credential-store.md#github-actions-の鍵なし認証workload-identity-federation)を参照してください。
 
 `account`/`sa` を指定すると `credential` は無視され、[認証ストア](credential-store.md)から識別子で資格情報を取得します。
 

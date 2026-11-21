@@ -594,10 +594,11 @@ class CredentialStore:
                 info = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if not isinstance(info, dict) or info.get("type") != "service_account":
+            if not isinstance(info, dict) or info.get("type") not in ("service_account", "external_account"):
                 continue
+            from .provider import extract_email_from_info
             entries.append(ServiceAccountEntry(
-                name=path.stem, path=path, client_email=str(info.get("client_email", "")),
+                name=path.stem, path=path, client_email=extract_email_from_info(info) or "",
                 project_id=str(info.get("project_id", "")), aliases=alias_map.get(path.name, []),
             ))
         return entries
@@ -631,6 +632,11 @@ class CredentialStore:
         expanded = expand_scopes(scopes)
         if not expanded:
             raise CredentialStoreError("service account scopes are required", hint="scopes=['sheets','drive']")
+        from .google_auth import get_credential_type_from_file
+        if get_credential_type_from_file(str(path)) == "external_account":
+            import google.auth
+            credentials, _ = google.auth.load_credentials_from_file(str(path), scopes=expanded)
+            return credentials
         return service_account.Credentials.from_service_account_file(str(path), scopes=expanded)
 
     def import_service_account(self, path: str | Path, name: Optional[str] = None) -> ServiceAccountEntry:

@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 
 from google.oauth2.credentials import Credentials
+from google.auth.external_account import Credentials as ExternalAccountCredentials
 from google.oauth2 import service_account
 from google.auth.exceptions import RefreshError
 from gspread_dataframe import set_with_dataframe
@@ -92,7 +93,7 @@ class MegatonGS(object):
 
     def _authorize(self):
         """Validate credentials given and build client"""
-        if not isinstance(self.credentials, (Credentials, service_account.Credentials)):
+        if not isinstance(self.credentials, (Credentials, service_account.Credentials, ExternalAccountCredentials)):
             self.credentials = None
             raise errors.BadCredentialFormat
         elif self.credentials.scopes:

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import base64
 import json
 import os
+import re
+from urllib.parse import unquote, urlsplit
 from typing import Any, Optional, Tuple
 
 
@@ -57,11 +59,33 @@ def load_json_file(path: str) -> Tuple[Optional[dict], Optional[Exception]]:
     return data, None
 
 
+def extract_email_from_info(info: dict) -> Optional[str]:
+    """Identify the target SA without requiring a private key; unknown is None."""
+    if info.get("type") != "external_account":
+        email = info.get("client_email")
+        return email if isinstance(email, str) and email else None
+    url = info.get("service_account_impersonation_url")
+    if not isinstance(url, str):
+        return None
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return None
+    if (parsed.scheme != "https" or parsed.netloc != "iamcredentials.googleapis.com"
+            or parsed.query or parsed.fragment):
+        return None
+    match = re.fullmatch(
+        r"/v1/projects/-/serviceAccounts/([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+):generateAccessToken",
+        unquote(parsed.path),
+    )
+    return match.group(1) if match else None
+
+
 def extract_email_from_file(path: str) -> Optional[str]:
     info, _ = load_json_file(path)
     if not isinstance(info, dict):
         return None
-    return info.get("client_email")
+    return extract_email_from_info(info)
 
 
 def resolve_credential_source(
@@ -79,6 +103,9 @@ def resolve_credential_source(
         if env_val:
             origin = "env"
             value = env_val
+        elif os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+            origin = "adc_env"
+            value = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
         elif in_colab:
             origin = "colab_default"
             value = colab_default

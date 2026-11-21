@@ -45,8 +45,8 @@ def hints_enabled() -> bool:
 
 
 def _credential_type(info: dict) -> Optional[str]:
-    if info.get("type") == "service_account":
-        return "service_account"
+    if info.get("type") in ("service_account", "external_account"):
+        return info["type"]
     if "installed" in info or "web" in info:
         return "oauth_client"
     return None
@@ -75,9 +75,12 @@ def store_hint(path: str | Path, *, store=None) -> Optional[str]:
     if not isinstance(info, dict):
         return None
     kind = _credential_type(info)
+    if kind == "external_account":
+        return None  # Never redirect federation to a stored key, even for the same SA.
     store = store or CredentialStore()
     if kind == "service_account":
-        email = str(info.get("client_email") or "")
+        from .provider import extract_email_from_info
+        email = extract_email_from_info(info) or ""
         for entry in store.service_accounts():
             if email and entry.client_email == email:
                 name = entry.aliases[0] if entry.aliases else entry.name

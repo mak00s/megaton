@@ -121,3 +121,88 @@ megaton auth exec --account sim --scopes docs -- sh -c \
 1. 新しいMacで `pip install megaton` と `megaton auth init`
 2. `credentials.toml`・`oauth-client.json`・`users/`・`sa/` を安全な経路（AirDrop等）でコピー
 3. `megaton auth check` で全ユーザーが `ok` になることを確認
+
+## GitHub Actions の鍵なし認証（Workload Identity Federation）
+
+`external_account` 型の認証設定をサポートします。SA鍵と同じファイル指定の入口で
+`google.auth.load_credentials_from_file(..., scopes=...)` を使い、成り代わるSAの
+メールは `service_account_impersonation_url` から取得します。取得不能なら不明として扱い、
+別の資格情報に切り替えません。既存の `service_account` 鍵ファイルの動作は維持します。
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: google-github-actions/auth@v3
+        with:
+          project_id: your-project
+          workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/github/providers/actions
+          service_account: report-reader@your-project.iam.gserviceaccount.com
+          create_credentials_file: true
+          export_environment_variables: true
+      - run: python -m pip install 'megaton>=2.9.0'
+      - name: Read report
+        run: python report.py
+```
+
+`auth` が設定する `GOOGLE_APPLICATION_CREDENTIALS` は一時的な認証設定ファイルを指します。
+その後の同じjobのstepで使用します。`Megaton` の選択順は `account=` / `sa=`、
+明示した `credential`、`MEGATON_CREDS_JSON`、`GOOGLE_APPLICATION_CREDENTIALS`。
+選ばれた認証が失敗しても別の資格情報にはフォールバックしません。
+
+```python
+# report.py: GA初期化を省き、Sheets/Drive用のスコープを指定
+from megaton import Megaton
+
+mg = Megaton(headless=True, initialize_ga=False,
+             scopes=['sheets', 'drive'])
+# 通常の mg.sheets / mg.sheet 操作で読み取る
+```
+
+`external_account` 使用時の `Megaton(..., scopes=...)` には別名またはスコープURLを
+指定できます。省略時は従来の `DEFAULT_SCOPES`。GA4利用時は `analytics` 等、
+BigQuery利用時は `cloud-platform` 等、その処理に必要なスコープを指定してください。
+通常の `mg.sheets` / `mg.sheet` は従来どおり `sheets,drive` スコープを要求します。
+読み取り専用スコープを指定する場合は、次の低レベルAPIを利用できます。
+Sheetsの低レベルAPIも同じファイルを受け取ります。
+
+```python
+import os
+from googleapiclient.discovery import build
+from megaton.auth import load_service_account_credentials_from_file
+from megaton.gsheet_lowlevel import open_spreadsheet
+
+path = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+creds = load_service_account_credentials_from_file(path, [
+    'https://www.googleapis.com/auth/documents.readonly',
+    'https://www.googleapis.com/auth/drive.readonly',
+])
+docs = build('docs', 'v1', credentials=creds)
+drive = build('drive', 'v3', credentials=creds)
+spreadsheet = open_spreadsheet(spreadsheet_id='<id>', credentials_path=path,
+    scopes=['https://www.googleapis.com/auth/spreadsheets.readonly'])
+```
+
+単発クエリCLIの明示認証の契約は維持します。
+GA4/GSCでは `--credential "$GOOGLE_APPLICATION_CREDENTIALS"`、
+BigQueryでは同じ指定か `--adc` を使います。`sa=` の既存ファイル参照も
+`external_account` に対応しますが、Actionsの一時ファイルを `auth import --sa` で
+永続コピーする運用にはしません（importは従来どおり鍵ファイル専用）。
+
+設定ファイルは信頼できるworkflowが生成したものだけを使ってください。
+WIFのプロバイダー・対象repo/refの制限・SAへの `roles/iam.workloadIdentityUser` と、
+対象APIの権限は管理者があらかじめ設定します。GA4のプロパティ権限や
+Sheets/Docs/Driveのファイル共有は対象SAに付与します。OAuthスコープの指定だけで
+アクセス権が増えることはありません。鍵の作成や同意画面は不要です。
+
+参考：[公式Actions設定](https://github.com/google-github-actions/auth)、
+[google-authローダー](https://google-auth.readthedocs.io/en/latest/reference/google.auth.html)。

@@ -594,17 +594,20 @@ def open_spreadsheet(
     credentials_path: str | Path,
     scopes: list[str] | tuple[str, ...] | None = None,
 ):
-    """Open a Google spreadsheet with a service-account JSON file."""
+    """Open a spreadsheet with a trusted service-account or external-account JSON."""
     import gspread
+    from .auth.google_auth import get_credential_type_from_file
     from google.oauth2.service_account import Credentials
 
     path = Path(credentials_path)
     if not path.exists():
         raise FileNotFoundError(f"service account JSON not found: {path}")
-    creds = Credentials.from_service_account_file(
-        str(path),
-        scopes=list(scopes or DEFAULT_SHEETS_SCOPES),
-    )
+    required_scopes = list(scopes or DEFAULT_SHEETS_SCOPES)
+    if get_credential_type_from_file(str(path)) == "external_account":
+        import google.auth
+        creds, _ = google.auth.load_credentials_from_file(str(path), scopes=required_scopes)
+    else:
+        creds = Credentials.from_service_account_file(str(path), scopes=required_scopes)
     client = gspread.authorize(creds)
     return call_with_retry(
         f"open_spreadsheet {spreadsheet_id}",

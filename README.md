@@ -29,7 +29,9 @@ with `2>/dev/null`. Exit codes: 0 success, 2 invalid name/arguments, 3 missing
 scopes, 4 unregistered account/token, 5 refresh/network/store failure. `exec`
 returns the child status (126/127 if launch fails). `megaton --version` shows the
 package version and import path. See
-[docs/credential-store.md](docs/credential-store.md).
+[docs/credential-store.md](docs/credential-store.md). GitHub Actions can also use
+keyless Workload Identity Federation (`external_account`) through
+`GOOGLE_APPLICATION_CREDENTIALS`; see the authentication guide for setup.
 
 `query.json` selects the resource and dates explicitly:
 

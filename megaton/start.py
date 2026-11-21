@@ -159,6 +159,8 @@ class Megaton:
             mount_google_drive()
         if account or sa:
             self.auth(credential=self._credential, cache_key=cache_key, account=account, sa=sa, scopes=scopes)
+        elif scopes is not None:
+            self.auth(credential=self._credential, cache_key=cache_key, scopes=scopes)
         else:
             self.auth(credential=self._credential, cache_key=cache_key)
 
@@ -320,14 +322,17 @@ class Megaton:
             credential,
             in_colab=self.in_colab,
         )
+        if source.credential_type == "external_account" and scopes is not None:
+            from .auth.store import expand_scopes
+            self.required_scopes = expand_scopes(scopes)
         if source.kind == "inline" and source.info:
             ctype = source.credential_type or auth_google.get_credential_type_from_info(source.info)
-            if ctype == "service_account":
+            if ctype in ("service_account", "external_account"):
                 self.creds = auth_google.load_service_account_credentials_from_info(source.info, self.required_scopes)
                 if not self.creds:
-                    self._notify_invalid_service_account(source.info.get('client_email'))
+                    self._notify_invalid_service_account(auth_provider.extract_email_from_info(source.info))
                     return
-                self.json = "<inline:service_account>"
+                self.json = f"<inline:{ctype}>"
                 if not self.headless:
                     self.select.ga()
                 else:
@@ -388,8 +393,9 @@ class Megaton:
                     from .auth.hints import suggest_store
                     suggest_store(source.value)
                 return
-            if creds_type == 'service_account':
-                self.creds = auth_google.load_service_account_credentials_from_file(source.value, constants.DEFAULT_SCOPES)
+            if creds_type in ('service_account', 'external_account'):
+                file_scopes = self.required_scopes if creds_type == "external_account" else constants.DEFAULT_SCOPES
+                self.creds = auth_google.load_service_account_credentials_from_file(source.value, file_scopes)
                 if not self.creds:
                     email = auth_provider.extract_email_from_file(source.value)
                     self._notify_invalid_service_account(email)
@@ -407,7 +413,7 @@ class Megaton:
 
         warning_value = source.value if source.value is not None else credential
         if warning_value:
-            logger.warning('指定した認証情報を解釈できません: %s', warning_value)
+            logger.warning('指定した認証情報を解釈できません。認証ファイルの形式を確認してください。')
 
     def _auth_from_store(self, *, account: Optional[str], sa: Optional[str], scopes: Optional[list]):
         """認証ストアから識別子で資格情報を取得する（account=ユーザー、sa=サービスアカウント）"""
@@ -674,7 +680,7 @@ class Megaton:
                         return
 
                     # Service Account
-                    if creds_type in ['service_account']:
+                    if creds_type in ('service_account', 'external_account'):
                         self.parent.creds = auth_google.load_service_account_credentials_from_file(change.new,
                                                                                             self.parent.required_scopes)
                         if not self.parent.creds:

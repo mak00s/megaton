@@ -8,6 +8,7 @@ import os
 import hashlib
 from collections import defaultdict
 
+import google.auth
 import google.oauth2.credentials
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
@@ -42,10 +43,10 @@ def get_credential_type(client_config: dict):
             configuration in the Google `client secrets`_ format.
 
     Returns:
-        client_type [str]: The client type, either ``'service_account'`` or ``'web'`` or ``'installed'``
+        client_type [str]: The client type: service_account, external_account, web, or installed
     """
-    if client_config.get('type', '') == "service_account":
-        return "service_account"
+    if client_config.get("type") in ("service_account", "external_account"):
+        return client_config["type"]
     elif "web" in client_config:
         client_type = "web"
     elif "installed" in client_config:
@@ -64,7 +65,7 @@ def get_credential_type_from_file(json_path: str):
             json_path (str): The path to the client secrets .json file.
 
         Returns:
-            client_type [str]: The client type, either ``'service_account'`` or ``'web'`` or ``'installed'``
+            client_type [str]: The client type: service_account, external_account, web, or installed
         """
     try:
         with open(json_path, "r") as fp:
@@ -82,8 +83,8 @@ def get_credential_type_from_file(json_path: str):
 
 def get_credential_type_from_info(info: dict) -> str:
     if isinstance(info, dict):
-        if info.get("type") == "service_account":
-            return "service_account"
+        if info.get("type") in ("service_account", "external_account"):
+            return info["type"]
         if "installed" in info:
             return "installed"
         if "web" in info:
@@ -98,7 +99,7 @@ def get_json_files_from_dir(json_dir: str):
         for file in files:
             if file.endswith('.json'):
                 client_type = get_credential_type_from_file(os.path.join(root, file))
-                if client_type == 'service_account':
+                if client_type in ('service_account', 'external_account'):
                     json_files['Service Account'][file] = os.path.join(root, file)
                 elif client_type in ['installed', 'web']:
                     json_files['OAuth'][file] = os.path.join(root, file)
@@ -141,6 +142,10 @@ def load_credentials(file_path: str, scopes: list):
 
 
 def load_service_account_credentials_from_info(info: dict, scopes: list):
+    """Load a trusted SA key or external-account configuration with explicit scopes."""
+    if isinstance(info, dict) and info.get("type") == "external_account":
+        credentials, _ = google.auth.load_credentials_from_dict(info, scopes=scopes)
+        return credentials
     if not isinstance(info, dict) or info.get("type") != "service_account":
         raise ValueError("service_account info required")
     credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
@@ -155,7 +160,7 @@ def load_service_account_credentials_from_info(info: dict, scopes: list):
             else:
                 message = "指定したサービスアカウントは存在しない、または無効です。"
             LOGGER.error(message)
-            LOGGER.debug(f"Service account refresh error detail: {exc}")
+            LOGGER.debug("Service account refresh failed (%s)", type(exc).__name__)
             return None
     return credentials
 
@@ -197,12 +202,15 @@ def get_token(flow, code: str):
 
 
 def load_service_account_credentials_from_file(path: str, scopes: list):
-    """Gets service account credentials from JSON file at ``path``.
+    """Load a trusted service-account key or external-account JSON at ``path``.
 
     :param path: Path to credentials JSON file.
     :param scopes: A list of scopes to use when authenticating to Google APIs.
-    :return: google.oauth2.service_account.Credentials
+    :return: Google credentials (service account or external account)
     """
+    if get_credential_type_from_file(path) == "external_account":
+        credentials, _ = google.auth.load_credentials_from_file(path, scopes=scopes)
+        return credentials
     credentials = service_account.Credentials.from_service_account_file(path, scopes=scopes)
     if not credentials.valid:
         request = google.auth.transport.requests.Request()
@@ -215,7 +223,7 @@ def load_service_account_credentials_from_file(path: str, scopes: list):
             else:
                 message = "指定したサービスアカウントは存在しない、または無効です。"
             LOGGER.error(message)
-            LOGGER.debug("Service account refresh error detail: %s", exc)
+            LOGGER.debug("Service account refresh failed (%s)", type(exc).__name__)
             return None
     return credentials
 

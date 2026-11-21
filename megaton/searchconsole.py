@@ -4,6 +4,7 @@ import logging
 from typing import Optional
 
 from google.oauth2.credentials import Credentials
+from google.auth.external_account import Credentials as ExternalAccountCredentials
 from google.oauth2 import service_account
 
 from googleapiclient.discovery import build
@@ -28,7 +29,7 @@ class MegatonSC(object):
             self.set_site(site_url)
 
     def _authorize(self):
-        if not isinstance(self.credentials, (Credentials, service_account.Credentials)):
+        if not isinstance(self.credentials, (Credentials, service_account.Credentials, ExternalAccountCredentials)):
             self.credentials = None
             raise errors.BadCredentialFormat
         elif self.credentials.scopes:
