@@ -2,7 +2,7 @@
 
 Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
-## Unreleased
+## 2.8.0 - 2026-11-21
 
 - Add `auth exec` (default child environment: `GOOGLE_ACCESS_TOKEN`) and
   `auth token --check`; authentication failures prevent child launch.
