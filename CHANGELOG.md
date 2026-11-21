@@ -14,8 +14,9 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   Sanitized errors keep the OAuth error code or exception type (e.g. `invalid_grant`,
   `TransportError`), corrupt token files name the file with a login hint, and
   `--version` also works from a checkout without installed metadata.
-- `auth exec --env` refuses process variables (`PATH`, `HOME`, `SHELL`, `LD_*`,
-  `DYLD_*` and similar) with exit code 2.
+- `auth exec --env` accepts only uppercase names ending in `_TOKEN` (exit code 2
+  otherwise), so programs cannot interpret and echo the token (`PATH`, `BASH_ENV`,
+  `PYTHONWARNINGS`, ...). Refresh errors echo only standard OAuth error codes.
 
 ## 2.7.0 - 2026-11-10
 

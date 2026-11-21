@@ -22,7 +22,7 @@ megaton query --params query.json --sa corp-ga
 Credentials can live in one per-machine store (`~/.config/megaton`) and be
 named by identity (`Megaton(sa="corp-ga")`, `Megaton(account="sim")`,
 `megaton auth exec --account sim --scopes docs -- <command>`). The child receives
-`GOOGLE_ACCESS_TOKEN` (`--env NAME` overrides it); authentication failure prevents
+`GOOGLE_ACCESS_TOKEN` (`--env NAME_TOKEN` overrides it; only uppercase names ending in `_TOKEN`); authentication failure prevents
 launch. Use `megaton auth token --account sim --scopes docs --check` to check
 without printing a token. Errors go to stderr: keep it visible, never discard it
 with `2>/dev/null`. Exit codes: 0 success, 2 invalid name/arguments, 3 missing

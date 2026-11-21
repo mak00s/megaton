@@ -19,7 +19,6 @@ from __future__ import annotations
 import difflib
 import json
 import os
-import re
 import tomllib
 import urllib.request
 from dataclasses import dataclass, field
@@ -111,6 +110,15 @@ client = "oauth-client.json"
 # alias = "file name under sa/"
 # project-sheets = "sa_project_sheets-api.json"
 """
+
+
+# Standard OAuth error codes (RFC 6749 section 5.2, RFC 6750 section 3.1); only these
+# are echoed from a refresh failure, anything else is reported by exception type.
+_OAUTH_ERROR_CODES = frozenset({
+    "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client",
+    "unsupported_grant_type", "invalid_scope", "access_denied", "server_error",
+    "temporarily_unavailable", "invalid_token", "insufficient_scope",
+})
 
 
 class CredentialStoreError(RuntimeError):
@@ -441,7 +449,7 @@ class CredentialStore:
             reason = type(exc).__name__
             first = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
             code = first.split(":", 1)[0].strip()
-            if isinstance(exc, RefreshError) and re.fullmatch(r"[a-z_]{3,40}", code):
+            if isinstance(exc, RefreshError) and code in _OAUTH_ERROR_CODES:
                 reason = code
             raise CredentialStoreError(
                 f"refresh failed for {email} ({reason}); check network and credential validity",

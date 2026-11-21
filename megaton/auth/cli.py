@@ -52,7 +52,7 @@ The child inherits stdout/stderr; do not print the token from your command.
         if name == "token":
             command.add_argument("--check", action="store_true", help="Print OK without exposing the token; same failure codes")
         else:
-            command.add_argument("--env", default="GOOGLE_ACCESS_TOKEN", help="Child token environment variable (default: GOOGLE_ACCESS_TOKEN)")
+            command.add_argument("--env", default="GOOGLE_ACCESS_TOKEN", help="Child token variable, an uppercase name ending in _TOKEN (default: GOOGLE_ACCESS_TOKEN)")
             command.add_argument("child_command", nargs=argparse.REMAINDER, help="-- followed by the command and its arguments (required)")
 
     check = sub.add_parser("check", help="Refresh stored user tokens and report validity")
@@ -91,14 +91,13 @@ def run(args: argparse.Namespace) -> int:
         return 5
 
 
-# Overwriting these with a token would break or redirect the child process.
-_RESERVED_ENV = {"PATH", "HOME", "SHELL", "USER", "LOGNAME", "TMPDIR", "PWD", "IFS"}
-
-
 def _valid_env_name(name: str) -> bool:
-    return (bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name))
-            and name.upper() not in _RESERVED_ENV
-            and not name.upper().startswith(("LD_", "DYLD_")))
+    """Allow only token-named variables.
+
+    Programs interpret many variables (PATH, BASH_ENV, PYTHONWARNINGS, PS4, ...) and
+    may echo invalid values, so a denylist cannot keep the token out of their output.
+    """
+    return bool(re.fullmatch(r"[A-Z][A-Z0-9_]*_TOKEN", name))
 
 
 def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
@@ -147,7 +146,7 @@ def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
                 child = child[1:]
             if not child or not _valid_env_name(args.env):
                 print("error: exec requires a command after -- and a valid --env name "
-                      "(not PATH, HOME or another process variable); see megaton auth exec --help",
+                      "(an uppercase name ending in _TOKEN); see megaton auth exec --help",
                       file=sys.stderr)
                 return 2
         access_token = store.user_access_token(args.account, args.scopes)

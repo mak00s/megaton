@@ -178,7 +178,8 @@ def test_child_argument_value_error_is_launch_failure(isolated, monkeypatch, cap
     assert "could not be launched" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("name", ["PATH", "HOME", "path", "LD_PRELOAD", "DYLD_LIBRARY_PATH"])
+@pytest.mark.parametrize("name", ["PATH", "HOME", "LD_PRELOAD", "DYLD_LIBRARY_PATH", "PYTHONWARNINGS",
+                                  "BASH_ENV", "PS4", "PROMPT_COMMAND", "custom_token", "TOKEN"])
 def test_exec_refuses_process_variables(isolated, monkeypatch, capsys, name):
     monkeypatch.setattr(CredentialStore, "user_access_token", lambda *a: pytest.fail("token fetched"))
     assert cli.main(["auth", "exec", "--account", "sim", "--env", name, "--", "unused"]) == 2
@@ -201,3 +202,13 @@ def test_version_without_distribution_metadata(monkeypatch, capsys):
         cli.main(["--version"])
     assert error.value.code == 0
     assert "unknown (not installed)" in capsys.readouterr().out
+
+
+def test_exec_token_variable_is_not_echoed_by_child_python(isolated, monkeypatch, capfd):
+    secret = "not-a-filter-" + secrets.token_hex(8)
+    monkeypatch.setattr(CredentialStore, "user_access_token", lambda *a: secret)
+    code = cli.main(["auth", "exec", "--account", "sim", "--env", "PYTHONWARNINGS", "--",
+                     sys.executable, "-c", "pass"])
+    assert code == 2
+    captured = capfd.readouterr()
+    assert secret not in captured.out + captured.err

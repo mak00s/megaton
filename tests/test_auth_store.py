@@ -550,3 +550,14 @@ def test_invalid_registry_reports_position(home):
     with pytest.raises(CredentialStoreError) as exc:
         home.registry()
     assert "line 2" in str(exc.value)
+
+
+def test_refresh_free_text_is_not_echoed_as_oauth_code(home, monkeypatch):
+    from google.auth.exceptions import RefreshError
+
+    write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
+    monkeypatch.setattr("google.oauth2.credentials.Credentials.refresh",
+                        lambda self, request: (_ for _ in ()).throw(RefreshError("dummysecretvalue: details")))
+    with pytest.raises(CredentialStoreError) as exc:
+        home.user_credentials("sim")
+    assert "dummysecretvalue" not in str(exc.value) and "(RefreshError)" in str(exc.value)
