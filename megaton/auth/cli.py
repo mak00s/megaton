@@ -82,12 +82,23 @@ def run(args: argparse.Namespace) -> int:
     except CredentialStoreError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return exc.exit_code if args.auth_command in ("token", "exec") else 1
-    except Exception:
+    except Exception as exc:
         if args.auth_command not in ("token", "exec"):
             raise
-        print("error: credential operation failed; check store configuration and network; "
-              "use megaton auth token --help", file=sys.stderr)
+        # Exception text may carry token material, so only the type is reported.
+        print(f"error: credential operation failed ({type(exc).__name__}); check store "
+              "configuration and network; use megaton auth token --help", file=sys.stderr)
         return 5
+
+
+# Overwriting these with a token would break or redirect the child process.
+_RESERVED_ENV = {"PATH", "HOME", "SHELL", "USER", "LOGNAME", "TMPDIR", "PWD", "IFS"}
+
+
+def _valid_env_name(name: str) -> bool:
+    return (bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name))
+            and name.upper() not in _RESERVED_ENV
+            and not name.upper().startswith(("LD_", "DYLD_")))
 
 
 def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
@@ -134,12 +145,17 @@ def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
             child = args.child_command
             if child and child[0] == "--":
                 child = child[1:]
-            if not child or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", args.env):
-                raise CredentialStoreError("exec requires a command after -- and a valid --env name",
-                                           hint="megaton auth exec --help", exit_code=2)
+            if not child or not _valid_env_name(args.env):
+                print("error: exec requires a command after -- and a valid --env name "
+                      "(not PATH, HOME or another process variable); see megaton auth exec --help",
+                      file=sys.stderr)
+                return 2
         access_token = store.user_access_token(args.account, args.scopes)
         if not access_token or access_token == "None":
-            raise CredentialStoreError("credential refresh returned no access token; check credential validity")
+            raise CredentialStoreError(
+                "credential refresh returned no access token; check credential validity",
+                hint=f"megaton auth login --account {args.account} --scopes {args.scopes or 'docs,drive'}",
+            )
         if command == "token":
             print("OK" if args.check else access_token)
             return 0
@@ -147,7 +163,7 @@ def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
         env[args.env] = access_token
         try:
             result = subprocess.run(child, env=env)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             print("error: child command could not be launched; check executable and permissions", file=sys.stderr)
             return 127 if isinstance(exc, FileNotFoundError) else 126
         return result.returncode if result.returncode >= 0 else 128 - result.returncode

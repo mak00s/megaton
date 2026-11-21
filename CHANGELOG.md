@@ -11,6 +11,11 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
   is preserved; launch failures return 126/127. Legacy token stdout stays one line.
 - Suggest scope aliases on typos, provide self-contained CLI help, sanitize refresh
   errors, and show package version plus import path with `megaton --version`.
+  Sanitized errors keep the OAuth error code or exception type (e.g. `invalid_grant`,
+  `TransportError`), corrupt token files name the file with a login hint, and
+  `--version` also works from a checkout without installed metadata.
+- `auth exec --env` refuses process variables (`PATH`, `HOME`, `SHELL`, `LD_*`,
+  `DYLD_*` and similar) with exit code 2.
 
 ## 2.7.0 - 2026-11-10
 

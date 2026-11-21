@@ -19,6 +19,7 @@ from __future__ import annotations
 import difflib
 import json
 import os
+import re
 import tomllib
 import urllib.request
 from dataclasses import dataclass, field
@@ -289,7 +290,7 @@ class CredentialStore:
             with open(self.registry_path, "rb") as handle:
                 data = tomllib.load(handle)
         except tomllib.TOMLDecodeError as exc:
-            raise CredentialStoreError(f"{self.registry_path} is not valid TOML; correct the registry syntax") from exc
+            raise CredentialStoreError(f"{self.registry_path} is not valid TOML ({exc}); correct the registry syntax") from exc
         return data if isinstance(data, dict) else {}
 
     @property
@@ -350,7 +351,13 @@ class CredentialStore:
                 exit_code=4,
                 hint=f"megaton auth login --account {email} --scopes docs,drive",
             )
-        info = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            info = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise CredentialStoreError(
+                f"{path} could not be read as token JSON ({type(exc).__name__})",
+                hint=f"megaton auth login --account {email} --scopes docs,drive",
+            ) from exc
         if not isinstance(info, dict) or not info.get("refresh_token"):
             raise CredentialStoreError(
                 f"{path} is not an authorized-user token with a refresh token",
@@ -424,14 +431,20 @@ class CredentialStore:
             )
 
     def _refresh(self, creds, email: str) -> None:
-        from google.auth.exceptions import GoogleAuthError
+        from google.auth.exceptions import GoogleAuthError, RefreshError
         from google.auth.transport.requests import Request
 
         try:
             creds.refresh(Request())
         except (GoogleAuthError, OSError) as exc:
+            # Report only the OAuth error code or exception type, never the response body.
+            reason = type(exc).__name__
+            first = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
+            code = first.split(":", 1)[0].strip()
+            if isinstance(exc, RefreshError) and re.fullmatch(r"[a-z_]{3,40}", code):
+                reason = code
             raise CredentialStoreError(
-                f"refresh failed for {email}; check network and credential validity",
+                f"refresh failed for {email} ({reason}); check network and credential validity",
                 hint=f"megaton auth login --account {email} --scopes "
                      + (",".join(short_scope(s) for s in (creds.scopes or [])) or "docs,drive"),
             ) from exc

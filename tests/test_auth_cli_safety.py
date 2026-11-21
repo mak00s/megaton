@@ -149,3 +149,55 @@ def test_missing_access_token_stops_child(isolated, monkeypatch, capsys):
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("child started"))
     assert cli.main(["auth", "exec", "--account", "sim", "--", "unused"]) == 5
     assert "no access token" in capsys.readouterr().err
+
+
+def test_unexpected_error_names_only_its_type(isolated, monkeypatch, capsys):
+    secret = secrets.token_urlsafe()
+    monkeypatch.setattr(CredentialStore, "user_access_token", lambda *a: (_ for _ in ()).throw(KeyError(secret)))
+    assert cli.main(["auth", "token", "--account", "sim", "--check"]) == 5
+    err = capsys.readouterr().err
+    assert "(KeyError)" in err and secret not in err
+
+
+def test_corrupt_token_file_names_path_and_login_hint(isolated, tmp_path, monkeypatch, capsys):
+    store = CredentialStore(home=tmp_path)
+    path = store.user_token_path("sim@example.com")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"refresh_token": "' + secrets.token_urlsafe())
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("child started"))
+    assert cli.main(["auth", "exec", "--account", "sim@example.com", "--", "unused"]) == 5
+    err = capsys.readouterr().err
+    assert str(path) in err and "JSONDecodeError" in err
+    assert "megaton auth login --account sim@example.com" in err
+
+
+def test_child_argument_value_error_is_launch_failure(isolated, monkeypatch, capsys):
+    monkeypatch.setattr(CredentialStore, "user_access_token", lambda *a: secrets.token_urlsafe())
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(ValueError("embedded null byte")))
+    assert cli.main(["auth", "exec", "--account", "sim", "--", "unused"]) == 126
+    assert "could not be launched" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("name", ["PATH", "HOME", "path", "LD_PRELOAD", "DYLD_LIBRARY_PATH"])
+def test_exec_refuses_process_variables(isolated, monkeypatch, capsys, name):
+    monkeypatch.setattr(CredentialStore, "user_access_token", lambda *a: pytest.fail("token fetched"))
+    assert cli.main(["auth", "exec", "--account", "sim", "--env", name, "--", "unused"]) == 2
+    assert "--help" in capsys.readouterr().err
+
+
+def test_missing_access_token_hints_login(isolated, monkeypatch, capsys):
+    monkeypatch.setattr(CredentialStore, "user_access_token", lambda *a: "")
+    assert cli.main(["auth", "token", "--account", "sim", "--scopes", "docs", "--check"]) == 5
+    assert "megaton auth login --account sim --scopes docs" in capsys.readouterr().err
+
+
+def test_version_without_distribution_metadata(monkeypatch, capsys):
+    import importlib.metadata as metadata
+
+    def missing(name):
+        raise metadata.PackageNotFoundError(name)
+    monkeypatch.setattr(metadata, "version", missing)
+    with pytest.raises(SystemExit) as error:
+        cli.main(["--version"])
+    assert error.value.code == 0
+    assert "unknown (not installed)" in capsys.readouterr().out

@@ -99,7 +99,7 @@ megaton auth exec --account sim --scopes docs -- sh -c \
   'curl -s -H "Authorization: Bearer $GOOGLE_ACCESS_TOKEN" "https://docs.googleapis.com/v1/documents/<id>?includeTabsContent=true"'
 ```
 
-`exec` は既定で子プロセスの `GOOGLE_ACCESS_TOKEN` に渡す（`--env NAME` で変更）。認証失敗時は子を起動せず、成功時は子の終了コードを返す。子からトークンを出力しないこと。`token` の通常モードは従来どおり stdout にトークン1行、エラーは stderr。`2>/dev/null` で捨てず、`exec` または `token --check` を使う。別名一覧は `megaton auth scopes`。`documents` は `docs`、`spreadsheets` は `sheets` を候補として示し、誤記は拒否する。
+`exec` は既定で子プロセスの `GOOGLE_ACCESS_TOKEN` に渡す（`--env NAME` で変更。`PATH`・`HOME`・`SHELL`・`LD_*`・`DYLD_*` などのプロセス用の変数は指定できない）。認証失敗時は子を起動せず、成功時は子の終了コードを返す。子からトークンを出力しないこと。`token` の通常モードは従来どおり stdout にトークン1行、エラーは stderr。`2>/dev/null` で捨てず、`exec` または `token --check` を使う。別名一覧は `megaton auth scopes`。`documents` は `docs`、`spreadsheets` は `sheets` を候補として示し、誤記は拒否する。
 
 `token` / `token --check` / `exec` の認証終了コードは 0: 成功、2: 名前・引数誤り、3: スコープ不足、4: アカウント・トークン未登録、5: 更新・ネットワーク・ストア障害。`exec` の起動失敗は 126/127。既存の一括 `auth check` の 0/1 は維持する。`megaton --version` でパッケージ版と読み込み元を確認できる。
 

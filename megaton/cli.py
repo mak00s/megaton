@@ -20,13 +20,25 @@ from .query import (
 )
 
 
+class _VersionAction(argparse.Action):
+    """Resolve the version only when asked, so uninstalled checkouts still run."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        from importlib.metadata import PackageNotFoundError, version
+        import megaton
+
+        try:
+            number = version("megaton")
+        except PackageNotFoundError:
+            number = "unknown (not installed)"
+        print(f"megaton {number}\n{megaton.__file__}")
+        parser.exit()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="megaton")
-    from importlib.metadata import version
-    import megaton
-
-    parser.add_argument("--version", action="version",
-                        version=f"megaton {version('megaton')}\n{megaton.__file__}")
+    parser.add_argument("--version", action=_VersionAction, nargs=0,
+                        help="Show the package version and import path, then exit")
     commands = parser.add_subparsers(dest="command", required=True)
     query = commands.add_parser("query", help="Execute an explicit GA4/GSC/BQ request")
     query.add_argument("--params", required=True, help="JSON request file; - for stdin")

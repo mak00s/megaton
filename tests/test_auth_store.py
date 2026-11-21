@@ -138,10 +138,12 @@ def test_refresh_failure_hints_login(home, monkeypatch):
 
     write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
     monkeypatch.setattr("google.oauth2.credentials.Credentials.refresh",
-                        lambda self, request: (_ for _ in ()).throw(RefreshError("invalid_grant")))
+                        lambda self, request: (_ for _ in ()).throw(
+                            RefreshError("invalid_grant: Token has been expired or revoked.", {"body": "x"})))
     with pytest.raises(CredentialStoreError) as exc:
         home.user_credentials("sim")
-    assert "refresh failed" in str(exc.value)
+    assert "refresh failed for sim@example.com (invalid_grant)" in str(exc.value)
+    assert "expired or revoked" not in str(exc.value)
     assert exc.value.exit_code == 5
     assert exc.value.hint.startswith("megaton auth login --account sim@example.com --scopes docs")
 
@@ -529,3 +531,22 @@ def test_refresh_error_details_are_not_disclosed(home, monkeypatch, capsys, fail
     assert not output.out
     assert "refresh failed" in output.err
     assert "check network" in output.err
+
+
+def test_refresh_network_failure_names_exception_type(home, monkeypatch):
+    from google.auth.exceptions import TransportError
+
+    write(home.user_token_path("sim@example.com"), token(expiry="2020-01-01T00:00:00Z"))
+    monkeypatch.setattr("google.oauth2.credentials.Credentials.refresh",
+                        lambda self, request: (_ for _ in ()).throw(TransportError("connection reset")))
+    with pytest.raises(CredentialStoreError) as exc:
+        home.user_credentials("sim")
+    assert "(TransportError)" in str(exc.value) and "connection reset" not in str(exc.value)
+
+
+def test_invalid_registry_reports_position(home):
+    home.registry_path.parent.mkdir(parents=True, exist_ok=True)
+    home.registry_path.write_text('[users.sim]\nemail = "unterminated\n')
+    with pytest.raises(CredentialStoreError) as exc:
+        home.registry()
+    assert "line 2" in str(exc.value)
