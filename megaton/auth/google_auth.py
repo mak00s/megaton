@@ -141,11 +141,45 @@ def load_credentials(file_path: str, scopes: list):
         return Credentials.from_authorized_user_file(cache_path, scopes=scopes)
 
 
+def _load_external_account_credentials(source, scopes: list, *, inline: bool = False):
+    """Load and refresh WIF now; never include provider response bodies in errors."""
+    stage = "load"
+    try:
+        loader = google.auth.load_credentials_from_dict if inline else google.auth.load_credentials_from_file
+        credentials, _ = loader(source, scopes=scopes)
+        stage = "refresh"
+        credentials.refresh(google.auth.transport.requests.Request())
+        return credentials
+    except (google.auth.exceptions.GoogleAuthError, OSError, ValueError) as exc:
+        reason = type(exc).__name__
+        # Only fixed error identifiers are safe to show. Responses may contain tokens.
+        reasons = {
+            "invalid_grant", "invalid_target", "invalid_scope", "invalid_request",
+            "unauthorized_client", "access_denied", "permission_denied",
+            "PERMISSION_DENIED", "UNAUTHENTICATED", "INVALID_ARGUMENT", "NOT_FOUND",
+        }
+        for detail in exc.args:
+            if isinstance(detail, dict):
+                code = detail.get("error")
+                if isinstance(code, dict):
+                    code = code.get("status")
+            elif isinstance(detail, str):
+                code = detail.removeprefix("Error code ").split(":", 1)[0].strip()
+            else:
+                continue
+            if isinstance(code, str) and code in reasons:
+                reason = code
+                break
+        raise google.auth.exceptions.RefreshError(
+            f"external_account {stage} failed ({reason}); check OIDC subject availability, "
+            "network, WIF audience/provider conditions, and target SA impersonation permissions"
+        ) from None
+
+
 def load_service_account_credentials_from_info(info: dict, scopes: list):
     """Load a trusted SA key or external-account configuration with explicit scopes."""
     if isinstance(info, dict) and info.get("type") == "external_account":
-        credentials, _ = google.auth.load_credentials_from_dict(info, scopes=scopes)
-        return credentials
+        return _load_external_account_credentials(info, scopes, inline=True)
     if not isinstance(info, dict) or info.get("type") != "service_account":
         raise ValueError("service_account info required")
     credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
@@ -209,8 +243,7 @@ def load_service_account_credentials_from_file(path: str, scopes: list):
     :return: Google credentials (service account or external account)
     """
     if get_credential_type_from_file(path) == "external_account":
-        credentials, _ = google.auth.load_credentials_from_file(path, scopes=scopes)
-        return credentials
+        return _load_external_account_credentials(path, scopes)
     credentials = service_account.Credentials.from_service_account_file(path, scopes=scopes)
     if not credentials.valid:
         request = google.auth.transport.requests.Request()

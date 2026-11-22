@@ -6,10 +6,15 @@ Changes since `1.0.0`. For `0.x` history see `docs/changelog-archive.md`.
 
 - Support keyless Workload Identity Federation (`external_account`) via explicit
   credential files/inline configs and `GOOGLE_APPLICATION_CREDENTIALS`. Required
-  scopes are passed to google-auth; legacy service-account key behavior is preserved.
+  scopes are passed to google-auth. Automatic ADC environment detection adopts only
+  readable external-account configs; other ADC files retain the 2.8.0 selection flow.
+  Explicit scopes apply to SA key files and inline configs too; omission restores
+  DEFAULT_SCOPES. WIF loads refresh immediately and report safe, actionable errors.
 - Support external credentials in the SA store and low-level gspread opener; resolve
   the target SA email from its impersonation URL, with a safe unknown fallback.
-  Ephemeral Actions configs never receive a key-import recommendation.
+  Ephemeral Actions configs never receive a key-import recommendation. Store listings
+  distinguish WIF with a text label and JSON credential_type. Unrecognized credential
+  warnings report their origin without exposing values.
 - Document GitHub Actions WIF setup, explicit scopes, and GA4/BigQuery/Sheets/Docs/Drive
   credential reuse. Service-account refresh logs no longer include raw error details.
 

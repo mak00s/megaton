@@ -155,9 +155,14 @@ jobs:
 ```
 
 `auth` が設定する `GOOGLE_APPLICATION_CREDENTIALS` は一時的な認証設定ファイルを指します。
+WIFは読み込み時にrefreshして認証を確認します。失敗時には処理段階と既知のエラーコード
+（または例外の種類）、OIDC・ネットワーク・WIF条件・成り代わり権限の確認を案内します。
+トークンやプロバイダーの応答本文はエラーに含めません。
 その後の同じjobのstepで使用します。`Megaton` の選択順は `account=` / `sa=`、
-明示した `credential`、`MEGATON_CREDS_JSON`、`GOOGLE_APPLICATION_CREDENTIALS`。
-選ばれた認証が失敗しても別の資格情報にはフォールバックしません。
+明示した `credential`、`MEGATON_CREDS_JSON`、`GOOGLE_APPLICATION_CREDENTIALS`（読める `external_account` ファイルの場合のみ）。
+ADC環境変数が鍵・ユーザートークン・読めないファイルを指す場合は2.8.0と同じく無視し、
+Colabの既定ディレクトリ／通常の選択導線を維持します。
+採用したWIF認証が失敗した場合は、別の資格情報にフォールバックしません。
 
 ```python
 # report.py: GA初期化を省き、Sheets/Drive用のスコープを指定
@@ -168,8 +173,9 @@ mg = Megaton(headless=True, initialize_ga=False,
 # 通常の mg.sheets / mg.sheet 操作で読み取る
 ```
 
-`external_account` 使用時の `Megaton(..., scopes=...)` には別名またはスコープURLを
-指定できます。省略時は従来の `DEFAULT_SCOPES`。GA4利用時は `analytics` 等、
+SA鍵（ファイル・インライン）と `external_account` の `Megaton(..., scopes=...)` には
+別名またはスコープURLを指定でき、実際の資格情報に適用します。
+省略時は従来の `DEFAULT_SCOPES` に戻ります。GA4利用時は `analytics` 等、
 BigQuery利用時は `cloud-platform` 等、その処理に必要なスコープを指定してください。
 通常の `mg.sheets` / `mg.sheet` は従来どおり `sheets,drive` スコープを要求します。
 読み取り専用スコープを指定する場合は、次の低レベルAPIを利用できます。
@@ -195,7 +201,9 @@ spreadsheet = open_spreadsheet(spreadsheet_id='<id>', credentials_path=path,
 単発クエリCLIの明示認証の契約は維持します。
 GA4/GSCでは `--credential "$GOOGLE_APPLICATION_CREDENTIALS"`、
 BigQueryでは同じ指定か `--adc` を使います。`sa=` の既存ファイル参照も
-`external_account` に対応しますが、Actionsの一時ファイルを `auth import --sa` で
+`external_account` に対応します。一覧のテキストでは `[WIF/external_account]`、
+JSONでは `credential_type: external_account` と表示し、通常の鍵と区別します。
+Actionsの一時ファイルを `auth import --sa` で
 永続コピーする運用にはしません（importは従来どおり鍵ファイル専用）。
 
 設定ファイルは信頼できるworkflowが生成したものだけを使ってください。

@@ -213,10 +213,12 @@ class ServiceAccountEntry:
     client_email: str = ""
     project_id: str = ""
     aliases: list[str] = field(default_factory=list)
+    credential_type: str = "service_account"
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
+            "credential_type": self.credential_type,
             "aliases": self.aliases,
             "path": str(self.path),
             "client_email": self.client_email,
@@ -600,6 +602,7 @@ class CredentialStore:
             entries.append(ServiceAccountEntry(
                 name=path.stem, path=path, client_email=extract_email_from_info(info) or "",
                 project_id=str(info.get("project_id", "")), aliases=alias_map.get(path.name, []),
+                credential_type=info["type"],
             ))
         return entries
 
@@ -632,11 +635,9 @@ class CredentialStore:
         expanded = expand_scopes(scopes)
         if not expanded:
             raise CredentialStoreError("service account scopes are required", hint="scopes=['sheets','drive']")
-        from .google_auth import get_credential_type_from_file
+        from .google_auth import get_credential_type_from_file, load_service_account_credentials_from_file
         if get_credential_type_from_file(str(path)) == "external_account":
-            import google.auth
-            credentials, _ = google.auth.load_credentials_from_file(str(path), scopes=expanded)
-            return credentials
+            return load_service_account_credentials_from_file(str(path), expanded)
         return service_account.Credentials.from_service_account_file(str(path), scopes=expanded)
 
     def import_service_account(self, path: str | Path, name: Optional[str] = None) -> ServiceAccountEntry:

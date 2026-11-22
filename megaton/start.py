@@ -322,9 +322,9 @@ class Megaton:
             credential,
             in_colab=self.in_colab,
         )
-        if source.credential_type == "external_account" and scopes is not None:
+        if source.credential_type in ("service_account", "external_account"):
             from .auth.store import expand_scopes
-            self.required_scopes = expand_scopes(scopes)
+            self.required_scopes = expand_scopes(scopes) if scopes is not None else constants.DEFAULT_SCOPES
         if source.kind == "inline" and source.info:
             ctype = source.credential_type or auth_google.get_credential_type_from_info(source.info)
             if ctype in ("service_account", "external_account"):
@@ -394,8 +394,7 @@ class Megaton:
                     suggest_store(source.value)
                 return
             if creds_type in ('service_account', 'external_account'):
-                file_scopes = self.required_scopes if creds_type == "external_account" else constants.DEFAULT_SCOPES
-                self.creds = auth_google.load_service_account_credentials_from_file(source.value, file_scopes)
+                self.creds = auth_google.load_service_account_credentials_from_file(source.value, self.required_scopes)
                 if not self.creds:
                     email = auth_provider.extract_email_from_file(source.value)
                     self._notify_invalid_service_account(email)
@@ -413,7 +412,8 @@ class Megaton:
 
         warning_value = source.value if source.value is not None else credential
         if warning_value:
-            logger.warning('指定した認証情報を解釈できません。認証ファイルの形式を確認してください。')
+            logger.warning('指定した認証情報を解釈できません (origin=%s)。認証ファイルの形式を確認してください。',
+                           source.origin)
 
     def _auth_from_store(self, *, account: Optional[str], sa: Optional[str], scopes: Optional[list]):
         """認証ストアから識別子で資格情報を取得する（account=ユーザー、sa=サービスアカウント）"""

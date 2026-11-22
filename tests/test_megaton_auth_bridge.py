@@ -74,10 +74,10 @@ def test_megaton_auth_bridge_service_account(monkeypatch):
     mg._reset_pending_oauth = lambda: None
     mg._notify_invalid_service_account = lambda email=None: None
 
-    mg.auth(credential="dummy")
+    mg.auth(credential="dummy", scopes=["docs"])
 
     assert calls["resolve"]["credential"] == "dummy"
     assert "load" in calls
     assert calls["load"]["info"]["type"] == "service_account"
-    assert calls["load"]["scopes"] == ("scope-a",)
+    assert calls["load"]["scopes"] == ("https://www.googleapis.com/auth/documents",)
     assert mg.creds is dummy_creds

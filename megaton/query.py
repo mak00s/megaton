@@ -215,9 +215,12 @@ def _bq_client(project_id: str, credential: str | None, adc: bool):
     from google.cloud import bigquery
 
     if credential:
-        credentials, _ = google.auth.load_credentials_from_file(
-            credential, scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        )
+        from .auth.google_auth import get_credential_type_from_file, load_service_account_credentials_from_file
+        scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+        if get_credential_type_from_file(credential) == "external_account":
+            credentials = load_service_account_credentials_from_file(credential, scopes)
+        else:
+            credentials, _ = google.auth.load_credentials_from_file(credential, scopes=scopes)
         from .auth.hints import suggest_store
         suggest_store(credential)
     elif adc:

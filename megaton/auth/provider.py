@@ -103,14 +103,17 @@ def resolve_credential_source(
         if env_val:
             origin = "env"
             value = env_val
-        elif os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-            origin = "adc_env"
-            value = os.environ["GOOGLE_APPLICATION_CREDENTIALS"]
-        elif in_colab:
-            origin = "colab_default"
-            value = colab_default
         else:
-            return CredentialSource(raw=None, origin="none", kind="none")
+            adc_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            adc_info, _ = load_json_file(adc_path) if adc_path else (None, None)
+            if adc_info and adc_info.get("type") == "external_account":
+                return CredentialSource(raw=None, origin="adc_env", kind="file", value=adc_path,
+                                        info=adc_info, credential_type="external_account")
+            if in_colab:
+                origin = "colab_default"
+                value = colab_default
+            else:
+                return CredentialSource(raw=None, origin="none", kind="none")
 
     if isinstance(value, dict):
         info = value

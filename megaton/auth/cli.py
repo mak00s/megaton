@@ -124,7 +124,8 @@ def _dispatch(store: CredentialStore, args: argparse.Namespace) -> int:
         print("service accounts:")
         for entry in sas or []:
             alias = f" ({', '.join(entry['aliases'])})" if entry["aliases"] else ""
-            print(f"  {entry['name']}{alias}: {entry['client_email']}")
+            kind = " [WIF/external_account]" if entry["credential_type"] == "external_account" else ""
+            print(f"  {entry['name']}{alias}{kind}: {entry['client_email'] or '不明'}")
         if not sas:
             print("  (none)  → megaton auth import --sa <key.json>")
         return 0
